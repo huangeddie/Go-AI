@@ -370,6 +370,10 @@ class TestGoEnv(unittest.TestCase):
     def test_done(self):
         state, reward, done, info = self.env.step((0, 0))
         self.assertFalse(done)
+        state, reward, done, info = self.env.step(None)
+        self.assertFalse(done)
+        state, reward, done, info = self.env.step(None)
+        self.assertTrue(done)
 
     def test_real_reward(self):
         pass
