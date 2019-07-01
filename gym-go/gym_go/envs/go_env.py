@@ -17,8 +17,8 @@ class GoEnv(gym.Env):
 
     def __init__(self, size='S', reward_method='heuristic'):
         '''
-        reward_method: either 'heuristic' or 'real', 'heuristic' gives
-            # your pieces - # oppo pieces. 'real' gives 0 for in-game
+        @param reward_method: either 'heuristic' or 'real', 'heuristic' 
+            gives # your pieces - # oppo pieces. 'real' gives 0 for in-game
             move, 1 for winning, -1 for losing, 0 for draw.
         '''
         # determine board size
@@ -28,12 +28,24 @@ class GoEnv(gym.Env):
             raise Exception('Board size should be one of {}'.format(list(BOARD_SIZES.keys())))
             
         # create board
-        # [Y, O, K, P][Row number][Column number]
+        # access: [Y, O, K, P][Row number][Column number]
         self.board = np.zeros((4, self.board_width, self.board_width), dtype=np.int)
         
+        self.reward_method = reward_method
         
+
+    def print_state(self):
+        print("Your pieces:")
+        print(self.board[0])
+        print("Opponent's pieces:")
+        print(self.board[1])
+        print("Ko-protection:")
+        print(self.board[2])
+        print("The opponent passed: {}".format(self.board[3][0][0]))
     
+
     def step(self, action):
+        ''' return observation, reward, done, info '''
         pass
     
     def reset(self):
