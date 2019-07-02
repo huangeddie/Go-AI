@@ -3,7 +3,7 @@ import gym
 import numpy as np
 import random
 
-class TestGoLogic(unittest.TestCase):
+class TestGoEnv(unittest.TestCase):
 
     def setUp(self) -> None:
         self.env = gym.make('gym_go:go-v0', size='S', reward_method='real')
@@ -14,6 +14,13 @@ class TestGoLogic(unittest.TestCase):
     def test_empty_board(self):
         state = self.env.reset()
         self.assertEqual(np.count_nonzero(state), 0)
+
+    def test_reset(self):
+        state, reward, done, info = self.env.step((0,0))
+        self.assertEqual(np.count_nonzero(state), 1)
+        state = self.env.reset()
+        self.assertEqual(np.count_nonzero(state), 0)
+
 
     def test_black_moves_first(self):
         """
@@ -178,7 +185,12 @@ class TestGoLogic(unittest.TestCase):
         """
 
         for move in [(0,1),(0,2),(1,0),(1,3),(2,1),(2,2),(1,2),(1,1)]:
-            self.env.step(move)
+            state, reward, done, info = self.env.step(move)
+
+        # Test ko protection channel
+        self.assertEqual(np.count_nonzero(state[2]), 1)
+        self.assertEqual(np.count_nonzero(state[2] == 1), 1)
+        self.assertEqual(state[2][1,2] == 1)
 
         final_move = (1,2)
         with self.assertRaises(Exception):
@@ -335,7 +347,7 @@ class TestGoLogic(unittest.TestCase):
         :return:
         """
         for move in [(1,1),(0,1),(1,2),(0,2),(1,3),(0,3),(1,4),(0,4),(1,5),(0,5),(2,5),(1,6),(3,5),(2,6),(3,4),(3,6),
-                     (3,3),(4,5),(2,3),(4,4),(3,2),(4,3),(3,1),(4,2),(2,1),(4,1),None,(0,3),None,(0,2),None,(0,1),None]:
+                     (3,3),(4,5),(2,3),(4,4),(3,2),(4,3),(3,1),(4,2),(2,1),(4,1),None,(3,0),None,(2,0),None,(1,0),None]:
             state, reward, done, info = self.env.step(move)
 
         final_move = (2,2)
@@ -356,30 +368,96 @@ class TestGoLogic(unittest.TestCase):
         state, reward, done, info = self.env.step(None)
         self.assertFalse(done)
 
-class TestGoEnv(unittest.TestCase):
-    def setUp(self) -> None:
-        self.env = gym.make('gym_go:go-v0')
-    def tearDown(self) -> None:
-        self.env.close()
-
     def test_state_type(self):
         env = gym.make('gym_go:go-v0')
         state = env.reset()
         self.assertIsInstance(state, np.ndarray)
 
+        env.close()
+
     def test_done(self):
         state, reward, done, info = self.env.step((0, 0))
         self.assertFalse(done)
+        state, reward, done, info = self.env.step(None)
+        self.assertFalse(done)
+        state, reward, done, info = self.env.step(None)
+        self.assertTrue(done)
 
     def test_real_reward(self):
-        pass
+        env = gym.make('gym_go:go-v0', reward_method='real')
+
+        # In game
+        state, reward, done, info = env.step((0,0))
+        self.assertEqual(reward, 0)
+        state, reward, done, info = env.step(None)
+        self.assertEqual(reward, 0)
+
+        # Win
+        state, reward, done, info = env.step(None)
+        self.assertEqual(reward, 1)
+
+        # Lose
+        env.reset()
+
+        state, reward, done, info = env.step(None)
+        self.assertEqual(reward, 0)
+        state, reward, done, info = env.step((0, 0))
+        self.assertEqual(reward, 0)
+        state, reward, done, info = env.step(None)
+        self.assertEqual(reward, 0)
+        state, reward, done, info = env.step(None)
+        self.assertEqual(reward, -1)
+
+        env.close()
 
     def test_heuristic_reward(self):
-        pass
+        env = gym.make('gym_go:go-v0', reward_method='heuristic')
+
+        # In game
+        state, reward, done, info = env.step((0, 0))
+        self.assertEqual(reward, 1)
+        state, reward, done, info = env.step((0, 1))
+        self.assertEqual(reward, 0)
+        state, reward, done, info = env.step(None)
+        self.assertEqual(reward, 0)
+        state, reward, done, info = env.step((0, 1))
+        self.assertEqual(reward, -1)
+
+        # Lose
+        state, reward, done, info = env.step(None)
+        self.assertEqual(reward, -1)
+        state, reward, done, info = env.step(None)
+        self.assertEqual(reward, -1)
+
+        # Win
+        env.reset()
+
+        state, reward, done, info = env.step((0, 0))
+        self.assertEqual(reward, 1)
+        state, reward, done, info = env.step(None)
+        self.assertEqual(reward, 1)
+        state, reward, done, info = env.step(None)
+        self.assertEqual(reward, 1)
+
+        env.close()
 
     def test_board_sizes(self):
-        pass
+        size_labels = ['S','M','L']
+        expected_sizes = [7, 13, 19]
 
+        for label, expec_size in zip(size_labels, expected_sizes):
+            env = gym.make('gym_go:go-v0', size=label)
+            state = env.reset()
+            self.assertEqual(state.shape[1], expec_size)
+            self.assertEqual(state.shape[2], expec_size)
+
+            env.close()
+
+    def test_invalid_env_arguments(self):
+        with self.assertRaises(Exception):
+            _ = gym.make('gym_go:go-v0', reward_method='foo')
+        with self.assertRaises(Exception):
+            _ = gym.make('gym_go:go-v0', size='bar')
 
         
 
