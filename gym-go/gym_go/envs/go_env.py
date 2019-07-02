@@ -4,6 +4,7 @@ from gym.utils import seeding
 from itertools import product
 import numpy as np
 from betago.dataloader.goboard import GoBoard
+import itertools
 
 # The side length of each board size
 BOARD_SIZES = {
@@ -191,7 +192,32 @@ class GoEnv(gym.Env):
         pass
     
     def render(self, mode='human'):
-        pass
-    
+        board_str = ' '
+
+        for i in range(self.board_width):
+            board_str += '   {}'.format(i)
+        board_str += '\n  '
+        board_str += '----' * self.board_width + '-'
+        board_str += '\n'
+        for i in range(self.board_width):
+            board_str += '{} |'.format(i)
+            for j in range(self.board_width):
+                if self.board_info[0][i,j] == 1:
+                    board_str += ' B'
+                elif self.board_info[1][i,j] == 1:
+                    board_str += ' W'
+                elif self.board_info[2][i,j] == 1:
+                    board_str += ' .'
+                else:
+                    board_str += '  '
+
+                board_str += ' |'
+
+            board_str += '\n  '
+            board_str += '----' * self.board_width + '-'
+            board_str += '\n'
+
+        print(board_str)
+
     def close(self):
         pass
