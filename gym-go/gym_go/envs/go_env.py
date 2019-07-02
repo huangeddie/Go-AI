@@ -1,6 +1,7 @@
 import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
+from itertools import product
 import numpy as np
 from betago.dataloader.goboard import GoBoard
 
@@ -96,6 +97,8 @@ class GoEnv(gym.Env):
         exception_prefix = 'Move {} is illegal: '.format(action)
 
         # sanity check for the move
+        if not self.is_move_within_bounds(action):
+            raise Exception(exception_prefix + 'out of board')
         if self.go_board.is_move_on_board(action):
             self.print_state()
             raise Exception(exception_prefix + 'there is already a piece at this location')
@@ -105,8 +108,6 @@ class GoEnv(gym.Env):
         if self.go_board.is_simple_ko(self.curr_player, action):
             self.print_state()
             raise Exception(exception_prefix + 'this location is a Ko')
-        if not self.is_move_within_bounds(action):
-            raise Exception(exception_prefix + 'out of board')
 
 
     def is_move_within_bounds(self, action):
@@ -143,7 +144,26 @@ class GoEnv(gym.Env):
             raise Exception('Unsupported reward method: {}'.format(self.reward_method))
 
     def get_area_reward(self):
-        pass
+        visited = np.zeros((self.board_width, self.board_width), dtype=np.bool)
+        black_area = 0
+        white_area = 0
+
+        for r, c in product(range(self.board_width), repeat=2):
+            # count pieces towards area
+            if (r, c) in self.go_board.board:
+                if self.go_board.board[(r, c)] == 'b':
+                    black_area += 1
+                else:
+                    white_area += 1
+
+            # do DFS on unvisited territory
+            if not visited[r, c]:
+                player, area = self.explore_territory((r, c))
+
+    
+    def explore_territory(self, location):
+        #TODO
+        return None, 0
         
 
     def update_board_info(self):
