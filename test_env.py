@@ -15,6 +15,13 @@ class TestGoEnv(unittest.TestCase):
         state = self.env.reset()
         self.assertEqual(np.count_nonzero(state), 0)
 
+    def test_reset(self):
+        state, reward, done, info = self.env.step((0,0))
+        self.assertEqual(np.count_nonzero(state), 1)
+        state = self.env.reset()
+        self.assertEqual(np.count_nonzero(state), 0)
+
+
     def test_black_moves_first(self):
         """
         Make a move at 0,0 and assert that a black piece was placed
