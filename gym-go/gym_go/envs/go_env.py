@@ -28,23 +28,11 @@ class GoEnv(gym.Env):
             self.board_width = BOARD_SIZES[size]
         except KeyError as e:
             raise Exception('Board size should be one of {}'.format(list(BOARD_SIZES.keys())))
-            
-        # create board
-        # access: [Black, White, Ko, Passed][Row number][Column number]
-        self.board_info = np.zeros((4, self.board_width, self.board_width), dtype=np.int)
-        
-        # use GoBoard from BetaGo for game status keeping 
-        self.go_board = GoBoard(self.board_width)
-        
+
         self.reward_method = reward_method
-
-        # black goes first
-        self.curr_player = 'b'
-
-        self.prev_player_passed = False
-
-        # whether the game is done
-        self.done = False
+            
+        # setup board
+        self.reset()
         
 
     def print_state(self):
@@ -175,6 +163,7 @@ class GoEnv(gym.Env):
 
         return black_area - white_area
     
+
     def explore_territory(self, location, visited):
         '''
         Return which player this territory belongs to. 'b', 'w', or None 
@@ -213,7 +202,7 @@ class GoEnv(gym.Env):
             possible_owner.append(player)
 
         # filter out None, and get unique players
-        possible_owner = list(filter(None, set([player, belong_to])))
+        possible_owner = list(filter(None, set(possible_owner)))
 
         # if all directions returned None, return None
         if len(possible_owner) == 0:
@@ -253,7 +242,27 @@ class GoEnv(gym.Env):
 
     
     def reset(self):
-        pass
+        '''
+        Reset board_info, go_board, curr_player, prev_player_passed,
+        done, return board_info
+        '''
+        # access: [Black, White, Ko, Passed][Row number][Column number]
+        self.board_info = np.zeros((4, self.board_width, self.board_width), dtype=np.int)
+        
+        # use GoBoard from BetaGo for game status keeping 
+        self.go_board = GoBoard(self.board_width)
+        
+
+        # black goes first
+        self.curr_player = 'b'
+
+        self.prev_player_passed = False
+
+        # whether the game is done
+        self.done = False
+
+        return self.board_info
+
     
     def render(self, mode='human'):
         board_str = ' '
