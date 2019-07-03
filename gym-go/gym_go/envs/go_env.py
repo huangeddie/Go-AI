@@ -59,7 +59,7 @@ class GoEnv(gym.Env):
 
     def step(self, action):
         ''' 
-        Assumes the correct player is making a move. First is black.
+        Assumes the correct player is making a move. Black goes first.
         return observation, reward, done, info 
         '''
         
@@ -98,7 +98,7 @@ class GoEnv(gym.Env):
         exception_prefix = 'Move {} is illegal: '.format(action)
 
         # sanity check for the move
-        if not self.is_move_within_bounds(action):
+        if not self.is_within_bounds(action):
             raise Exception(exception_prefix + 'out of board')
         if self.go_board.is_move_on_board(action):
             self.print_state()
@@ -111,7 +111,7 @@ class GoEnv(gym.Env):
             raise Exception(exception_prefix + 'this location is a Ko')
 
 
-    def is_move_within_bounds(self, action):
+    def is_within_bounds(self, action):
         return action[0] >= 0 and action[0] < self.board_width \
             and action[1] >= 0 and action[1] < self.board_width
 
@@ -123,7 +123,7 @@ class GoEnv(gym.Env):
         real: 0 for in-game move, 1 for winning, -1 for losing, 
             0 for draw, from black player's perspective.
             Winning and losing based on the Area rule
-        Win definition: https://en.wikipedia.org/wiki/Rules_of_Go#End
+        Area rule definition: https://en.wikipedia.org/wiki/Rules_of_Go#End
         '''
         if self.reward_method == 'real':
             if self.done:
@@ -144,11 +144,17 @@ class GoEnv(gym.Env):
         else:
             raise Exception('Unsupported reward method: {}'.format(self.reward_method))
 
+
     def get_area_reward(self):
+        '''
+        Return (black territory + pieces) - (white territory + pieces)
+        Use DFS helper to find territory.
+        '''
         visited = np.zeros((self.board_width, self.board_width), dtype=np.bool)
         black_area = 0
         white_area = 0
 
+        # loop through each intersection on board
         for r, c in product(range(self.board_width), repeat=2):
             # count pieces towards area
             if (r, c) in self.go_board.board:
@@ -159,12 +165,70 @@ class GoEnv(gym.Env):
 
             # do DFS on unvisited territory
             if not visited[r, c]:
-                player, area = self.explore_territory((r, c))
+                player, area = self.explore_territory((r, c), visited)
 
+                # add area to corresponding player
+                if player == 'b':
+                    black_area += area
+                elif player == 'w':
+                    white_area += area
+
+        return black_area - white_area
     
-    def explore_territory(self, location):
-        #TODO
-        return None, 0
+    def explore_territory(self, location, visited):
+        '''
+        Return which player this territory belongs to. 'b', 'w', or None 
+        if it hasn't been "claimed", 'n' if it is next to both (stands 
+        for neither).  Will visit all empty intersections connected to 
+        the initial location.
+        '''
+        r, c = location
+
+        # base case: edge of the board, or already visited
+        if not self.is_within_bounds(location) or \
+            visited[r, c]:
+                return None, 0
+        # base case: this is a piece
+        if location in self.go_board.board:
+            return self.go_board.board[location], 0
+
+        # mark this as visited
+        visited[r, c] = True
+        teri_size = 0
+        possible_owner = []
+        
+        drs = [-1, 0, 1, 0]
+        dcs = [0, 1, 0, -1]
+
+        # explore in all directions
+        for i in range(len(drs)):
+            dr = drs[i]
+            dc = dcs[i]
+            
+            # get the expanded area and player that it belongs to
+            player, area = self.explore_territory((r + dr, c + dc), visited)
+            
+            # add area to territory size, player to a list
+            teri_size += area
+            possible_owner.append(player)
+
+        # filter out None, and get unique players
+        possible_owner = list(filter(None, set([player, belong_to])))
+
+        # if all directions returned None, return None
+        if len(possible_owner) == 0:
+            belong_to = None
+
+        # if all directions returned the same player (could be 'n')
+        # then return this player
+        elif len(possible_owner) == 1:
+            belong_to = possible_owner[0]
+
+        # if multiple players are returned, return 'n' (neither)
+        else:
+            belong_to = 'n'
+
+        return belong_to, teri_size
         
 
     def update_board_info(self):
