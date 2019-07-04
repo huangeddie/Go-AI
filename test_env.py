@@ -157,8 +157,8 @@ class TestGoEnv(unittest.TestCase):
         # Test this 8 times at random
         for _ in range(8):
             self.env.reset()
-            row = random.randint(0, 7)
-            col = random.randint(0, 7)
+            row = random.randint(0, 6)
+            col = random.randint(0, 6)
 
             _ = self.env.step((row, col))
 
@@ -317,7 +317,7 @@ class TestGoEnv(unittest.TestCase):
         :return:
         """
 
-        for move in [(0,0),(0,2),(0,1),(1,2),(1,1),(2,1),(0,1),(0,2)]:
+        for move in [(0,0),(0,2),(0,1),(1,2),(1,1),(2,1),(1,0),(2,0)]:
             state, reward, done, info = self.env.step(move)
 
         # Black should have no pieces
@@ -411,33 +411,33 @@ class TestGoEnv(unittest.TestCase):
         env.close()
 
     def test_heuristic_reward(self):
-        env = gym.make('gym_go:go-v0', reward_method='heuristic')
+        env = gym.make('gym_go:go-v0', size='S',reward_method='heuristic')
 
         # In game
         state, reward, done, info = env.step((0, 0))
-        self.assertEqual(reward, 1)
+        self.assertEqual(reward, 49)
         state, reward, done, info = env.step((0, 1))
         self.assertEqual(reward, 0)
         state, reward, done, info = env.step(None)
         self.assertEqual(reward, 0)
-        state, reward, done, info = env.step((0, 1))
-        self.assertEqual(reward, -1)
+        state, reward, done, info = env.step((1, 0))
+        self.assertEqual(reward, -49)
 
         # Lose
         state, reward, done, info = env.step(None)
-        self.assertEqual(reward, -1)
+        self.assertEqual(reward, -49)
         state, reward, done, info = env.step(None)
-        self.assertEqual(reward, -1)
+        self.assertEqual(reward, -49)
 
         # Win
         env.reset()
 
         state, reward, done, info = env.step((0, 0))
-        self.assertEqual(reward, 1)
+        self.assertEqual(reward, 49)
         state, reward, done, info = env.step(None)
-        self.assertEqual(reward, 1)
+        self.assertEqual(reward, 49)
         state, reward, done, info = env.step(None)
-        self.assertEqual(reward, 1)
+        self.assertEqual(reward, 49)
 
         env.close()
 
