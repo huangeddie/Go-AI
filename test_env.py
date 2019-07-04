@@ -123,6 +123,10 @@ class TestGoEnv(unittest.TestCase):
         state, reward, done, info = self.env.step(None)
         # Expect empty board still
         self.assertEqual(np.count_nonzero(state), 0)
+        # Expect passing layer channel to be all ones
+        self.assertEqual(np.count_nonzero(state), 49)
+        self.assertEqual(np.count_nonzero(state[3]), 49)
+        self.assertEqual(np.count_nonzero(state[3] == 1), 49)
 
         self.assertIn('turn', info)
         self.assertEqual(info['turn'], 'white')
@@ -368,10 +372,11 @@ class TestGoEnv(unittest.TestCase):
         state, reward, done, info = self.env.step(None)
         self.assertFalse(done)
 
-    def test_state_type(self):
+    def test_state(self):
         env = gym.make('gym_go:go-v0')
         state = env.reset()
         self.assertIsInstance(state, np.ndarray)
+        self.assertEqual(state.shape[3], 4)
 
         env.close()
 
