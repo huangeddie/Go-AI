@@ -13,6 +13,9 @@ BOARD_SIZES = {
     'L': 19,
 }
 
+REWARD_METHODS = [ 'real', 'heuristic' ]
+
+
 class GoEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
@@ -29,6 +32,9 @@ class GoEnv(gym.Env):
         except KeyError as e:
             raise Exception('Board size should be one of {}'.format(list(BOARD_SIZES.keys())))
 
+        # check that reward_method is valid
+        if reward_method not in REWARD_METHODS:
+            raise Exception('Unsupported reward method: {}'.format(self.reward_method))
         self.reward_method = reward_method
             
         # setup board
@@ -50,7 +56,13 @@ class GoEnv(gym.Env):
         Assumes the correct player is making a move. Black goes first.
         return observation, reward, done, info 
         '''
-        
+        # check if game is already over
+        if self.done:
+            raise Exception('Attempt to step at {} after game is over'.format(action))
+
+        # clear cached results from last turn
+        self.cache.clear()
+
         # update whether previous player have passed
         self.board_info[3].fill(int(self.prev_player_passed))
 
@@ -69,13 +81,29 @@ class GoEnv(gym.Env):
             self.go_board.apply_move(self.curr_player, action)
             self.update_board_info()
 
-            # switch player for the next round
-            self.curr_player = self.go_board.other_color(self.curr_player)
+        # switch player for the next round
+        self.curr_player = self.go_board.other_color(self.curr_player)
 
         # store whether this player passed
         self.prev_player_passed = action is None
 
-        return self.board_info, self.get_reward(), self.done, None
+        return self.board_info, self.get_reward(), self.done, self.get_info()
+
+    def get_info(self):
+        '''
+        :return: {
+            turn: 'b' or 'w'
+            area: { 'w': white_area, 'b': black_area }
+        }
+        '''
+        black_area, white_area = self.get_areas()
+        return {
+            'turn': self.curr_player,
+            'area': {
+                'w': white_area,
+                'b': black_area,
+            }
+        }
 
 
     def check_legal_move(self, action):
@@ -87,7 +115,7 @@ class GoEnv(gym.Env):
 
         # sanity check for the move
         if not self.is_within_bounds(action):
-            raise Exception(exception_prefix + 'out of board')
+            raise Exception(exception_prefix + 'out of bounds')
         if self.go_board.is_move_on_board(action):
             self.print_state()
             raise Exception(exception_prefix + 'there is already a piece at this location')
@@ -129,15 +157,24 @@ class GoEnv(gym.Env):
         elif self.reward_method == 'heuristic':
             return self.get_area_reward()
 
-        else:
-            raise Exception('Unsupported reward method: {}'.format(self.reward_method))
-
 
     def get_area_reward(self):
         '''
-        Return (black territory + pieces) - (white territory + pieces)
+        Return black area - white area
+        '''
+        black_area, white_area = self.get_areas()
+        return black_area - white_area
+
+
+    def get_areas(self):
+        '''
+        First check the cache
+        Return black area, white area
         Use DFS helper to find territory.
         '''
+        if 'black_area' in self.cache and 'white_area' in self.cache:
+            return self.cache['black_area'], self.cache['white_area']
+
         visited = np.zeros((self.board_width, self.board_width), dtype=np.bool)
         black_area = 0
         white_area = 0
@@ -152,7 +189,7 @@ class GoEnv(gym.Env):
                     white_area += 1
 
             # do DFS on unvisited territory
-            if not visited[r, c]:
+            elif not visited[r, c]:
                 player, area = self.explore_territory((r, c), visited)
 
                 # add area to corresponding player
@@ -161,7 +198,10 @@ class GoEnv(gym.Env):
                 elif player == 'w':
                     white_area += area
 
-        return black_area - white_area
+        self.cache['black_area'] = black_area
+        self.cache['white_area'] = white_area
+
+        return black_area, white_area
     
 
     def explore_territory(self, location, visited):
@@ -183,7 +223,7 @@ class GoEnv(gym.Env):
 
         # mark this as visited
         visited[r, c] = True
-        teri_size = 0
+        teri_size = 1
         possible_owner = []
         
         drs = [-1, 0, 1, 0]
@@ -235,12 +275,14 @@ class GoEnv(gym.Env):
                 self.board_info[1, move[0], move[1]] = 1
 
         # update Ko protection
-        for r in range(self.board_width):
-            for c in range(self.board_width):
-                if self.go_board.is_simple_ko(self.curr_player, (r, c)):
+        other_player = self.go_board.other_color(self.curr_player)
+
+        for r, c in product(range(self.board_width), repeat=2):
+            if (r, c) not in self.go_board.board and \
+                self.go_board.is_simple_ko(other_player, (r, c)):
                     self.board_info[2, r, c] = 1
 
-    
+
     def reset(self):
         '''
         Reset board_info, go_board, curr_player, prev_player_passed,
@@ -260,6 +302,9 @@ class GoEnv(gym.Env):
 
         # whether the game is done
         self.done = False
+
+        # create cache
+        self.cache = {}
 
         return self.board_info
 
