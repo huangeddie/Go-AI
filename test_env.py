@@ -131,6 +131,15 @@ class TestGoEnv(unittest.TestCase):
         self.assertIn('turn', info)
         self.assertEqual(info['turn'], 'white')
 
+        # Make a move
+        state, reward, done, info = self.env.step((0,0))
+
+        # Expect the passing layer channel to be empty
+        self.assertEqual(np.count_nonzero(state), 1)
+        self.assertEqual(np.count_nonzero(state[1]), 1)
+        self.assertEqual(np.count_nonzero(state[1] == 1), 1)
+        self.assertEqual(np.count_nonzero(state[3]), 0)
+
         # Pass on second move
         self.env.reset()
         state, reward, done, info = self.env.step((0,0))
