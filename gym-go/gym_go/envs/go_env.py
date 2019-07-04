@@ -63,9 +63,6 @@ class GoEnv(gym.Env):
         # clear cached results from last turn
         self.cache.clear()
 
-        # update whether previous player have passed
-        self.board_info[3].fill(int(self.prev_player_passed))
-
         # if the current player passes
         if action is None:
             # if two consecutive passes, game is over
@@ -77,9 +74,11 @@ class GoEnv(gym.Env):
             # make sure the move is legal
             self.check_legal_move(action)
 
-            # make the move and extract board info
-            self.go_board.apply_move(self.curr_player, action)
-            self.update_board_info()
+            # make the move
+            self.update_board(action)
+
+        # update whether this player have passed
+        self.board_info[3].fill(int(action is None))
 
         # switch player for the next round
         self.curr_player = self.go_board.other_color(self.curr_player)
@@ -260,10 +259,13 @@ class GoEnv(gym.Env):
         return belong_to, teri_size
         
 
-    def update_board_info(self):
+    def update_board(self, action):
         '''
-        Update Black, white, Ko
+        Make the move and update board_info
         '''
+        # apply move to the board
+        self.go_board.apply_move(self.curr_player, action)
+
         # reset board info
         self.board_info.fill(0)
 
