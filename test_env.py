@@ -29,7 +29,7 @@ class TestGoEnv(unittest.TestCase):
         """
         next_state, reward, done, info = self.env.step((0,0))
         self.assertEqual(next_state[0][0, 0], 1)
-        self.assertEqual(next_state[1][0, 0], 1)
+        self.assertEqual(next_state[1][0, 0], 0)
 
     def test_simple_valid_moves(self):
         """
@@ -98,8 +98,8 @@ class TestGoEnv(unittest.TestCase):
         for move in [(0,1),(0,2),(1,0),(1,3),(2,1),(2,2),(1,2),(1,1)]:
             state, reward, done, info = self.env.step(move)
 
-        # Black should have no pieces
-        self.assertEqual(np.count_nonzero(state[0]), 0)
+        # Black should have 3 pieces
+        self.assertEqual(np.count_nonzero(state[0]), 3)
 
         # White should have 4 pieces
         self.assertEqual(np.count_nonzero(state[1]), 4)
@@ -111,7 +111,7 @@ class TestGoEnv(unittest.TestCase):
             # For the first move at i == 0, black went so now it should be white's turn
             state, reward, done, info = self.env.step((i, 0))
             self.assertIn('turn', info)
-            self.assertEqual(info['turn'], 'white' if i % 2 == 0 else 'black')
+            self.assertEqual(info['turn'], 'w' if i % 2 == 0 else 'b')
 
     def test_passing(self):
         """
@@ -122,14 +122,14 @@ class TestGoEnv(unittest.TestCase):
         # Pass on first move
         state, reward, done, info = self.env.step(None)
         # Expect empty board still
-        self.assertEqual(np.count_nonzero(state), 0)
+        self.assertEqual(np.count_nonzero(state[:3]), 0)
         # Expect passing layer channel to be all ones
         self.assertEqual(np.count_nonzero(state), 49)
         self.assertEqual(np.count_nonzero(state[3]), 49)
         self.assertEqual(np.count_nonzero(state[3] == 1), 49)
 
         self.assertIn('turn', info)
-        self.assertEqual(info['turn'], 'white')
+        self.assertEqual(info['turn'], 'w')
 
         # Make a move
         state, reward, done, info = self.env.step((0,0))
@@ -146,14 +146,14 @@ class TestGoEnv(unittest.TestCase):
         # Expect one piece
         self.assertEqual(np.count_nonzero(state), 1)
         self.assertIn('turn', info)
-        self.assertEqual(info['turn'], 'white')
+        self.assertEqual(info['turn'], 'w')
 
         # Pass
         state, reward, done, info = self.env.step(None)
         # Expect one piece
-        self.assertEqual(np.count_nonzero(state), 1)
+        self.assertEqual(np.count_nonzero(state[:3]), 1)
         self.assertIn('turn', info)
-        self.assertEqual(info['turn'], 'black')
+        self.assertEqual(info['turn'], 'b')
 
     def test_incorrect_action_format(self):
         with self.assertRaises(Exception):
@@ -203,7 +203,7 @@ class TestGoEnv(unittest.TestCase):
         # Test ko protection channel
         self.assertEqual(np.count_nonzero(state[2]), 1)
         self.assertEqual(np.count_nonzero(state[2] == 1), 1)
-        self.assertEqual(state[2][1,2] == 1)
+        self.assertEqual(state[2][1,2], 1)
 
         final_move = (1,2)
         with self.assertRaises(Exception):
@@ -227,7 +227,7 @@ class TestGoEnv(unittest.TestCase):
 
         :return:
         """
-        for move in [(0,1),(0,2),(1,0),(1,3),(2,1),(2,2),(1,2)]:
+        for move in [(0,1),(0,2),(1,0),(1,4),(2,1),(2,2),(1,2)]:
             self.env.step(move)
 
         final_move = (1,1)
@@ -385,7 +385,7 @@ class TestGoEnv(unittest.TestCase):
         env = gym.make('gym_go:go-v0')
         state = env.reset()
         self.assertIsInstance(state, np.ndarray)
-        self.assertEqual(state.shape[3], 4)
+        self.assertEqual(state.shape[0], 4)
 
         env.close()
 
