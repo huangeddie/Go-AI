@@ -17,7 +17,7 @@ class TestGoEnv(unittest.TestCase):
 
     def test_reset(self):
         state, reward, done, info = self.env.step((0,0))
-        self.assertEqual(np.count_nonzero(state), 1)
+        self.assertEqual(np.count_nonzero(state), 2)
         state = self.env.reset()
         self.assertEqual(np.count_nonzero(state), 0)
 
@@ -135,7 +135,7 @@ class TestGoEnv(unittest.TestCase):
         state, reward, done, info = self.env.step((0,0))
 
         # Expect the passing layer channel to be empty
-        self.assertEqual(np.count_nonzero(state), 1)
+        self.assertEqual(np.count_nonzero(state), 2)
         self.assertEqual(np.count_nonzero(state[1]), 1)
         self.assertEqual(np.count_nonzero(state[1] == 1), 1)
         self.assertEqual(np.count_nonzero(state[3]), 0)
@@ -143,15 +143,15 @@ class TestGoEnv(unittest.TestCase):
         # Pass on second move
         self.env.reset()
         state, reward, done, info = self.env.step((0,0))
-        # Expect one piece
-        self.assertEqual(np.count_nonzero(state), 1)
+        # Expect two pieces (one in the invalid channel)
+        self.assertEqual(np.count_nonzero(state), 2)
         self.assertIn('turn', info)
         self.assertEqual(info['turn'], 'w')
 
         # Pass
         state, reward, done, info = self.env.step(None)
-        # Expect one piece
-        self.assertEqual(np.count_nonzero(state[:3]), 1)
+        # Expect two pieces (one in the invalid channel)
+        self.assertEqual(np.count_nonzero(state[:3]), 2)
         self.assertIn('turn', info)
         self.assertEqual(info['turn'], 'b')
 
@@ -218,6 +218,13 @@ class TestGoEnv(unittest.TestCase):
         with self.assertRaises(Exception):
             self.env.step(final_move)
 
+        # Assert ko-protection goes off
+        state, reward, done, info = self.env.step(None)
+        state, reward, done, info = self.env.step(None)
+        self.assertEqual(np.count_nonzero(state[2]), 7)
+        self.assertEqual(np.count_nonzero(state[2] == 1), 7)
+        self.assertEqual(state[2][1, 2], 0)
+
     def test_invalid_no_liberty_move(self):
         """
         _,   1,   2,   _,   _,   _,   _,
@@ -237,7 +244,15 @@ class TestGoEnv(unittest.TestCase):
         :return:
         """
         for move in [(0,1),(0,2),(1,0),(1,4),(2,1),(2,2),(1,2)]:
-            self.env.step(move)
+            state, reward, done, info = self.env.step(move)
+
+        # Test invalid channel
+        self.assertEqual(np.count_nonzero(state[2]), 8)
+        self.assertEqual(np.count_nonzero(state[2] == 1), 8)
+        self.assertEqual(state[2][1,1], 1)
+        # Assert empty space in pieces channels
+        self.assertEqual(state[0][1, 1], 0)
+        self.assertEqual(state[1][1, 1], 0)
 
         final_move = (1,1)
         with self.assertRaises(Exception):
