@@ -247,12 +247,15 @@ class TestGoEnv(unittest.TestCase):
             state, reward, done, info = self.env.step(move)
 
         # Test invalid channel
-        self.assertEqual(np.count_nonzero(state[2]), 8)
-        self.assertEqual(np.count_nonzero(state[2] == 1), 8)
-        self.assertEqual(state[2][1,1], 1)
+        self.assertEqual(np.count_nonzero(state[2]), 9)
+        self.assertEqual(np.count_nonzero(state[2] == 1), 9)
+        self.assertEqual(state[2][1, 1], 1)
+        self.assertEqual(state[2][0, 0], 1)
         # Assert empty space in pieces channels
         self.assertEqual(state[0][1, 1], 0)
         self.assertEqual(state[1][1, 1], 0)
+        self.assertEqual(state[0][0, 0], 0)
+        self.assertEqual(state[1][0, 0], 0)
 
         final_move = (1,1)
         with self.assertRaises(Exception):
