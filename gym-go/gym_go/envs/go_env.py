@@ -89,7 +89,11 @@ class GoEnv(gym.Env):
         # store whether this player passed
         self.prev_player_passed = action is None
 
-        return self.board_info, self.get_reward(), self.done, self.get_info()
+        # get the return result and clear cache
+        ret = self.board_info, self.get_reward(), self.done, self.get_info()
+        self.cache.clear()
+
+        return ret
 
     def get_info(self):
         '''
