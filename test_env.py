@@ -244,7 +244,15 @@ class TestGoEnv(unittest.TestCase):
         :return:
         """
         for move in [(0,1),(0,2),(1,0),(1,4),(2,1),(2,2),(1,2)]:
-            self.env.step(move)
+            state, reward, done, info = self.env.step(move)
+
+        # Test invalid channel
+        self.assertEqual(np.count_nonzero(state[2]), 8)
+        self.assertEqual(np.count_nonzero(state[2] == 1), 8)
+        self.assertEqual(state[2][1,1], 1)
+        # Assert empty space in pieces channels
+        self.assertEqual(state[0][1, 1], 0)
+        self.assertEqual(state[1][1, 1], 0)
 
         final_move = (1,1)
         with self.assertRaises(Exception):
