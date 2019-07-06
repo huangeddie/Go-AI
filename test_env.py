@@ -219,10 +219,10 @@ class TestGoEnv(unittest.TestCase):
             self.env.step(final_move)
 
         # Assert ko-protection goes off
+        state, reward, done, info = self.env.step((6,6))
         state, reward, done, info = self.env.step(None)
-        state, reward, done, info = self.env.step(None)
-        self.assertEqual(np.count_nonzero(state[2]), 7)
-        self.assertEqual(np.count_nonzero(state[2] == 1), 7)
+        self.assertEqual(np.count_nonzero(state[2]), 8)
+        self.assertEqual(np.count_nonzero(state[2] == 1), 8)
         self.assertEqual(state[2][1, 2], 0)
 
     def test_invalid_no_liberty_move(self):
