@@ -46,7 +46,7 @@ class GoEnv(gym.Env):
         print(self.board_info[0])
         print("Opponent's pieces (white):")
         print(self.board_info[1])
-        print("Ko-protection:")
+        print("Illegal moves:")
         print(self.board_info[2])
         print("The opponent passed: {}".format(self.board_info[3][0][0]))
     
@@ -72,7 +72,10 @@ class GoEnv(gym.Env):
         # the current player makes a move
         else:
             # make sure the move is legal
-            self.check_legal_move(action)
+            illegal_reason = self.illegal_move_reason(action)
+            if illegal_reason is not None:
+                self.print_state()
+                raise Exception(illegal_reason)
 
             # make the move
             self.update_board(action)
@@ -105,25 +108,26 @@ class GoEnv(gym.Env):
         }
 
 
-    def check_legal_move(self, action):
+    def illegal_move_reason(self, action):
         '''
         Check: piece already on board, move is suicide, move is on ko
             move is out of board.
         '''
-        exception_prefix = 'Move {} is illegal: '.format(action)
+        illegal_reason = 'Move {} is illegal: '.format(action)
 
         # sanity check for the move
         if not self.is_within_bounds(action):
-            raise Exception(exception_prefix + 'out of bounds')
-        if self.go_board.is_move_on_board(action):
-            self.print_state()
-            raise Exception(exception_prefix + 'there is already a piece at this location')
-        if self.go_board.is_move_suicide(self.curr_player, action):
-            self.print_state()
-            raise Exception(exception_prefix + 'this move is suicide')
-        if self.go_board.is_simple_ko(self.curr_player, action):
-            self.print_state()
-            raise Exception(exception_prefix + 'this location is a Ko')
+            illegal_reason += 'out of bounds'
+        elif self.go_board.is_move_on_board(action):
+            illegal_reason += 'there is already a piece at this location'
+        elif self.go_board.is_move_suicide(self.curr_player, action):
+            illegal_reason += 'this move is suicide'
+        elif self.go_board.is_simple_ko(self.curr_player, action):
+            illegal_reason += 'this location is a Ko'
+        else:
+            return None
+
+        return illegal_reason
 
 
     def is_within_bounds(self, action):
@@ -276,13 +280,12 @@ class GoEnv(gym.Env):
             elif player == 'w':
                 self.board_info[1, move[0], move[1]] = 1
 
-        # update Ko protection
+        # update illegal move
         other_player = self.go_board.other_color(self.curr_player)
 
         for r, c in product(range(self.board_width), repeat=2):
-            if (r, c) not in self.go_board.board and \
-                self.go_board.is_simple_ko(other_player, (r, c)):
-                    self.board_info[2, r, c] = 1
+            if self.illegal_move_reason((r, c)) is not None:
+                self.board_info[2, r, c] = 1
 
 
     def reset(self):
@@ -290,7 +293,7 @@ class GoEnv(gym.Env):
         Reset board_info, go_board, curr_player, prev_player_passed,
         done, return board_info
         '''
-        # access: [Black, White, Ko, Passed][Row number][Column number]
+        # access: [Black, White, illegal, Passed][Row number][Column number]
         self.board_info = np.zeros((4, self.board_width, self.board_width), dtype=np.int)
         
         # use GoBoard from BetaGo for game status keeping 
