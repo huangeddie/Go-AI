@@ -173,7 +173,12 @@ class TestGoEnv(unittest.TestCase):
             row = random.randint(0, 6)
             col = random.randint(0, 6)
 
-            _ = self.env.step((row, col))
+            state, reward, done, info = self.env.step((row, col))
+
+            # Assert that the invalid layer is correct
+            self.assertEqual(np.count_nonzero(state[2]), 1)
+            self.assertEqual(np.count_nonzero(state[2] == 1), 1)
+            self.assertEqual(state[2][row, col], 1)
 
             with self.assertRaises(Exception):
                 self.env.step((row, col))
@@ -200,10 +205,14 @@ class TestGoEnv(unittest.TestCase):
         for move in [(0,1),(0,2),(1,0),(1,3),(2,1),(2,2),(1,2),(1,1)]:
             state, reward, done, info = self.env.step(move)
 
-        # Test ko protection channel
-        self.assertEqual(np.count_nonzero(state[2]), 1)
-        self.assertEqual(np.count_nonzero(state[2] == 1), 1)
-        self.assertEqual(state[2][1,2], 1)
+        # Test invalid channel
+        self.assertEqual(np.count_nonzero(state[2]), 8)
+        self.assertEqual(np.count_nonzero(state[2] == 1), 8)
+        self.assertEqual(state[2][1, 2], 1)
+
+        # Assert pieces channel is empty at ko-protection coordinate
+        self.assertEqual(state[0][1, 2], 0)
+        self.assertEqual(state[1][1, 2], 0)
 
         final_move = (1,2)
         with self.assertRaises(Exception):
