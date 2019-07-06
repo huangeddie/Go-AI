@@ -72,7 +72,7 @@ class GoEnv(gym.Env):
         # the current player makes a move
         else:
             # make sure the move is legal
-            illegal_reason = self.illegal_move_reason(action)
+            illegal_reason = self.illegal_move_reason(action, self.curr_player)
             if illegal_reason is not None:
                 self.print_state()
                 raise Exception(illegal_reason)
@@ -108,7 +108,7 @@ class GoEnv(gym.Env):
         }
 
 
-    def illegal_move_reason(self, action):
+    def illegal_move_reason(self, action, player):
         '''
         Check: piece already on board, move is suicide, move is on ko
             move is out of board.
@@ -120,9 +120,9 @@ class GoEnv(gym.Env):
             illegal_reason += 'out of bounds'
         elif self.go_board.is_move_on_board(action):
             illegal_reason += 'there is already a piece at this location'
-        elif self.go_board.is_move_suicide(self.curr_player, action):
+        elif self.go_board.is_move_suicide(player, action):
             illegal_reason += 'this move is suicide'
-        elif self.go_board.is_simple_ko(self.curr_player, action):
+        elif self.go_board.is_simple_ko(player, action):
             illegal_reason += 'this location is a Ko'
         else:
             return None
@@ -282,9 +282,8 @@ class GoEnv(gym.Env):
 
         # update illegal move
         other_player = self.go_board.other_color(self.curr_player)
-
         for r, c in product(range(self.board_width), repeat=2):
-            if self.illegal_move_reason((r, c)) is not None:
+            if self.illegal_move_reason((r, c), player=other_player) is not None:
                 self.board_info[2, r, c] = 1
 
 
