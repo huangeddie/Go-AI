@@ -42,6 +42,7 @@ class GoEnv(gym.Env):
         
 
     def print_state(self):
+        print("Turn: {}".format(self.curr_player))
         print("Your pieces (black):")
         print(self.board_info[0])
         print("Opponent's pieces (white):")
@@ -77,8 +78,8 @@ class GoEnv(gym.Env):
                 self.print_state()
                 raise Exception(illegal_reason)
 
-            # make the move
-            self.update_board(action)
+        # make the move
+        self.update_board(action)
 
         # update whether this player have passed
         self.board_info[3].fill(int(action is None))
@@ -271,8 +272,9 @@ class GoEnv(gym.Env):
         '''
         Make the move and update board_info
         '''
-        # apply move to the board
-        self.go_board.apply_move(self.curr_player, action)
+        if action is not None:
+            # apply move to the board
+            self.go_board.apply_move(self.curr_player, action)
 
         # reset board info
         self.board_info.fill(0)
