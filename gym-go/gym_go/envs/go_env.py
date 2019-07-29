@@ -91,7 +91,7 @@ class GoEnv(gym.Env):
         self.prev_player_passed = action is None
 
         # get the return result and clear cache
-        ret = self.board_info, self.get_reward(), self.done, self.get_info()
+        ret = np.copy(self.board_info), self.get_reward(), self.done, self.get_info()
         self.cache.clear()
 
         return ret
@@ -316,7 +316,7 @@ class GoEnv(gym.Env):
         # create cache
         self.cache = {}
 
-        return self.board_info
+        return np.copy(self.board_info)
 
     
     def render(self, mode='human'):
