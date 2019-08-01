@@ -292,6 +292,19 @@ class GoEnv(gym.Env):
             if self.illegal_move_reason((r, c), player=other_player) is not None:
                 self.board_info[2, r, c] = 1
 
+    @property
+    def action_space(self):
+        '''
+        Return a list of moves (tuples) that are legal for the next player
+        '''
+        result = []
+        for r, c in product(range(self.board_width), repeat=2):
+            # if the move is not illegal
+            if self.board_info[2][r, c] == 0:
+                result.append((r, c))
+
+        return result
+
 
     def reset(self):
         '''
