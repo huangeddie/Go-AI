@@ -302,6 +302,8 @@ class GoEnv(gym.Env):
             # if the move is not illegal
             if self.board_info[2][r, c] == 0:
                 result.append((r, c))
+        # pass is always an valid move
+        result.append(None)
 
         return result
 
