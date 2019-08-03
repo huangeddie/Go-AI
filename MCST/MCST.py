@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 import copy
 
 class Node:
@@ -59,32 +60,47 @@ class Node:
         if self.parent is not None:
             self.parent.increment_value_sum(increment)
 
-
-def expand_leaf(parent, action_values, state_value, move):
-    '''
-    Description:
-        Create the child node corresponding to the move for the parent 
-        passed in. 
-    Args:
-        parent (Node): the parent to expand
-        action_values: action values of the child to add
-        state_value: the state value of the child to add
-    '''
-    # update this parent's attributes
-    parent.is_leaf = False
-    
-    # TODO fix this function after writing select
-    board = copy.deepcopy(parent.board)
-    board.apply_move(move)
-    child = Node(parent, action_values[move], board, move)
-    parent.children[move] = child
-
-
 def select_best_child(node):
     '''
     Description: Select the child that maximizes Q + U
     '''
-    legal_moves = 
+    2d_moves = node.board.action_space
+    1d_moves = list(map(action_2d_to_1d, 2d_moves))
+    best_move = 0 # not None, because None is a valid move
+    max_UCB = np.NINF # negative infinity
+
+    for move in 1d_moves:
+        if node.children[move] is None:
+            Q = 0
+            N = 0
+        else:
+            Q = node.children[move].Q
+            N = node.N
+        # get U for child
+        U = node.action_values[move] / (1 + N) * U_CONST
+        # UCB: Upper confidence bound
+        if Q + U > max_UCB:
+            max_UCB = Q + U
+            best_move = move
+
+    # if haven't explored the best move yet, expand it
+    if node.children[best_move] is None:
+        child_board = copy.deepcopy(node.board)
+        child_board.apply_move(best_move)
+        # TODO use model to get action values and state value
+        node.is_leaf = False
+        child = Node(node, action_values[move], child_board, best_move)
+        node.children[best_move] = child
+
+    return node.children[best_move]
+
+
+def action_2d_to_1d(action_2d, board_size):
+    if action_2d is None:
+        action_1d = board_size**2
+    else:
+        action_1d = action_2d[0] * board_size + action_2d[1]
+    return action_1d
 
 
 class MCTree:
