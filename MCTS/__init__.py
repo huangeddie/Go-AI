@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import time
 import copy
+import go_util
 
 PI_CONST = None
 U_CONST = None
@@ -22,7 +23,7 @@ class Node:
         self.parent = parent 
         # 1d array of the size that can hold the moves including pass, 
         # initially all None
-        self.children = np.empty(board.board_size**2 + 1, dtype=object) 
+        self.children = np.empty(board.board_width**2 + 1, dtype=object) 
         self.action_probs = action_probs # action probs of children
         self.board = board 
         self.move = move 
@@ -51,13 +52,6 @@ class Node:
             self.parent.back_propagate(value_incre)
 
 
-def action_2d_to_1d(action_2d, board_size):
-    if action_2d is None:
-        action_1d = board_size**2
-    else:
-        action_1d = action_2d[0] * board_size + action_2d[1]
-    return action_1d
-
 
 class MCTree:
     def __init__(self, board, forward_func, oppo_choose_move):
@@ -67,22 +61,25 @@ class MCTree:
         Args: 
             board (GoEnv): current board
             forward_func: function(GoEnv.state) => action_probs, state_value
-            oppo_choose_move: function(GoEnv.state) => move
+            oppo_choose_move: function(GoEnv.state) => 1d move
 
         '''
         action_probs, state_value = forward_func(board.get_state())
         self.root = Node(None, action_probs, state_value, copy.deepcopy(board), None)
         self.forward_func = forward_func
         self.oppo_choose_move = oppo_choose_move
+        self.board_width = board.board_width
 
 
-    def select_best_child(node):
+
+    def select_best_child(self, node):
         '''
         Description: If it's our turn, select the child that 
             maximizes Q + U, where Q = V_sum / N, and 
             U = U_CONST * P / (1 + N), where P is action value.
-            If it's white's turn, select the child using random choice
-            weighted by Opponent action probs
+            If it's oppo's turn, select the child using oppo_choose_move
+            function. #TODO this could be inefficient if we visit this 
+            white node mulitple times! consider merging the logic
         Args:
             node (Node): the parent node to choose from
         '''
@@ -91,7 +88,7 @@ class MCTree:
         # if it's our turn
         if node.board.get_next_player() == self.root.board.get_next_player():
             moves_2d = node.board.action_space
-            moves_1d = list(map(action_2d_to_1d, moves_2d))
+            moves_1d = list(map(go_util.action_2d_to_1d, moves_2d, [self.board_width] * len(moves_2d)))
             best_move = 0 # not None, because None is a valid move
             max_UCB = np.NINF # negative infinity
             # calculate Q + U for all children
@@ -111,7 +108,7 @@ class MCTree:
         # if it's opponent's turn
         else:
             # swap black and white channels
-            best_move = self.oppo_choose_move(self.board.get_state()[1, 0, 2, 3])
+            best_move = self.oppo_choose_move(node.board.get_state()[[1, 0, 2, 3]])
         return node.children[best_move], best_move
 
     def expand(self, node, move):
@@ -124,7 +121,7 @@ class MCTree:
         '''
         node.is_leaf = False
         child_board = copy.deepcopy(node.board)
-        child_board.step(move)
+        child_board.step(go_util.action_1d_to_2d(move, self.board_width))
         action_probs, state_value = self.forward_func(child_board.get_state())
         child = Node(node, action_probs, state_value, child_board, move)
         node.children[move] = child
