@@ -112,6 +112,12 @@ class GoEnv(gym.Env):
             }
         }
 
+    def get_next_player(self):
+        return self.curr_player
+
+    def get_state(self):
+        return np.copy(self.board_info)
+
 
     def illegal_move_reason(self, action, player):
         '''
