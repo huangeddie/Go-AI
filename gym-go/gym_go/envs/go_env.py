@@ -112,6 +112,12 @@ class GoEnv(gym.Env):
             }
         }
 
+    def get_next_player(self):
+        return self.curr_player
+
+    def get_state(self):
+        return np.copy(self.board_info)
+
 
     def illegal_move_reason(self, action, player):
         '''
@@ -302,6 +308,8 @@ class GoEnv(gym.Env):
             # if the move is not illegal
             if self.board_info[2][r, c] == 0:
                 result.append((r, c))
+        # pass is always an valid move
+        result.append(None)
 
         return result
 
