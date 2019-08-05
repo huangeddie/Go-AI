@@ -34,7 +34,6 @@ class Node:
         self.V_sum = self.V # the sum of values of this subtree
         if parent is not None:
             parent.back_propagate(self.V)
-        self.is_leaf = True
 
     @property
     def Q(self):
@@ -54,30 +53,29 @@ class Node:
 
 
 class MCTree:
-    def __init__(self, board, forward_func, oppo_choose_move):
+    def __init__(self, board, forward_func, oppo_forward_func):
         '''
         Description:
             Construct a Monte Carlo Tree that has current board as root
         Args: 
             board (GoEnv): current board
             forward_func: function(GoEnv.state) => action_probs, state_value
-            oppo_choose_move: function(GoEnv.state) => 1d move
+            oppo_forward_func: function(GoEnv.state) => action_probs
 
         '''
         action_probs, state_value = forward_func(board.get_state())
         self.root = Node(None, action_probs, state_value, copy.deepcopy(board), None)
         self.forward_func = forward_func
-        self.oppo_choose_move = oppo_choose_move
+        self.oppo_forward_func = oppo_forward_func
         self.board_width = board.board_width
-
-
+        self.our_player = board.get_next_player()
 
     def select_best_child(self, node):
         '''
         Description: If it's our turn, select the child that 
             maximizes Q + U, where Q = V_sum / N, and 
             U = U_CONST * P / (1 + N), where P is action value.
-            If it's oppo's turn, select the child using oppo_choose_move
+            If it's oppo's turn, select the child using oppo_forward_func
             function. #TODO this could be inefficient if we visit this 
             white node mulitple times! consider merging the logic
         Args:
@@ -86,7 +84,7 @@ class MCTree:
         if U_CONST is None:
             raise Exception("U CONST is not set! (U = U_CONST * P / (1 + N))")
         # if it's our turn
-        if node.board.get_next_player() == self.root.board.get_next_player():
+        if node.board.get_next_player() == self.our_player:
             moves_2d = node.board.action_space
             moves_1d = list(map(utils.action_2d_to_1d, moves_2d, [self.board_width] * len(moves_2d)))
             best_move = 0 # not None, because None is a valid move
@@ -105,27 +103,33 @@ class MCTree:
                 if Q + U > max_UCB:
                     max_UCB = Q + U
                     best_move = move
-        # if it's opponent's turn
+        # if it's opponent's turn, choose an action based on action prob
         else:
-            # swap black and white channels
-            best_move = self.oppo_choose_move(node.board.get_state()[[1, 0, 2, 3]])
+            best_move = utils.random_weighted_action([node.action_probs])
         return node.children[best_move], best_move
 
     def expand(self, node, move):
         '''
         Description:
             Expand a new node from given node with the given move. If the
-            give node is the end of a game, do nothing
+            give node is the end of a game, back propagate with value 0.
         Args:
             node (Node): parent node to expand from
             move (1d): the move from parent to child
         '''
         if node.board.done:
+            node.back_propagate(0)
             return None
-        node.is_leaf = False
         child_board = copy.deepcopy(node.board)
-        child_board.step(utils.action_1d_to_2d(move, self.board_width))
-        action_probs, state_value = self.forward_func(child_board.get_state())
+        state, _, _, info = child_board.step(utils.action_1d_to_2d(move, self.board_width))
+        our_action_probs, state_value = self.forward_func(state)
+        # if it's our move, save our action prob
+        if info['turn'] == self.our_player:
+            action_probs = our_action_probs
+        # if it's opponent's move, save oppo action prob
+        else:
+            # swap black and white channels
+            action_probs = self.oppo_forward_func(state[[1, 0, 2, 3]])
         child = Node(node, action_probs, state_value, child_board, move)
         node.children[move] = child
         return child
