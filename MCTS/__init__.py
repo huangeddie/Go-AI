@@ -10,7 +10,7 @@ TEMP_CONST = None
 
 
 class Node:
-    def __init__(self, parent, action_probs, state_value, board, move):
+    def __init__(self, parent, action_probs, state_value, board):
         '''
         Args:
             parent (?Node): parent Node
@@ -24,16 +24,12 @@ class Node:
         # 1d array of the size that can hold the moves including pass, 
         # initially all None
         self.children = np.empty(board.board_width**2 + 1, dtype=object) 
-        self.action_probs = action_probs # action probs of children
+        self.action_probs = action_probs 
         self.board = board 
-        self.move = move 
-        # number of time this node was visited, which is the same as
-        # subtree size
+        # number of time this node was visited
         self.N = 1 
         self.V = state_value # the evaluation of this node (value)
         self.V_sum = self.V # the sum of values of this subtree
-        if parent is not None:
-            parent.back_propagate(self.V)
 
     @property
     def Q(self):
@@ -51,7 +47,6 @@ class Node:
             self.parent.back_propagate(value_incre)
 
 
-
 class MCTree:
     def __init__(self, board, forward_func, oppo_forward_func):
         '''
@@ -64,7 +59,7 @@ class MCTree:
 
         '''
         action_probs, state_value = forward_func(board.get_state())
-        self.root = Node(None, action_probs, state_value, copy.deepcopy(board), None)
+        self.root = Node(None, action_probs, state_value, copy.deepcopy(board))
         self.forward_func = forward_func
         self.oppo_forward_func = oppo_forward_func
         self.board_width = board.board_width
@@ -87,7 +82,7 @@ class MCTree:
         if node.board.get_next_player() == self.our_player:
             moves_2d = node.board.action_space
             moves_1d = list(map(utils.action_2d_to_1d, moves_2d, [self.board_width] * len(moves_2d)))
-            best_move = 0 # not None, because None is a valid move
+            best_move = None 
             max_UCB = np.NINF # negative infinity
             # calculate Q + U for all children
             for move in moves_1d:
@@ -106,20 +101,25 @@ class MCTree:
         # if it's opponent's turn, choose an action based on action prob
         else:
             best_move = utils.random_weighted_action([node.action_probs])
+
+        if best_move is None:
+            raise Exception("MCTS: move shouldn't be None, please debug")
         return node.children[best_move], best_move
 
     def expand(self, node, move):
         '''
         Description:
-            Expand a new node from given node with the given move. If the
-            give node is the end of a game, back propagate with value 0.
+            Expand a new node from given node with the given move. 
         Args:
             node (Node): parent node to expand from
             move (1d): the move from parent to child
+        Returns:
+            If a node is created, return the new node. When the game ends 
+            with the node passed in, nothing is created and return the node
         '''
+        # if we reach a end state, return this node
         if node.board.done:
-            node.back_propagate(0)
-            return None
+            return node
         child_board = copy.deepcopy(node.board)
         state, _, _, info = child_board.step(utils.action_1d_to_2d(move, self.board_width))
         our_action_probs, state_value = self.forward_func(state)
@@ -130,7 +130,7 @@ class MCTree:
         else:
             # swap black and white channels
             action_probs = self.oppo_forward_func(state[[1, 0, 2, 3]])
-        child = Node(node, action_probs, state_value, child_board, move)
+        child = Node(node, action_probs, state_value, child_board)
         node.children[move] = child
         return child
 
@@ -164,7 +164,8 @@ class MCTree:
                 curr_node = next_node
                 next_node, move = self.select_best_child(curr_node)
             # reach a leaf and expand
-            self.expand(curr_node, move)
+            leaf = self.expand(curr_node, move)
+            curr_node.back_propagate(leaf.V)
             # increment counters
             num_search += 1
             time_spent = time.time() - start_time
