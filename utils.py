@@ -138,11 +138,6 @@ def random_weighted_action(move_weights):
     Expected shape is (1, NUM OF MOVES)
     """
     move_weights = preprocessing.normalize(move_weights, norm='l1')
-
-    if np.sum(move_weights) <= 0:
-        # Pass
-        return None
-    
     return np.random.choice(np.arange(len(move_weights[0])), p=move_weights[0])
 
 def random_action(state):
