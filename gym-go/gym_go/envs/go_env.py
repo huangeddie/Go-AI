@@ -3,23 +3,33 @@ from gym import error, spaces, utils
 from gym.utils import seeding
 from itertools import product
 import numpy as np
-from betago.dataloader.goboard import GoBoard
-import itertools
+from enum import Enum
 
-# The side length of each board size
-BOARD_SIZES = {
-    'S': 7,
-    'M': 13,
-    'L': 19,
-}
+class RewardMethod(Enum):
+    REAL = 'real'
+    HEURISTIC = 'heuristic'
 
-REWARD_METHODS = [ 'real', 'heuristic' ]
-
+class Turn(Enum):
+    """
+    Their value also represents their channel in the state
+    """
+    BLACK = 0
+    WHITE = 1
+    NEITHER = 2
+    
+    @property
+    def other(self):
+        return Turn(1 - self.value)
+    
+class Group:
+    def __init__(self):
+        self.locations = set()
+        self.liberties = set()
 
 class GoEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, size='S', reward_method='heuristic'):
+    def __init__(self, size, reward_method='heuristic'):
         '''
         @param reward_method: either 'heuristic' or 'real' 
         heuristic: gives # black pieces - # white pieces. 
@@ -27,74 +37,113 @@ class GoEnv(gym.Env):
             0 for draw, all from black player's perspective
         '''
         # determine board size
-        try:
-            self.board_width = BOARD_SIZES[size]
-        except KeyError as e:
-            raise Exception('Board size should be one of {}'.format(list(BOARD_SIZES.keys())))
-
-        # check that reward_method is valid
-        if reward_method not in REWARD_METHODS:
-            raise Exception('Unsupported reward method: {}'.format(self.reward_method))
-        self.reward_method = reward_method
+        # A numpy array representing the state of the game
+        # Shape [4, SIZE, SIZE]
+        # 0 - black, 1 - white, 2 - invalid moves, 3 - previous move was passed
+        self.board_size = size
+        self.reward_method = RewardMethod(reward_method)
             
         # setup board
         self.reset()
         
+    def reset(self):
+        '''
+        Reset state, go_board, curr_player, prev_player_passed,
+        done, return state
+        '''
+        self.state = np.zeros((4, self.board_size, self.board_size))
+        self.turn = Turn.BLACK
+        self.prev_player_passed = False
+        self.game_ended = False
+        self.ko_protect = None
+        self.done = False
 
-    def print_state(self):
-        print("Turn: {}".format(self.curr_player))
-        print("Your pieces (black):")
-        print(self.board_info[0])
-        print("Opponent's pieces (white):")
-        print(self.board_info[1])
-        print("Illegal moves:")
-        print(self.board_info[2])
-        print("The opponent passed: {}".format(self.board_info[3][0][0]))
-    
-
+        return np.copy(self.state)
+        
     def step(self, action):
         ''' 
         Assumes the correct player is making a move. Black goes first.
         return observation, reward, done, info 
         '''
+        def _state_reward_done_info():
+            return np.copy(self.state), self.get_reward(), self.done, self.get_info()
+        
         # check if game is already over
         if self.done:
-            raise Exception('Attempt to step at {} after game is over'.format(action))
-
-        # clear cached results from last turn
-        self.cache.clear()
-
+            raise Error('Attempt to step at {} after game is over'.format(action))
+            
         # if the current player passes
-        if action is None:
+        if action is None:         
             # if two consecutive passes, game is over
             if self.prev_player_passed:
                 self.done = True
-
-        # the current player makes a move
-        else:
-            # make sure the move is legal
-            illegal_reason = self.illegal_move_reason(action, self.curr_player)
-            if illegal_reason is not None:
-                self.print_state()
-                raise Exception(illegal_reason)
+                
+            self.prev_player_passed = True
+                
+            # Set passing layer
+            self.state[3] = 1
+            
+            # ko-protection is gone
+            if self.ko_protect is not None:
+                self.state[2][self.ko_protect] = 0
+                self.ko_protect = None
+                
+            # Update invalid channel
+            self.update_invalid_channel()
+                
+            # Switch turn
+            self.turn = self.turn.other
+            
+            # Return event
+            return _state_reward_done_info()
 
         # make the move
-        self.update_board(action)
+        assert action is not None
+        
+        # Check move is valid
+        if not self.is_within_bounds(action):
+            raise Error("Not Within bounds")
+        elif self.state[2][action] > 0:
+            return Error("Invalid Move")
+        
+        # Get all adjacent groups
+        _, opponent_groups = self.get_adjacent_groups(action)
+        
+        # Disable ko-proection
+        self.ko_protect = None
+        
+        killed_some_opponent_pieces = False
+        
+        # Go through opponent groups
+        for group in opponent_groups:
+            if len(group.liberties) <= 1:
+                assert action in group.liberties
+                killed_some_opponent_pieces = True
+                
+                # Remove group in board
+                channel = self.turn.other.value # Value of turn is also the channel
+                for loc in group.locations:
+                    self.state[channel][loc] = 0
+                
+                # If group was one piece, activate ko protection
+                if len(group.locations) <= 1:
+                    self.ko_protect = group.locations.pop()
+                    
+        # Add the piece!
+        self.state[self.turn.value][action] = 1
 
-        # update whether this player have passed
-        self.board_info[3].fill(int(action is None))
+        # Update illegal moves
+        self.update_invalid_channel()
 
-        # switch player for the next round
-        self.curr_player = self.go_board.other_color(self.curr_player)
+        # This move was not a pass
+        self.prev_player_passed = False
+        # Update passing layer
+        self.state[3] = 0
+        
+        # Switch turn
+        self.turn = self.turn.other
 
-        # store whether this player passed
-        self.prev_player_passed = action is None
-
-        # get the return result and clear cache
-        ret = np.copy(self.board_info), self.get_reward(), self.done, self.get_info()
-        self.cache.clear()
-
-        return ret
+        return _state_reward_done_info()
 
     def get_info(self):
         '''
@@ -105,46 +154,19 @@ class GoEnv(gym.Env):
         '''
         black_area, white_area = self.get_areas()
         return {
-            'turn': self.curr_player,
+            'turn': 'b' if self.turn == Turn.BLACK else 'w',
             'area': {
                 'w': white_area,
                 'b': black_area,
             }
         }
 
-    def get_next_player(self):
-        return self.curr_player
 
     def get_state(self):
-        return np.copy(self.board_info)
-
-
-    def illegal_move_reason(self, action, player):
-        '''
-        Check: piece already on board, move is suicide, move is on ko
-            move is out of board.
-        '''
-        illegal_reason = 'Move {} is illegal: '.format(action)
-
-        # sanity check for the move
-        if not self.is_within_bounds(action):
-            illegal_reason += 'out of bounds'
-        elif self.go_board.is_move_on_board(action):
-            illegal_reason += 'there is already a piece at this location'
-        elif self.go_board.is_move_suicide(player, action):
-            illegal_reason += 'this move is suicide'
-        elif self.go_board.is_simple_ko(player, action):
-            illegal_reason += 'this location is a Ko'
-        else:
-            return None
-
-        return illegal_reason
-
-
-    def is_within_bounds(self, action):
-        return action[0] >= 0 and action[0] < self.board_width \
-            and action[1] >= 0 and action[1] < self.board_width
-
+        """
+        Returns deep copy of state
+        """
+        return np.copy(self.state)
 
     def get_reward(self):
         '''
@@ -155,101 +177,204 @@ class GoEnv(gym.Env):
             Winning and losing based on the Area rule
         Area rule definition: https://en.wikipedia.org/wiki/Rules_of_Go#End
         '''
-        if self.reward_method == 'real':
+        black_area, white_area = self.get_areas()
+        area_difference = black_area - white_area
+        
+        if self.reward_method == RewardMethod.REAL:
             if self.done:
-                final_reward = self.get_area_reward() 
-
-                if final_reward == 0:
+                if area_difference == 0:
                     return 0
-                elif final_reward > 0:
+                elif area_difference > 0:
                     return 1
                 else:
                     return -1
             else: 
                 return 0
 
-        elif self.reward_method == 'heuristic':
-            return self.get_area_reward()
-
-
-    def get_area_reward(self):
-        '''
-        Return black area - white area
-        '''
-        black_area, white_area = self.get_areas()
-        return black_area - white_area
-
+        elif self.reward_method == RewardMethod.HEURISTIC:
+            return area_difference
+        else:
+            raise Error("Unknown Reward Method")
+            
+    def update_invalid_channel(self):
+        """
+        Updates invalid moves in the OPPONENT's perspective
+        Opponent cannot move at a location
+        * If it's occupied
+        * If it's adjacent to one of their groups with only one liberty and 
+            not adjacent to other groups with more than one liberty
+        * If it's surrounded by our pieces and all of those corresponding groups
+            move more than one liberty
+        * If it's protected by ko
+        """
+        self.state[2] = np.sum(self.state[[0,1]], axis=0) # Occupied
+        for i, j in product(range(self.board_size), range(self.board_size)):
+            if self.state[2][i,j] >= 1: # Occupied invalidness already taken care of
+                continue
+                
+            our_groups, opponent_groups = self.get_adjacent_groups((i, j))
+            
+            # Check whether next to a group with only one liberty and not 
+            # next to others with more than one liberty
+            group_with_one_liberty_exists = False
+            group_with_multiple_liberties_exists = False
+            for group in opponent_groups: 
+                if len(group.liberties) <= 1: 
+                    group_with_one_liberty = True
+                else:
+                    assert len(group.liberties) > 1
+                    group_with_multiple_liberties_exists = True
+                    
+            if group_with_one_liberty_exists and not group_with_multiple_liberties_exists:
+                self.state[2][i,j] = 1
+                    
+            if self.state[2][i,j] >= 1: 
+                # Already determined as invalid
+                continue
+                
+            # Check if surrounded and cannot kill
+            empty_adjacent_locations = self.get_adjacent_locations((i,j))
+            can_kill = False
+            for group in our_groups:
+                empty_adjacent_locations = empty_adjacent_locations - group.locations
+                if len(group.liberties) <= 1:
+                    can_kill = True
+                    break
+                
+            # Check if surrounded and cannot kill
+            if len(empty_adjacent_locations) <= 0 and not can_kill:
+                self.state[2][i,j] = 1
+                
+            # Ko-protection
+            if (i,j) == self.ko_protect:
+                self.state[2][i,j] = 1
 
     def get_areas(self):
         '''
-        First check the cache
         Return black area, white area
         Use DFS helper to find territory.
         '''
-        if 'black_area' in self.cache and 'white_area' in self.cache:
-            return self.cache['black_area'], self.cache['white_area']
 
-        visited = np.zeros((self.board_width, self.board_width), dtype=np.bool)
+        visited = np.zeros((self.board_size, self.board_size), dtype=np.bool)
         black_area = 0
         white_area = 0
 
         # loop through each intersection on board
-        for r, c in product(range(self.board_width), repeat=2):
+        for r, c in product(range(self.board_size), repeat=2):
             # count pieces towards area
-            if (r, c) in self.go_board.board:
-                if self.go_board.board[(r, c)] == 'b':
-                    black_area += 1
-                else:
-                    white_area += 1
+            if self.state[0][r,c] > 0:
+                black_area += 1
+            elif self.state[1][r,c] > 0:
+                white_area += 1
 
             # do DFS on unvisited territory
             elif not visited[r, c]:
                 player, area = self.explore_territory((r, c), visited)
 
                 # add area to corresponding player
-                if player == 'b':
+                if player == Turn.BLACK:
                     black_area += area
-                elif player == 'w':
+                elif player == Turn.WHITE:
                     white_area += area
-
-        self.cache['black_area'] = black_area
-        self.cache['white_area'] = white_area
 
         return black_area, white_area
     
-
-    def explore_territory(self, location, visited):
-        '''
-        Return which player this territory belongs to. 'b', 'w', or None 
-        if it hasn't been "claimed", 'n' if it is next to both (stands 
-        for neither).  Will visit all empty intersections connected to 
-        the initial location.
-        '''
-        r, c = location
-
-        # base case: edge of the board, or already visited
-        if not self.is_within_bounds(location) or \
-            visited[r, c]:
-                return None, 0
-        # base case: this is a piece
-        if location in self.go_board.board:
-            return self.go_board.board[location], 0
-
-        # mark this as visited
-        visited[r, c] = True
-        teri_size = 1
-        possible_owner = []
+    def get_adjacent_groups(self, location):
+        """
+        Returns (turn's groups, other turn's groups)
+        """
+        our_groups = []
+        opponent_groups = []
         
+        adjacent_locations = self.get_adjacent_locations(location)
+        for loc in adjacent_locations:
+            our_group = self.get_group(self.turn, loc)
+            opponent_group = self.get_group(self.turn.other, loc)
+            
+            if our_group is not None:
+                our_groups.append(our_group)
+            if opponent_group is not None:
+                opponent_groups.append(opponent_group)
+        
+        return our_groups, opponent_groups
+    
+    def get_group(self, turn, location):
+        """
+        Returns the group containing the location or None if location is empty there
+        """
+        def calculate_group_helper(group, turn, location, visited):
+            # Mark location as visited
+            visited[location] = True
+            
+            if self.state[turn.value][location] > 0:
+                # Part of group
+                group.locations.add(location)
+                # Now search for neighbors
+                adjacent_locations = self.get_adjacent_locations(location)
+                for loc in adjacent_locations:
+                    if not visited[loc]:
+                        calculate_group_helper(group, turn, loc, visited)
+            elif self.state[turn.other.value][location] <= 0:
+                # Part of liberty
+                group.liberties.add(location)
+                    
+        if self.state[turn.value][location] <= 0:
+            return None
+            
+        visited = np.zeros((self.board_size, self.board_size), dtype=np.bool)
+        group = Group()
+        
+        calculate_group_helper(group, turn, location, visited)
+        
+        return group
+    
+    def is_within_bounds(self, location):
+            return location[0] >= 0 and location[0] < self.board_size \
+                and location[1] >= 0 and location[1] < self.board_size
+    
+    def get_adjacent_locations(self, location):
+        """
+        Returns adjacent locations to the specified one
+        """
+
+        adjacent_locations = set()
         drs = [-1, 0, 1, 0]
         dcs = [0, 1, 0, -1]
 
         # explore in all directions
-        for i in range(len(drs)):
-            dr = drs[i]
-            dc = dcs[i]
-            
+        for dr, dc in zip(drs, dcs):
             # get the expanded area and player that it belongs to
-            player, area = self.explore_territory((r + dr, c + dc), visited)
+            loc = (location[0] + dr, location[1] + dc)
+            if self.is_within_bounds(loc):
+                adjacent_locations.add(loc)
+        return adjacent_locations
+
+    def explore_territory(self, location, visited):
+        '''
+        Return which player this territory belongs to (can be None).  
+        Will visit all empty intersections connected to 
+        the initial location.
+        '''
+        # base case: already visited
+        if visited[location]:
+            return None, 0
+        
+        # base case: this is a piece
+        if self.state[0][location] > 0:
+            return Turn.BLACK, 0
+        elif self.state[1][location] > 0:
+            return Turn.WHITE, 0
+        
+        # mark this as visited
+        visited[location] = True
+
+        teri_size = 1
+        possible_owner = []
+
+        # explore in all directions
+        for adj_loc in self.get_adjacent_locations(location):
+            # get the expanded area and player that it belongs to
+            player, area = self.explore_territory(adj_loc, visited)
             
             # add area to territory size, player to a list
             teri_size += area
@@ -258,45 +383,18 @@ class GoEnv(gym.Env):
         # filter out None, and get unique players
         possible_owner = list(filter(None, set(possible_owner)))
 
-        # if all directions returned None, return None
-        if len(possible_owner) == 0:
-            belong_to = None
-
         # if all directions returned the same player (could be 'n')
         # then return this player
+        if len(possible_owner) <= 0:
+            belong_to = None
         elif len(possible_owner) == 1:
             belong_to = possible_owner[0]
 
-        # if multiple players are returned, return 'n' (neither)
+        # if multiple players or it belonged to no one
         else:
-            belong_to = 'n'
+            belong_to = Turn.NEITHER
 
         return belong_to, teri_size
-        
-
-    def update_board(self, action):
-        '''
-        Make the move and update board_info
-        '''
-        if action is not None:
-            # apply move to the board
-            self.go_board.apply_move(self.curr_player, action)
-
-        # reset board info
-        self.board_info.fill(0)
-
-        # update board pieces
-        for move, player in self.go_board.board.items():
-            if player == 'b':
-                self.board_info[0, move[0], move[1]] = 1
-            elif player == 'w':
-                self.board_info[1, move[0], move[1]] = 1
-
-        # update illegal move
-        other_player = self.go_board.other_color(self.curr_player)
-        for r, c in product(range(self.board_width), repeat=2):
-            if self.illegal_move_reason((r, c), player=other_player) is not None:
-                self.board_info[2, r, c] = 1
 
     @property
     def action_space(self):
@@ -304,58 +402,31 @@ class GoEnv(gym.Env):
         Return a list of moves (tuples) that are legal for the next player
         '''
         result = []
-        for r, c in product(range(self.board_width), repeat=2):
+        for r, c in product(range(self.board_size), repeat=2):
             # if the move is not illegal
-            if self.board_info[2][r, c] == 0:
+            if self.state[2][r, c] == 0:
                 result.append((r, c))
         # pass is always an valid move
         result.append(None)
 
         return result
-
-
-    def reset(self):
-        '''
-        Reset board_info, go_board, curr_player, prev_player_passed,
-        done, return board_info
-        '''
-        # access: [Black, White, illegal, Passed][Row number][Column number]
-        self.board_info = np.zeros((4, self.board_width, self.board_width), dtype=np.int)
-        
-        # use GoBoard from BetaGo for game status keeping 
-        self.go_board = GoBoard(self.board_width)
-        
-
-        # black goes first
-        self.curr_player = 'b'
-
-        self.prev_player_passed = False
-
-        # whether the game is done
-        self.done = False
-
-        # create cache
-        self.cache = {}
-
-        return np.copy(self.board_info)
-
     
     def render(self, mode='human'):
         board_str = ' '
 
-        for i in range(self.board_width):
+        for i in range(self.board_size):
             board_str += '   {}'.format(i)
         board_str += '\n  '
-        board_str += '----' * self.board_width + '-'
+        board_str += '----' * self.board_size + '-'
         board_str += '\n'
-        for i in range(self.board_width):
+        for i in range(self.board_size):
             board_str += '{} |'.format(i)
-            for j in range(self.board_width):
-                if self.board_info[0][i,j] == 1:
+            for j in range(self.board_size):
+                if self.state[0][i,j] == 1:
                     board_str += ' B'
-                elif self.board_info[1][i,j] == 1:
+                elif self.state[1][i,j] == 1:
                     board_str += ' W'
-                elif self.board_info[2][i,j] == 1:
+                elif self.state[2][i,j] == 1:
                     board_str += ' .'
                 else:
                     board_str += '  '
@@ -363,10 +434,20 @@ class GoEnv(gym.Env):
                 board_str += ' |'
 
             board_str += '\n  '
-            board_str += '----' * self.board_width + '-'
+            board_str += '----' * self.board_size + '-'
             board_str += '\n'
 
         print(board_str)
 
     def close(self):
         pass
+
+    def print_state(self):
+        print("Turn: {}".format(self.curr_player))
+        print("Your pieces (black):")
+        print(self.state[0])
+        print("Opponent's pieces (white):")
+        print(self.state[1])
+        print("Illegal moves:")
+        print(self.state[2])
+        print("The opponent passed: {}".format(self.state[3][0][0]))
