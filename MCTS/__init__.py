@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 import time
 import copy
-import go_util
+import utils
 
 PI_CONST = None
 U_CONST = None
@@ -88,7 +88,7 @@ class MCTree:
         # if it's our turn
         if node.board.get_next_player() == self.root.board.get_next_player():
             moves_2d = node.board.action_space
-            moves_1d = list(map(go_util.action_2d_to_1d, moves_2d, [self.board_width] * len(moves_2d)))
+            moves_1d = list(map(utils.action_2d_to_1d, moves_2d, [self.board_width] * len(moves_2d)))
             best_move = 0 # not None, because None is a valid move
             max_UCB = np.NINF # negative infinity
             # calculate Q + U for all children
@@ -124,7 +124,7 @@ class MCTree:
             return None
         node.is_leaf = False
         child_board = copy.deepcopy(node.board)
-        child_board.step(go_util.action_1d_to_2d(move, self.board_width))
+        child_board.step(utils.action_1d_to_2d(move, self.board_width))
         action_probs, state_value = self.forward_func(child_board.get_state())
         child = Node(node, action_probs, state_value, child_board, move)
         node.children[move] = child

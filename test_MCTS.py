@@ -2,7 +2,7 @@ import unittest
 import gym
 import numpy as np
 import MCTS 
-import go_util
+import utils
 
 class TestMCTS(unittest.TestCase):
 
@@ -43,7 +43,7 @@ class TestMCTS(unittest.TestCase):
             # black at (0,0)
             elif state[0,0,0] == 1 and np.count_nonzero(state[0]) == 1 \
                 and np.count_nonzero(state[1]) == 0:
-                    idx = go_util.action_2d_to_1d((0, 1), self.env.board_width)
+                    idx = utils.action_2d_to_1d((0, 1), self.env.board_width)
                     action_probs[idx] = 1
                     state_value = 1
             # unexpected states
@@ -90,13 +90,13 @@ class TestMCTS(unittest.TestCase):
             # black at (0,0)
             elif state[0,0,0] == 1 and np.count_nonzero(state[0]) == 1 \
                 and np.count_nonzero(state[1]) == 0:
-                    idx = go_util.action_2d_to_1d((0, 1), self.env.board_width)
+                    idx = utils.action_2d_to_1d((0, 1), self.env.board_width)
                     action_probs[idx] = 1
                     state_value = 1
             # black at (0,0), white at (0,1)
             elif state[0,0,0] == 1 and np.count_nonzero(state[0]) == 1 \
                 and state[1,0,1] == 1 and np.count_nonzero(state[1]) == 1:
-                    idx = go_util.action_2d_to_1d((1, 0), self.env.board_width)
+                    idx = utils.action_2d_to_1d((1, 0), self.env.board_width)
                     action_probs[idx] = 1
                     state_value = 0.5
             # unexpected states
@@ -112,7 +112,7 @@ class TestMCTS(unittest.TestCase):
             # black at (0,0)
             if state[1,0,0] == 1 and np.count_nonzero(state[1]) == 1 \
                 and np.count_nonzero(state[0]) == 0:
-                    return go_util.action_2d_to_1d((0, 1), self.env.board_width)
+                    return utils.action_2d_to_1d((0, 1), self.env.board_width)
             raise Exception("Unexpected state for opponent")
 
         tree = MCTS.MCTree(self.env, mock_forward_func, mock_oppo)
@@ -133,7 +133,7 @@ class TestMCTS(unittest.TestCase):
         self.assertEqual(black_node.V, 1)
         self.assertEqual(black_node.N, 2)
 
-        white_node = black_node.children[go_util.action_2d_to_1d((0, 1), self.env.board_width)]
+        white_node = black_node.children[utils.action_2d_to_1d((0, 1), self.env.board_width)]
         self.assertEqual(white_node.V_sum, 0.5)
         self.assertEqual(white_node.V, 0.5)
         self.assertEqual(white_node.N, 1)
@@ -149,8 +149,8 @@ class TestMCTS(unittest.TestCase):
                  \> _,_,_   value = 1     should return    0,0,0
                     _,_,_                                  0,0,0
         '''
-        move_01 = go_util.action_2d_to_1d((0, 1), self.env.board_width)
-        move_10 = go_util.action_2d_to_1d((1, 0), self.env.board_width)
+        move_01 = utils.action_2d_to_1d((0, 1), self.env.board_width)
+        move_10 = utils.action_2d_to_1d((1, 0), self.env.board_width)
         def mock_forward_func(state):
             '''
             Empty board:
