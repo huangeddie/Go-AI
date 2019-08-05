@@ -210,6 +210,47 @@ class TestMCTS(unittest.TestCase):
         for i in range(2, self.action_length):
             self.assertEqual(pi[i], 0)
 
+    def test_end_of_game(self):
+        '''
+        Tests that two player pass
+        '''
+        move_pass = go_util.action_2d_to_1d(None, self.env.board_width)
+        def mock_forward_func(state):
+            '''
+            Empty board:
+                action probs: 1 for pass
+                state value: 0 
+            Otherwise:
+                raise exception
+            '''
+            action_probs = np.zeros(self.action_length)
+            # empty board
+            if np.count_nonzero(state[0:3]) == 0:
+                action_probs[move_pass] = 1
+                state_value = 0
+            # unexpected states
+            else:
+                raise Exception("Unexpected state")
+            return action_probs, state_value
+        
+        def mock_oppo(state):
+            '''
+            Empty board: return pass
+            Else: raise exception
+            '''
+            # empty board
+            if np.count_nonzero(state[0:3]) == 0:
+                return move_pass
+            raise Exception("Unexpected state for opponent")
+
+        tree = MCTS.MCTree(self.env, mock_forward_func, mock_oppo)
+        pi, num_search, time_spent = tree.perform_search(3)
+        # check pi
+        self.assertEqual(pi[move_pass], 3)
+        # the rest of the moves should have pi = 0
+        for i in range(1, self.action_length):
+            self.assertEqual(pi[i], 0)
+
 
 if __name__ == '__main__':
     unittest.main()

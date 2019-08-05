@@ -114,11 +114,14 @@ class MCTree:
     def expand(self, node, move):
         '''
         Description:
-            Expand a new node from given node with the given move
+            Expand a new node from given node with the given move. If the
+            give node is the end of a game, do nothing
         Args:
             node (Node): parent node to expand from
             move (1d): the move from parent to child
         '''
+        if node.board.done:
+            return None
         node.is_leaf = False
         child_board = copy.deepcopy(node.board)
         child_board.step(go_util.action_1d_to_2d(move, self.board_width))
