@@ -338,6 +338,38 @@ class TestGoEnv(unittest.TestCase):
         # Assert they are ones
         self.assertEqual(np.count_nonzero(state[1] == 1), 10)
 
+    def test_large_group_suicide(self):
+        """
+        _,   _,   _,   _,   _,   _,   _,
+        
+        _,   _,   _,   _,   _,   _,   _,
+
+        _,   _,   _,   _,   _,   _,   _,
+
+        _,   _,   _,   _,   _,   _,   _,
+
+        1,   3,   _,   _,   _,   _,   _,
+
+        4,   6,   5,   _,   _,   _,   _,
+
+        2,   8,   7,   _,   _,   _,   _,
+        
+        :return:
+        """
+        for move in [(4,0), (6,0), (4,1), (5,0), (5,2), (5,1), (6,2)]:
+            state, reward, done, info = self.env.step(move)
+            
+        # Test invalid channel
+        self.assertEqual(np.count_nonzero(state[2]), 8, state[2])
+        self.assertEqual(np.count_nonzero(state[2] == 1), 8)
+        # Assert empty space in pieces channels
+        self.assertEqual(state[0][6, 1], 0)
+        self.assertEqual(state[1][6, 1], 0)
+
+        final_move = (6,1)
+        with self.assertRaises(Exception):
+            self.env.step(final_move)
+        
     def test_group_edge_capture(self):
         """
         1,   3,   2,   _,   _,   _,   _,

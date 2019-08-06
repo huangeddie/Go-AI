@@ -202,7 +202,7 @@ class GoEnv(gym.Env):
         Opponent cannot move at a location
         * If it's occupied
         * If it's adjacent to one of their groups with only one liberty and 
-            not adjacent to other groups with more than one liberty
+            not adjacent to other groups with more than one liberty and is completely surrounded
         * If it's surrounded by our pieces and all of those corresponding groups
             move more than one liberty
         * If it's protected by ko
@@ -214,19 +214,28 @@ class GoEnv(gym.Env):
                 
             our_groups, opponent_groups = self.get_adjacent_groups((i, j))
             
-            # Check whether next to a group with only one liberty and not 
+            # Check whether completely surrounded, 
+            # next to a group with only one liberty AND not 
             # next to others with more than one liberty
             group_with_one_liberty_exists = False
             group_with_multiple_liberties_exists = False
-            for group in opponent_groups: 
-                if len(group.liberties) <= 1: 
-                    group_with_one_liberty = True
-                else:
-                    assert len(group.liberties) > 1
-                    group_with_multiple_liberties_exists = True
-                    
-            if group_with_one_liberty_exists and not group_with_multiple_liberties_exists:
-                self.state[2][i,j] = 1
+            completely_surrounded = True
+            adjacent_locations = self.get_adjacent_locations((i,j))
+            for loc in adjacent_locations:
+                if np.sum(self.state[[0,1], loc[0], loc[1]]) <= 0:
+                    completely_surrounded = False
+                    break
+            if completely_surrounded:
+                for group in opponent_groups: 
+                    if len(group.liberties) <= 1: 
+                        group_with_one_liberty_exists = True
+                    else:
+                        assert len(group.liberties) > 1
+                        group_with_multiple_liberties_exists = True
+                        break
+
+                if group_with_one_liberty_exists and not group_with_multiple_liberties_exists:
+                    self.state[2][i,j] = 1
                     
             if self.state[2][i,j] >= 1: 
                 # Already determined as invalid
