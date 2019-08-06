@@ -1,10 +1,10 @@
 import tensorflow as tf
+from sklearn.preprocessing import normalize
 import numpy as np
 import time
 import copy
 import utils
 
-PI_CONST = None
 U_CONST = None
 TEMP_CONST = None
 
@@ -147,10 +147,8 @@ class MCTree:
             num_search (int): number of search performed
             time_spent (float): number of seconds spent
         '''
-        if PI_CONST is None:
-            raise Exception("PI_CONST is not set! (pi = PI_CONST * N**(1 / TEMP_CONST))")
         if TEMP_CONST is None:
-            raise Exception("TEMP_CONST is not set! (pi = PI_CONST * N**(1 / TEMP_CONST))")
+            raise Exception("TEMP_CONST is not set! (pi = normalize(N**(1 / TEMP_CONST)))")
 
         start_time = time.time()
         num_search = 0
@@ -177,6 +175,7 @@ class MCTree:
             else:
                 N.append(child.N)
         N = np.array(N)
-        pi = PI_CONST * N ** (1 / TEMP_CONST)
+#        import pdb; pdb.set_trace()
+        pi = normalize([N ** (1 / TEMP_CONST)], norm='l1')[0]
 
         return pi, num_search, time_spent
