@@ -6,7 +6,7 @@ import random
 class TestGoEnv(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.env = gym.make('gym_go:go-v0', size='S', reward_method='real')
+        self.env = gym.make('gym_go:go-v0', size=7, reward_method='real')
 
     def tearDown(self) -> None:
         self.env.close()
@@ -206,7 +206,7 @@ class TestGoEnv(unittest.TestCase):
             state, reward, done, info = self.env.step(move)
 
         # Test invalid channel
-        self.assertEqual(np.count_nonzero(state[2]), 8)
+        self.assertEqual(np.count_nonzero(state[2]), 8, state[2])
         self.assertEqual(np.count_nonzero(state[2] == 1), 8)
         self.assertEqual(state[2][1, 2], 1)
 
@@ -247,7 +247,7 @@ class TestGoEnv(unittest.TestCase):
             state, reward, done, info = self.env.step(move)
 
         # Test invalid channel
-        self.assertEqual(np.count_nonzero(state[2]), 9)
+        self.assertEqual(np.count_nonzero(state[2]), 9, state[2])
         self.assertEqual(np.count_nonzero(state[2] == 1), 9)
         self.assertEqual(state[2][1, 1], 1)
         self.assertEqual(state[2][0, 0], 1)
@@ -338,6 +338,38 @@ class TestGoEnv(unittest.TestCase):
         # Assert they are ones
         self.assertEqual(np.count_nonzero(state[1] == 1), 10)
 
+    def test_large_group_suicide(self):
+        """
+        _,   _,   _,   _,   _,   _,   _,
+        
+        _,   _,   _,   _,   _,   _,   _,
+
+        _,   _,   _,   _,   _,   _,   _,
+
+        _,   _,   _,   _,   _,   _,   _,
+
+        1,   3,   _,   _,   _,   _,   _,
+
+        4,   6,   5,   _,   _,   _,   _,
+
+        2,   8,   7,   _,   _,   _,   _,
+        
+        :return:
+        """
+        for move in [(4,0), (6,0), (4,1), (5,0), (5,2), (5,1), (6,2)]:
+            state, reward, done, info = self.env.step(move)
+            
+        # Test invalid channel
+        self.assertEqual(np.count_nonzero(state[2]), 8, state[2])
+        self.assertEqual(np.count_nonzero(state[2] == 1), 8)
+        # Assert empty space in pieces channels
+        self.assertEqual(state[0][6, 1], 0)
+        self.assertEqual(state[1][6, 1], 0)
+
+        final_move = (6,1)
+        with self.assertRaises(Exception):
+            self.env.step(final_move)
+        
     def test_group_edge_capture(self):
         """
         1,   3,   2,   _,   _,   _,   _,
@@ -409,7 +441,7 @@ class TestGoEnv(unittest.TestCase):
         self.assertFalse(done)
 
     def test_state(self):
-        env = gym.make('gym_go:go-v0')
+        env = gym.make('gym_go:go-v0', size=7)
         state = env.reset()
         self.assertIsInstance(state, np.ndarray)
         self.assertEqual(state.shape[0], 4)
@@ -425,7 +457,7 @@ class TestGoEnv(unittest.TestCase):
         self.assertTrue(done)
 
     def test_real_reward(self):
-        env = gym.make('gym_go:go-v0', reward_method='real')
+        env = gym.make('gym_go:go-v0', size=7, reward_method='real')
 
         # In game
         state, reward, done, info = env.step((0,0))
@@ -452,7 +484,7 @@ class TestGoEnv(unittest.TestCase):
         env.close()
 
     def test_heuristic_reward(self):
-        env = gym.make('gym_go:go-v0', size='S',reward_method='heuristic')
+        env = gym.make('gym_go:go-v0', size=7, reward_method='heuristic')
 
         # In game
         state, reward, done, info = env.step((0, 0))
@@ -483,11 +515,10 @@ class TestGoEnv(unittest.TestCase):
         env.close()
 
     def test_board_sizes(self):
-        size_labels = ['S','M','L']
         expected_sizes = [7, 13, 19]
 
-        for label, expec_size in zip(size_labels, expected_sizes):
-            env = gym.make('gym_go:go-v0', size=label)
+        for expec_size in expected_sizes:
+            env = gym.make('gym_go:go-v0', size=expec_size)
             state = env.reset()
             self.assertEqual(state.shape[1], expec_size)
             self.assertEqual(state.shape[2], expec_size)

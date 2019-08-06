@@ -63,7 +63,7 @@ class MCTree:
         self.forward_func = forward_func
         self.oppo_forward_func = oppo_forward_func
         self.board_width = board.board_width
-        self.our_player = board.get_next_player()
+        self.our_player = board.turn
 
     def select_best_child(self, node):
         '''
@@ -79,7 +79,7 @@ class MCTree:
         if U_CONST is None:
             raise Exception("U CONST is not set! (U = U_CONST * P / (1 + N))")
         # if it's our turn
-        if node.board.get_next_player() == self.our_player:
+        if node.board.turn == self.our_player:
             moves_2d = node.board.action_space
             moves_1d = list(map(utils.action_2d_to_1d, moves_2d, [self.board_width] * len(moves_2d)))
             best_move = None 
