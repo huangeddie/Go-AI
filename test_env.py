@@ -260,6 +260,45 @@ class TestGoEnv(unittest.TestCase):
         final_move = (1,1)
         with self.assertRaises(Exception):
             self.env.step(final_move)
+            
+    def test_valid_no_liberty_capture(self):
+        """
+        1,   7,   2,   3,   _,   _,   _,
+
+        6,   4,   5,   _,   _,   _,   _,
+
+        _,   _,   _,   _,   _,   _,   _,
+
+        _,   _,   _,   _,   _,   _,   _,
+
+        _,   _,   _,   _,   _,   _,   _,
+
+        _,   _,   _,   _,   _,   _,   _,
+
+        _,   _,   _,   _,   _,   _,   _,
+
+        :return:
+        """
+        for move in [(0,0), (0,2), (0,3), (1,1), (1,2), (1,0)]:
+            state, reward, done, info = self.env.step(move)
+
+        # Test invalid channel
+        self.assertEqual(np.count_nonzero(state[2]), 6, state[2])
+        self.assertEqual(np.count_nonzero(state[2] == 1), 6)
+        self.assertEqual(state[2][0, 1], 0, state[2])
+        # Assert empty space in pieces channels
+        self.assertEqual(state[0][0, 1], 0)
+        self.assertEqual(state[1][0, 1], 0)
+
+        final_move = (0,1)
+        state, reward, done, info = self.env.step(final_move)
+        
+        # White should only have 2 pieces
+        self.assertEqual(np.count_nonzero(state[1]), 2, state[1])
+        self.assertEqual(np.count_nonzero(state[1] == 1), 2)
+        # Black should have 4 pieces
+        self.assertEqual(np.count_nonzero(state[0]), 4, state[0])
+        self.assertEqual(np.count_nonzero(state[0] == 1), 4)
 
     def test_invalid_game_already_over_move(self):
         self.env.step(None)

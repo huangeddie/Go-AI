@@ -121,9 +121,8 @@ class GoEnv(gym.Env):
                 killed_some_opponent_pieces = True
                 
                 # Remove group in board
-                channel = self.turn.other.value # Value of turn is also the channel
                 for loc in group.locations:
-                    self.state[channel][loc] = 0
+                    self.state[self.turn.other.value][loc] = 0
                 
                 # If group was one piece, activate ko protection
                 if len(group.locations) <= 1:
@@ -199,20 +198,33 @@ class GoEnv(gym.Env):
     def update_invalid_channel(self):
         """
         Updates invalid moves in the OPPONENT's perspective
-        Opponent cannot move at a location
-        * If it's occupied
-        * If it's adjacent to one of their groups with only one liberty and 
-            not adjacent to other groups with more than one liberty and is completely surrounded
-        * If it's surrounded by our pieces and all of those corresponding groups
-            move more than one liberty
-        * If it's protected by ko
+        1.) Opponent cannot move at a location
+            i.) If it's occupied
+            i.) If it's protected by ko
+        2.) Opponent can move at a location
+            i.) If it can kill
+        3.) Opponent cannot move at a location
+            i.) If it's adjacent to one of their groups with only one liberty and 
+                not adjacent to other groups with more than one liberty and is completely surrounded
+            ii.) If it's surrounded by our pieces and all of those corresponding groups
+                move more than one liberty
         """
         self.state[2] = np.sum(self.state[[0,1]], axis=0) # Occupied
+        if self.ko_protect is not None:
+            self.state[2][self.ko_protect] = 1
         for i, j in product(range(self.board_size), range(self.board_size)):
-            if self.state[2][i,j] >= 1: # Occupied invalidness already taken care of
+            if self.state[2][i,j] >= 1: # Occupied/ko invalidness already taken care of
                 continue
                 
             our_groups, opponent_groups = self.get_adjacent_groups((i, j))
+            # Check whether we can kill
+            can_kill = False
+            for group in our_groups:
+                if len(group.liberties) <= 1:
+                    can_kill = True
+                    break
+            if can_kill:
+                continue
             
             # Check whether completely surrounded, 
             # next to a group with only one liberty AND not 
@@ -252,10 +264,6 @@ class GoEnv(gym.Env):
                 
             # Check if surrounded and cannot kill
             if len(empty_adjacent_locations) <= 0 and not can_kill:
-                self.state[2][i,j] = 1
-                
-            # Ko-protection
-            if (i,j) == self.ko_protect:
                 self.state[2][i,j] = 1
 
     def get_areas(self):
