@@ -79,7 +79,7 @@ class TestMCTS(unittest.TestCase):
     def test_two_step_search(self):
         '''
         This tests a simple two-step search
-        _,_,_    B,_,_    B,W,_                     2,0,0
+        _,_,_    B,_,_    B,W,_                     1,0,0
         _,_,_ => _,_,_ => _,_,_    should return    0,0,0
         _,_,_    _,_,_    _,_,_                     0,0,0
         '''
@@ -138,7 +138,7 @@ class TestMCTS(unittest.TestCase):
         tree = MCTS.MCTree(self.env, mock_forward_func, mock_oppo)
         pi, num_search, time_spent = tree.perform_search(2)
         # the first move should have pi = 2
-        self.assertEqual(pi[0], 2)
+        self.assertEqual(pi[0], 1)
         # the rest of the moves should have pi = 0
         for i in range(1, self.action_length):
             self.assertEqual(pi[i], 0)
@@ -165,9 +165,9 @@ class TestMCTS(unittest.TestCase):
         __,__,__ => _,_,_   value = 0
         __,__,__    _,_,_   
 
-                \   _,B,_                                  1,2,0
-                 \> _,_,_   value = 1     should return    0,0,0
-                    _,_,_                                  0,0,0
+                \   _,B,_                                  .33,.66,0
+                 \> _,_,_   value = 1     should return      0,  0,0
+                    _,_,_                                    0,  0,0
         '''
         move_01 = utils.action_2d_to_1d((0, 1), self.env.board_width)
         move_10 = utils.action_2d_to_1d((1, 0), self.env.board_width)
@@ -232,8 +232,8 @@ class TestMCTS(unittest.TestCase):
         tree = MCTS.MCTree(self.env, mock_forward_func, mock_oppo)
         pi, num_search, time_spent = tree.perform_search(3)
         # check pi
-        self.assertEqual(pi[0], 1)
-        self.assertEqual(pi[move_01], 2)
+        self.assertEqual(pi[0], 1/3)
+        self.assertEqual(pi[move_01], 2/3)
         # the rest of the moves should have pi = 0
         for i in range(2, self.action_length):
             self.assertEqual(pi[i], 0)
@@ -277,7 +277,7 @@ class TestMCTS(unittest.TestCase):
         tree = MCTS.MCTree(self.env, mock_forward_func, mock_oppo)
         pi, num_search, time_spent = tree.perform_search(3)
         # check pi
-        self.assertEqual(pi[move_pass], 3)
+        self.assertEqual(pi[move_pass], 1)
         # the rest of the moves should have pi = 0
         for i in range(0, self.action_length - 1):
             self.assertEqual(pi[i], 0)
