@@ -70,7 +70,7 @@ class GoEnv(gym.Env):
         
         # check if game is already over
         if self.done:
-            raise Error('Attempt to step at {} after game is over'.format(action))
+            raise Exception('Attempt to step at {} after game is over'.format(action))
             
         # if the current player passes
         if action is None:         
@@ -102,9 +102,9 @@ class GoEnv(gym.Env):
         
         # Check move is valid
         if not self.is_within_bounds(action):
-            raise Error("Not Within bounds")
+            raise Exception("Not Within bounds")
         elif self.state[2][action] > 0:
-            return Error("Invalid Move")
+            raise Exception("Invalid Move")
         
         # Get all adjacent groups
         _, opponent_groups = self.get_adjacent_groups(action)
@@ -193,7 +193,7 @@ class GoEnv(gym.Env):
         elif self.reward_method == RewardMethod.HEURISTIC:
             return area_difference
         else:
-            raise Error("Unknown Reward Method")
+            raise Exception("Unknown Reward Method")
             
     def update_invalid_channel(self):
         """
