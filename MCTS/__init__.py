@@ -23,7 +23,7 @@ class Node:
         self.parent = parent 
         # 1d array of the size that can hold the moves including pass, 
         # initially all None
-        self.children = np.empty(board.board_width**2 + 1, dtype=object) 
+        self.children = np.empty(board.board_size**2 + 1, dtype=object) 
         self.action_probs = action_probs 
         self.board = board 
         # number of time this node was visited
@@ -62,7 +62,7 @@ class MCTree:
         self.root = Node(None, action_probs, state_value, copy.deepcopy(board))
         self.forward_func = forward_func
         self.oppo_forward_func = oppo_forward_func
-        self.board_width = board.board_width
+        self.board_size = board.board_size
         self.our_player = board.turn
 
     def select_best_child(self, node):
@@ -81,7 +81,7 @@ class MCTree:
         # if it's our turn
         if node.board.turn == self.our_player:
             moves_2d = node.board.action_space
-            moves_1d = list(map(utils.action_2d_to_1d, moves_2d, [self.board_width] * len(moves_2d)))
+            moves_1d = list(map(utils.action_2d_to_1d, moves_2d, [self.board_size] * len(moves_2d)))
             best_move = None 
             max_UCB = np.NINF # negative infinity
             # calculate Q + U for all children
@@ -121,7 +121,7 @@ class MCTree:
         if node.board.done:
             return node
         child_board = copy.deepcopy(node.board)
-        state, _, _, info = child_board.step(utils.action_1d_to_2d(move, self.board_width))
+        state, _, _, info = child_board.step(utils.action_1d_to_2d(move, self.board_size))
         our_action_probs, state_value = self.forward_func(state)
         # if it's our move, save our action prob
         if info['turn'] == self.our_player:
