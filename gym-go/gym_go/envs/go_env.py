@@ -115,7 +115,10 @@ class GoEnv(gym.Env):
         killed_some_opponent_pieces = False
         
         # Go through opponent groups
+        killed_single_piece = False
+        empty_adjacents_before_kill = self.get_adjacent_locations(action)
         for group in opponent_groups:
+            empty_adjacents_before_kill = empty_adjacents_before_kill - group.locations
             if len(group.liberties) <= 1:
                 assert action in group.liberties
                 killed_some_opponent_pieces = True
@@ -123,10 +126,15 @@ class GoEnv(gym.Env):
                 # Remove group in board
                 for loc in group.locations:
                     self.state[self.turn.other.value][loc] = 0
-                
-                # If group was one piece, activate ko protection
+                    
+                # Metric for ko-protection
                 if len(group.locations) <= 1:
-                    self.ko_protect = group.locations.pop()
+                    killed_single_piece = True
+                
+        # If group was one piece, and location is surrounded by opponents, 
+        # activate ko protection
+        if killed_single_piece and len(empty_adjacents_before_kill) <= 0:
+            self.ko_protect = group.locations.pop()
                     
         # Add the piece!
         self.state[self.turn.value][action] = 1

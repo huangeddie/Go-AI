@@ -109,10 +109,10 @@ def plot_move_distr(title, move_distr, scalar=None):
     """
     board_size = int((len(move_distr) - 1) ** 0.5)
     plt.axis('off')
-    plt.title('{} {:.1f}\n{:.1f}L {:.1f}H {:.1f}P'
-              .format(title, 0 if scalar is None else scalar, 
-                      np.min(move_distr[:-1]), np.max(move_distr[:-1]), 
-                      move_distr[-1].numpy()))
+    plt.title(title + (' ' if scalar is None else ' {:.1f}').format(scalar) 
+              + '\n{:.1f}L {:.1f}H {:.1f}P'.format(np.min(move_distr[:-1]), 
+                                                   np.max(move_distr[:-1]), 
+                                                   move_distr[-1].numpy()))
     plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
     
 def plot_to_image(figure):
