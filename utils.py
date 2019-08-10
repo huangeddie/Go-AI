@@ -114,7 +114,8 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None):
     plt.axis('off')
     plt.title(title + (' ' if scalar is None else ' {:.1f}S').format(scalar) 
               + '\n{:.1f}L {:.1f}H {:.1f}P'.format(np.min(np.extract(valid_moves[:-1] == 1, 
-                                                                     move_distr[:-1])), 
+                                                                     move_distr[:-1])) 
+                                                   if np.sum(valid_moves) > 0 else 0, 
                                                    np.max(move_distr[:-1]), 
                                                    move_distr[-1].numpy()))
     plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
