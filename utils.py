@@ -31,6 +31,9 @@ def get_invalid_moves(states):
     invalid_moves = np.insert(invalid_moves, board_size**2, 0, axis=1)
     return invalid_moves
 
+def get_valid_moves(states):
+    return 1 - get_invalid_moves(states)
+
 def get_invalid_values(states):
     """
     Returns the action values of the states where invalid moves have -infinity value (minimum value of float32)
@@ -103,14 +106,15 @@ def all_orientations(state_or_action, board_size):
     
     return orientations
 
-def plot_move_distr(title, move_distr, scalar=None):
+def plot_move_distr(title, move_distr, valid_moves, scalar=None):
     """
     Takes in a 1d array of move values and plots its heatmap
     """
     board_size = int((len(move_distr) - 1) ** 0.5)
     plt.axis('off')
-    plt.title(title + (' ' if scalar is None else ' {:.1f}').format(scalar) 
-              + '\n{:.1f}L {:.1f}H {:.1f}P'.format(np.min(move_distr[:-1]), 
+    plt.title(title + (' ' if scalar is None else ' {:.1f}S').format(scalar) 
+              + '\n{:.1f}L {:.1f}H {:.1f}P'.format(np.min(np.extract(valid_moves[:-1] == 1, 
+                                                                     move_distr[:-1])), 
                                                    np.max(move_distr[:-1]), 
                                                    move_distr[-1].numpy()))
     plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
