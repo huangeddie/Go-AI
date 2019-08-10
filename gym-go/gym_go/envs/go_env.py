@@ -29,7 +29,7 @@ class Group:
 class GoEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, size, reward_method='heuristic'):
+    def __init__(self, size, reward_method='heuristic', state_ref=None):
         '''
         @param reward_method: either 'heuristic' or 'real' 
         heuristic: gives # black pieces - # white pieces. 
@@ -44,6 +44,10 @@ class GoEnv(gym.Env):
         self.reward_method = RewardMethod(reward_method)
             
         # setup board
+        if state_ref is None:
+            self.state = np.zeros((4, self.board_size, self.board_size))
+        else:
+            self.state = state_ref
         self.reset()
         
     def reset(self):
@@ -51,7 +55,7 @@ class GoEnv(gym.Env):
         Reset state, go_board, curr_player, prev_player_passed,
         done, return state
         '''
-        self.state = np.zeros((4, self.board_size, self.board_size))
+        self.state.fill(0)
         self.turn = Turn.BLACK
         self.prev_player_passed = False
         self.game_ended = False
