@@ -58,7 +58,6 @@ class GoEnv(gym.Env):
         self.state.fill(0)
         self.turn = Turn.BLACK
         self.prev_player_passed = False
-        self.game_ended = False
         self.ko_protect = None
         self.done = False
 
@@ -440,7 +439,7 @@ class GoEnv(gym.Env):
 
         return result
     
-    def render(self, mode='human'):
+    def render(self, mode='terminal'):
         board_str = ' '
 
         for i in range(self.board_size):
@@ -465,6 +464,9 @@ class GoEnv(gym.Env):
             board_str += '\n  '
             board_str += '----' * self.board_size + '-'
             board_str += '\n'
+        info = self.get_info()
+        board_str += '\tTurn: {} Last Turn Passed: {} Game Over: {}\n'.format(self.turn, self.prev_player_passed, self.done)
+        board_str += '\tB: {} W:{}\n'.format(info['area']['b'], info['area']['w'])
 
         print(board_str)
 
