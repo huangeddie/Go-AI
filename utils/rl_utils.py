@@ -208,7 +208,7 @@ def play_a_game(replay_mem, go_env, black_policy, white_policy, black_first, max
             break
             
         # Add to memory
-        assert done = False
+        assert done == False
         add_to_replay_mem(replay_mem, state, black_action, next_state, win, done)
             
         # Setup for next event
