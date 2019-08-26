@@ -27,7 +27,7 @@ def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done):
     Adds original event, plus augmented versions of those events
     """
     assert len(state.shape) == 3 and state.shape[1] == state.shape[2]
-    board_size = state.shape[0]
+    board_size = state.shape[1]
     for s, a, ns in list(zip(go_utils.all_orientations(state, board_size), 
                              go_utils.all_orientations(action_1d, board_size), 
                              go_utils.all_orientations(next_state, board_size))):
