@@ -208,6 +208,7 @@ def play_a_game(replay_mem, go_env, black_policy, white_policy, black_first, max
             break
             
         # Add to memory
+        assert done = False
         add_to_replay_mem(replay_mem, state, black_action, next_state, win, done)
             
         # Setup for next event
@@ -215,11 +216,10 @@ def play_a_game(replay_mem, go_env, black_policy, white_policy, black_first, max
     
     # We're done
     done = True
+    
     # Set the winner if we're done
-    win[0] = reward
-    if win[0] < 0:
-        win[0] = 0
-        
+    win[0] = int(info['area']['b'] > info['area']['w'])
+    
     # Add the last event to memory
     add_to_replay_mem(replay_mem, state, black_action, next_state, win, done)
     
