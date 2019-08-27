@@ -9,6 +9,7 @@ from utils import go_utils
 import matplotlib.pyplot as plt
 import collections
 from functools import reduce
+from tqdm import tqdm_notebook
 
 def forward_pass(states, network, training):
     """
@@ -209,7 +210,8 @@ def play_a_game(replay_mem, go_env, black_policy, white_policy, black_first, max
             
         # Add to memory
         assert done == False
-        add_to_replay_mem(replay_mem, state, black_action, next_state, win, done)
+        if replay_mem is not None:
+            add_to_replay_mem(replay_mem, state, black_action, next_state, win, done)
             
         # Setup for next event
         state = next_state
@@ -221,7 +223,82 @@ def play_a_game(replay_mem, go_env, black_policy, white_policy, black_first, max
     win[0] = int(info['area']['b'] > info['area']['w'])
     
     # Add the last event to memory
-    add_to_replay_mem(replay_mem, state, black_action, next_state, win, done)
+    if replay_mem is not None:
+        add_to_replay_mem(replay_mem, state, black_action, next_state, win, done)
     
     # Game ended
     return win.item(), num_steps
+
+def reset_metrics(metrics):
+    for key, metric in metrics.items():
+        metric.reset_states()
+
+def log_to_tensorboard(summary_writer, metrics, step, replay_mem, actor, critic):
+    """
+    Logs metrics to tensorboard. 
+    Also resets keras metrics after use
+    """
+    with summary_writer.as_default():
+        # Keras metrics
+        for key, metric in metrics.items():
+            tf.summary.scalar(key, metric.result(), step=step)
+            
+        reset_metrics(metrics)
+        
+        # Plot samples of states and response heatmaps
+        logging.debug("Sampling heatmaps...")
+        fig = sample_heatmaps(actor, critic, replay_mem, num_samples=2)
+        tf.summary.image("model heat maps", go_utils.plot_to_image(fig), step=step)
+        
+def evaluate(go_env, actor, opponent, level_paths, max_steps):
+    avg_metric = tf.keras.metrics.Mean()
+    for level_idx, level_path in tqdm_notebook(enumerate(level_paths), desc='Evaluating'):
+        if level_path is not None:
+            opponent.load_weights(level_path)
+
+        white_policy = opponent if level_path is not None else None
+
+        for black_first in [True, False]:
+            avg_metric.reset_states()
+            for episode in tqdm_notebook(range(128), desc='Evaluating against level {} opponent'.format(level_idx)):
+                black_won, _ = play_a_game(None, go_env, black_policy=actor, white_policy=opponent,
+                                           black_first=black_first, max_steps=max_steps)
+                avg_metric(black_won)
+
+            print('{}L_{}: {:.1f}%'.format(level_idx, 'B' if black_first else 'W', 100*avg_metric.result().numpy()))
+            
+def play_against(policy, go_env):
+    state = go_env.reset()
+
+    done = False
+    while not done:
+        go_env.render()
+
+        # Actor's move
+        action = get_action(policy, state, epsilon=0)
+
+        state, reward, done, info = go_env.step(go_utils.action_1d_to_2d(action, go_env.board_size))
+        go_env.render()
+
+        # Player's move
+        player_moved = False
+        while not player_moved:
+            coords = input("Enter coordinates separated by space (`q` to quit)\n")
+            if coords == 'q':
+                done = True
+                break
+            if coords == 'r':
+                go_env.reset()
+                break
+            if coords == 'p':
+                go_env.step(None)
+                break
+            coords = coords.split()
+            try:
+                row = int(coords[0])
+                col = int(coords[1])
+                print(row, col)
+                state, reward, done, info = go_env.step((row, col))
+                player_moved = True
+            except Exception as e:
+                print(e)
