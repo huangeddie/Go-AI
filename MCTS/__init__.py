@@ -3,7 +3,7 @@ from sklearn.preprocessing import normalize
 import numpy as np
 import time
 import copy
-from utils import go_utils
+from go_ai import go_utils
 
 U_CONST = None
 TEMP_CONST = None

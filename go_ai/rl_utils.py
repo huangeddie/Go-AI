@@ -6,7 +6,7 @@ import datetime
 import logging
 import random
 import itertools
-from utils import go_utils
+from go_ai import go_utils
 import matplotlib.pyplot as plt
 import collections
 from functools import reduce

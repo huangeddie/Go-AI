@@ -2,7 +2,7 @@ import unittest
 import gym
 import numpy as np
 import MCTS 
-from utils import go_utils
+from go_ai import go_utils
 
 class TestMCTS(unittest.TestCase):
 
