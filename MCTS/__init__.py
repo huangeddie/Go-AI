@@ -3,7 +3,7 @@ from sklearn.preprocessing import normalize
 import numpy as np
 import time
 import copy
-import utils
+from utils import go_utils
 
 U_CONST = None
 TEMP_CONST = None
@@ -20,25 +20,25 @@ class Node:
             move (?tuple): the move that resulted in this node. None
                 for root node
         '''
-        self.parent = parent 
-        # 1d array of the size that can hold the moves including pass, 
+        self.parent = parent
+        # 1d array of the size that can hold the moves including pass,
         # initially all None
-        self.children = np.empty(board.board_size**2 + 1, dtype=object) 
-        self.action_probs = action_probs 
-        self.board = board 
+        self.children = np.empty(board.board_size**2 + 1, dtype=object)
+        self.action_probs = action_probs
+        self.board = board
         # number of time this node was visited
-        self.N = 1 
+        self.N = 1
         self.V = state_value # the evaluation of this node (value)
         self.V_sum = self.V # the sum of values of this subtree
 
     @property
     def Q(self):
-        return self.V_sum / self.N 
+        return self.V_sum / self.N
 
     def back_propagate(self, value_incre):
         '''
         Description:
-            Recursively increases the number visited by 1 and increase the 
+            Recursively increases the number visited by 1 and increase the
             V_sum by value increment from this node up to the root node.
         '''
         self.N += 1
@@ -52,7 +52,7 @@ class MCTree:
         '''
         Description:
             Construct a Monte Carlo Tree that has current board as root
-        Args: 
+        Args:
             board (GoEnv): current board
             forward_func: function(GoEnv.state) => action_probs, state_value
         '''
@@ -64,8 +64,8 @@ class MCTree:
 
     def select_best_child(self, node):
         '''
-        Description: If it's our turn, select the child that 
-            maximizes Q + U, where Q = V_sum / N, and 
+        Description: If it's our turn, select the child that
+            maximizes Q + U, where Q = V_sum / N, and
             U = U_CONST * P / (1 + N), where P is action value.
             If it's oppo's turn, randomly select the child according to
             forward_func action probs.
@@ -77,8 +77,8 @@ class MCTree:
         # if it's our turn
         if node.board.turn == self.our_player:
             moves_2d = node.board.action_space
-            moves_1d = list(map(utils.action_2d_to_1d, moves_2d, [self.board_size] * len(moves_2d)))
-            best_move = None 
+            moves_1d = list(map(go_utils.action_2d_to_1d, moves_2d, [self.board_size] * len(moves_2d)))
+            best_move = None
             max_UCB = np.NINF # negative infinity
             # calculate Q + U for all children
             for move in moves_1d:
@@ -97,7 +97,7 @@ class MCTree:
                     best_move = move
         # if it's opponent's turn, choose an action based on action prob
         else:
-            best_move = utils.random_weighted_action([node.action_probs])
+            best_move = go_utils.random_weighted_action([node.action_probs])
 
         if best_move is None:
             raise Exception("MCTS: move shouldn't be None, please debug")
@@ -106,12 +106,12 @@ class MCTree:
     def expand(self, node, move):
         '''
         Description:
-            Expand a new node from given node with the given move. 
+            Expand a new node from given node with the given move.
         Args:
             node (Node): parent node to expand from
             move (1d): the move from parent to child
         Returns:
-            If a node is created, return the new node. When the game ends 
+            If a node is created, return the new node. When the game ends
             with the node passed in, nothing is created and return the node
         '''
         # if we reach a end state, return this node
@@ -121,7 +121,7 @@ class MCTree:
         state, _, _, info = child_board.step(utils.action_1d_to_2d(move, self.board_size))
         # if it's our move, save our action prob
         if info['turn'] == self.our_player:
-            action_probs, state_value = self.forward_func(state) 
+            action_probs, state_value = self.forward_func(state)
         # if it's opponent's move, mock oppo action prob with our model
         else:
             # swap black and white channels
@@ -134,7 +134,7 @@ class MCTree:
     def perform_search(self, max_num_searches=1000, max_time=300):
         '''
         Description:
-            Select a child node that maximizes Q + U,  
+            Select a child node that maximizes Q + U,
         Args:
             max_num_searches (int): maximum number of searches performed
             max_time (float): maxtime spend in this function in seconds

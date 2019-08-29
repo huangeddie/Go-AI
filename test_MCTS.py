@@ -1,8 +1,8 @@
 import unittest
 import gym
 import numpy as np
-import MCTS 
-import utils
+import MCTS
+from utils import go_utils
 
 class TestMCTS(unittest.TestCase):
 
@@ -40,7 +40,7 @@ class TestMCTS(unittest.TestCase):
             # black at (0,0)
             elif state[0,0,0] == 1 and np.count_nonzero(state[0]) == 1 \
                 and np.count_nonzero(state[1]) == 0:
-                    idx = utils.action_2d_to_1d((0, 1), self.env.board_size)
+                    idx = go_utils.action_2d_to_1d((0, 1), self.env.board_size)
                     action_probs[idx] = 1
                     state_value = 1
             # unexpected states
@@ -48,7 +48,22 @@ class TestMCTS(unittest.TestCase):
                 raise Exception("Unexpected state")
             return action_probs, state_value
 
-        tree = MCTS.MCTree(self.env, mock_forward_func)
+        def mock_oppo(state):
+            '''
+            Black at (0,0): (0,1) has prob of 1
+            Else: raise exception
+            '''
+            action_probs = np.zeros(self.action_length)
+            move_01 = go_utils.action_2d_to_1d((0, 1), self.env.board_size)
+            # black at (0,0)
+            if state[1,0,0] == 1 and np.count_nonzero(state[1]) == 1 \
+                and np.count_nonzero(state[0]) == 0:
+                    action_probs[move_01] = 1
+            else:
+                raise Exception("Unexpected state for opponent")
+            return action_probs
+
+        tree = MCTS.MCTree(self.env, mock_forward_func, mock_oppo)
         # only perform one search, should only reach 1 state
         pi, num_search, time_spent = tree.perform_search(1)
         # the first move should have pi = 1
@@ -69,7 +84,7 @@ class TestMCTS(unittest.TestCase):
             '''
             Empty board:
                 action probs: 1 at the top left corner (0,0)
-                state value: 0 
+                state value: 0
             After (0,0) is black and nothing else:
                 action probs: 1 at (0, 1)
                 state value: 1
@@ -88,19 +103,34 @@ class TestMCTS(unittest.TestCase):
             # black at (0,0)
             elif state[0,0,0] == 1 and np.count_nonzero(state[0]) == 1 \
                 and np.count_nonzero(state[1]) == 0:
-                    idx = utils.action_2d_to_1d((0, 1), self.env.board_size)
+                    idx = go_utils.action_2d_to_1d((0, 1), self.env.board_size)
                     action_probs[idx] = 1
                     state_value = 1
             # black at (0,0), white at (0,1)
             elif state[0,0,0] == 1 and np.count_nonzero(state[0]) == 1 \
                 and state[1,0,1] == 1 and np.count_nonzero(state[1]) == 1:
-                    idx = utils.action_2d_to_1d((1, 0), self.env.board_size)
+                    idx = go_utils.action_2d_to_1d((1, 0), self.env.board_size)
                     action_probs[idx] = 1
                     state_value = 0.5
             # unexpected states
             else:
                 raise Exception("Unexpected state")
             return action_probs, state_value
+
+        def mock_oppo(state):
+            '''
+            Black at (0,0): (0,1) has prob of 1
+            Else: raise exception
+            '''
+            action_probs = np.zeros(self.action_length)
+            move_01 = go_utils.action_2d_to_1d((0, 1), self.env.board_size)
+            # black at (0,0)
+            if state[1,0,0] == 1 and np.count_nonzero(state[1]) == 1 \
+                and np.count_nonzero(state[0]) == 0:
+                    action_probs[move_01] = 1
+            else:
+                raise Exception("Unexpected state for opponent")
+            return action_probs
 
         tree = MCTS.MCTree(self.env, mock_forward_func)
         pi, num_search, time_spent = tree.perform_search(2)
@@ -120,7 +150,7 @@ class TestMCTS(unittest.TestCase):
         self.assertEqual(black_node.V, 1)
         self.assertEqual(black_node.N, 2)
 
-        white_node = black_node.children[utils.action_2d_to_1d((0, 1), self.env.board_size)]
+        white_node = black_node.children[go_utils.action_2d_to_1d((0, 1), self.env.board_size)]
         self.assertEqual(white_node.V_sum, 0.5)
         self.assertEqual(white_node.V, 0.5)
         self.assertEqual(white_node.N, 1)
@@ -128,21 +158,21 @@ class TestMCTS(unittest.TestCase):
     def test_two_branch_search(self):
         '''
         This tests a two branch search, search 3 times
-        .5,.5,__    B,_,_   
+        .5,.5,__    B,_,_
         __,__,__ => _,_,_   value = 0
-        __,__,__    _,_,_   
+        __,__,__    _,_,_
 
                 \   _,B,_                                  .33,.66,0
                  \> _,_,_   value = 1     should return      0,  0,0
                     _,_,_                                    0,  0,0
         '''
-        move_01 = utils.action_2d_to_1d((0, 1), self.env.board_size)
-        move_10 = utils.action_2d_to_1d((1, 0), self.env.board_size)
+        move_01 = go_utils.action_2d_to_1d((0, 1), self.env.board_size)
+        move_10 = go_utils.action_2d_to_1d((1, 0), self.env.board_size)
         def mock_forward_func(state):
             '''
             Empty board:
                 action probs: 0.5 for (0,0) and (0,1)
-                state value: 0 
+                state value: 0
             After (0,0) is black and nothing else:
                 action probs: 1 at (0, 1) # shouldn't matter
                 state value: 0
@@ -188,12 +218,12 @@ class TestMCTS(unittest.TestCase):
         '''
         Tests that two player pass
         '''
-        move_pass = utils.action_2d_to_1d(None, self.env.board_size)
+        move_pass = go_utils.action_2d_to_1d(None, self.env.board_size)
         def mock_forward_func(state):
             '''
             Empty board:
                 action probs: 1 for pass
-                state value: 0 
+                state value: 0
             '''
             action_probs = np.zeros(self.action_length)
             # empty board
@@ -204,7 +234,7 @@ class TestMCTS(unittest.TestCase):
             else:
                 raise Exception("Unexpected state")
             return action_probs, state_value
-        
+
         tree = MCTS.MCTree(self.env, mock_forward_func)
         pi, num_search, time_spent = tree.perform_search(3)
         # check pi

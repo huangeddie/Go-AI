@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.keras import layers
 import numpy as np
 import gym
 import datetime
@@ -10,6 +11,56 @@ import matplotlib.pyplot as plt
 import collections
 from functools import reduce
 from tqdm import tqdm_notebook
+
+def make_actor_critic(mode, board_size):
+    inputs = layers.Input(shape=(board_size, board_size, 4), name="board")
+    valid_inputs = layers.Input(shape=(board_size**2 + 1,), name="valid_moves")
+    invalid_values = layers.Input(shape=(board_size**2 + 1,), name="invalid_values")
+    
+    x = layers.Flatten()(inputs)
+    
+    x = layers.Dense(512)(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    
+    x = layers.Dense(1024)(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    
+    x = layers.Dense(1024)(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    
+    x = layers.Dense(256)(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    
+    if mode == 'actor':
+        move_probs = layers.Dense(128)(x)
+        move_probs = layers.BatchNormalization()(move_probs)
+        move_probs = layers.ReLU()(move_probs)
+        move_probs = layers.Dense(50)(move_probs)
+        move_probs = layers.Add()([move_probs, invalid_values])
+        move_probs = layers.Softmax(name="move_probs")(move_probs)
+        out = move_probs
+    elif mode == 'q_net':
+        move_vals = layers.Dense(128)(x)
+        move_vals = layers.BatchNormalization()(move_vals)
+        move_vals = layers.ReLU()(move_vals)
+        move_vals = layers.Dense(50, activation='sigmoid')(move_vals)
+        move_vals = layers.Multiply(name="move_vals")([move_vals, valid_inputs])
+        out = move_vals
+    elif mode == 'val_net':
+        move_vals = layers.Dense(128)(x)
+        move_vals = layers.BatchNormalization()(move_vals)
+        move_vals = layers.ReLU()(move_vals)
+        move_vals = layers.Dense(1, activation='sigmoid')(move_vals)
+        out = move_vals
+    else:
+        raise Exception("Unknown mode")
+
+    model = tf.keras.Model(inputs=[inputs, valid_inputs, invalid_values], outputs=out, name=mode)
+    return model
 
 def forward_pass(states, network, training):
     """
@@ -39,8 +90,8 @@ def get_batch_obs(replay_mem, batch_size, index=None):
     Get a batch of orig_states, actions, states, rewards, terminals as np array out of replay memory
     '''
     
-    # States were (BATCH_SIZE, 4, BOARD_SIZE, BOARD_SIZE)
-    # Convert them to (BATCH_SIZE, BOARD_SIZE, BOARD_SIZE, 4)
+    # States were (BATCH_SIZE, 4, board_size, board_size)
+    # Convert them to (BATCH_SIZE, board_size, board_size, 4)
     if index is None:
         batch = random.sample(replay_mem, batch_size)
     else:
@@ -78,14 +129,14 @@ def state_responses(actor, critic, states, taken_actions, next_states, rewards, 
         
         plt.subplot(num_states,num_cols, 2 + num_cols*i)
         if move_vals.shape[1] > 1:
-            go_utils.plot_move_distr('Critic', 100 * move_vals[i], valid_moves[i], 
-                                     scalar=100 * state_vals[i].numpy())
+            go_utils.plot_move_distr('Critic', 100*move_vals[i], valid_moves[i], 
+                                     scalar=100*state_vals[i].numpy())
         else:
             plt.title('Critic')
             plt.bar(move_vals[i].numpy())
 
         plt.subplot(num_states,num_cols, 3 + num_cols*i)
-        go_utils.plot_move_distr('Actor', 100 * move_probs[i], valid_moves[i], 
+        go_utils.plot_move_distr('Actor', 100*move_probs[i], valid_moves[i], 
                               scalar=None)
         
         plt.subplot(num_states,num_cols, 4 + num_cols*i)
@@ -131,8 +182,8 @@ def get_action(policy, state, epsilon=0):
     """
     
     if state.shape[0] == 4:
-        # State shape will be (BOARD_SIZE, BOARD_SIZE, 4)
-        # Note that we are assuming BOARD_SIZE to be greater than 4
+        # State shape will be (board_size, board_size, 4)
+        # Note that we are assuming board_size to be greater than 4
         state = state.transpose(1,2,0)
     
     epsilon_choice = np.random.uniform()
@@ -162,7 +213,7 @@ def get_values_for_actions(move_val_distrs, actions):
     move_values = tf.reduce_sum(one_hot_move_values, axis=1)
     return move_values
 
-def play_a_game(replay_mem, go_env, black_policy, white_policy, black_first, max_steps):
+def play_a_game(replay_mem, go_env, black_policy, white_policy, max_steps, black_first=True):
     """
     Plays out a game, and adds the events to the given replay memory
     Returns the number of moves by the end of the game and the list 
@@ -261,8 +312,8 @@ def evaluate(go_env, actor, opponent, level_paths, max_steps):
         for black_first in [True, False]:
             avg_metric.reset_states()
             for episode in tqdm_notebook(range(128), desc='Evaluating against level {} opponent'.format(level_idx)):
-                black_won, _ = play_a_game(None, go_env, black_policy=actor, white_policy=opponent,
-                                           black_first=black_first, max_steps=max_steps)
+                black_won, _ = play_a_game(None, go_env, black_policy=actor, white_policy=white_policy, max_steps=max_steps,
+                                           black_first=black_first)
                 avg_metric(black_won)
 
             print('{}L_{}: {:.1f}%'.format(level_idx, 'B' if black_first else 'W', 100*avg_metric.result().numpy()))
