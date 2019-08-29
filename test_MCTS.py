@@ -2,13 +2,13 @@ import unittest
 import gym
 import numpy as np
 import MCTS 
-import utils
+from utils import go_utils
 
 class TestMCTS(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.env = gym.make('gym_go:go-v0', size='S', reward_method='real')
-        self.action_length = self.env.board_width**2 + 1
+        self.env = gym.make('gym_go:go-v0', size=7, reward_method='real')
+        self.action_length = self.env.board_size**2 + 1
         MCTS.PI_CONST = 1
         MCTS.U_CONST = 1
         MCTS.TEMP_CONST = 1
@@ -43,7 +43,7 @@ class TestMCTS(unittest.TestCase):
             # black at (0,0)
             elif state[0,0,0] == 1 and np.count_nonzero(state[0]) == 1 \
                 and np.count_nonzero(state[1]) == 0:
-                    idx = utils.action_2d_to_1d((0, 1), self.env.board_width)
+                    idx = go_utils.action_2d_to_1d((0, 1), self.env.board_size)
                     action_probs[idx] = 1
                     state_value = 1
             # unexpected states
@@ -57,7 +57,7 @@ class TestMCTS(unittest.TestCase):
             Else: raise exception
             '''
             action_probs = np.zeros(self.action_length)
-            move_01 = utils.action_2d_to_1d((0, 1), self.env.board_width)
+            move_01 = go_utils.action_2d_to_1d((0, 1), self.env.board_size)
             # black at (0,0)
             if state[1,0,0] == 1 and np.count_nonzero(state[1]) == 1 \
                 and np.count_nonzero(state[0]) == 0:
@@ -105,13 +105,13 @@ class TestMCTS(unittest.TestCase):
             # black at (0,0)
             elif state[0,0,0] == 1 and np.count_nonzero(state[0]) == 1 \
                 and np.count_nonzero(state[1]) == 0:
-                    idx = utils.action_2d_to_1d((0, 1), self.env.board_width)
+                    idx = go_utils.action_2d_to_1d((0, 1), self.env.board_size)
                     action_probs[idx] = 1
                     state_value = 1
             # black at (0,0), white at (0,1)
             elif state[0,0,0] == 1 and np.count_nonzero(state[0]) == 1 \
                 and state[1,0,1] == 1 and np.count_nonzero(state[1]) == 1:
-                    idx = utils.action_2d_to_1d((1, 0), self.env.board_width)
+                    idx = go_utils.action_2d_to_1d((1, 0), self.env.board_size)
                     action_probs[idx] = 1
                     state_value = 0.5
             # unexpected states
@@ -126,7 +126,7 @@ class TestMCTS(unittest.TestCase):
             Else: raise exception
             '''
             action_probs = np.zeros(self.action_length)
-            move_01 = utils.action_2d_to_1d((0, 1), self.env.board_width)
+            move_01 = go_utils.action_2d_to_1d((0, 1), self.env.board_size)
             # black at (0,0)
             if state[1,0,0] == 1 and np.count_nonzero(state[1]) == 1 \
                 and np.count_nonzero(state[0]) == 0:
@@ -153,7 +153,7 @@ class TestMCTS(unittest.TestCase):
         self.assertEqual(black_node.V, 1)
         self.assertEqual(black_node.N, 2)
 
-        white_node = black_node.children[utils.action_2d_to_1d((0, 1), self.env.board_width)]
+        white_node = black_node.children[go_utils.action_2d_to_1d((0, 1), self.env.board_size)]
         self.assertEqual(white_node.V_sum, 0.5)
         self.assertEqual(white_node.V, 0.5)
         self.assertEqual(white_node.N, 1)
@@ -169,8 +169,8 @@ class TestMCTS(unittest.TestCase):
                  \> _,_,_   value = 1     should return      0,  0,0
                     _,_,_                                    0,  0,0
         '''
-        move_01 = utils.action_2d_to_1d((0, 1), self.env.board_width)
-        move_10 = utils.action_2d_to_1d((1, 0), self.env.board_width)
+        move_01 = go_utils.action_2d_to_1d((0, 1), self.env.board_size)
+        move_10 = go_utils.action_2d_to_1d((1, 0), self.env.board_size)
         def mock_forward_func(state):
             '''
             Empty board:
@@ -242,7 +242,7 @@ class TestMCTS(unittest.TestCase):
         '''
         Tests that two player pass
         '''
-        move_pass = utils.action_2d_to_1d(None, self.env.board_width)
+        move_pass = go_utils.action_2d_to_1d(None, self.env.board_size)
         def mock_forward_func(state):
             '''
             Empty board:

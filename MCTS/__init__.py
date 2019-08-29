@@ -3,7 +3,7 @@ from sklearn.preprocessing import normalize
 import numpy as np
 import time
 import copy
-import utils
+from utils import go_utils
 
 U_CONST = None
 TEMP_CONST = None
@@ -23,9 +23,9 @@ class Node:
         self.parent = parent 
         # 1d array of the size that can hold the moves including pass, 
         # initially all None
-        self.children = np.empty(board.board_size**2 + 1, dtype=object) 
+        self.children = np.empty(board.board_size**2 + 1, dtype=object)
         self.action_probs = action_probs 
-        self.board = board 
+        self.board = board
         # number of time this node was visited
         self.N = 1 
         self.V = state_value # the evaluation of this node (value)
@@ -81,7 +81,7 @@ class MCTree:
         # if it's our turn
         if node.board.turn == self.our_player:
             moves_2d = node.board.action_space
-            moves_1d = list(map(utils.action_2d_to_1d, moves_2d, [self.board_size] * len(moves_2d)))
+            moves_1d = list(map(go_utils.action_2d_to_1d, moves_2d, [self.board_size] * len(moves_2d)))
             best_move = None 
             max_UCB = np.NINF # negative infinity
             # calculate Q + U for all children
@@ -100,7 +100,7 @@ class MCTree:
                     best_move = move
         # if it's opponent's turn, choose an action based on action prob
         else:
-            best_move = utils.random_weighted_action([node.action_probs])
+            best_move = go_utils.random_weighted_action([node.action_probs])
 
         if best_move is None:
             raise Exception("MCTS: move shouldn't be None, please debug")
@@ -121,7 +121,7 @@ class MCTree:
         if node.board.done:
             return node
         child_board = copy.deepcopy(node.board)
-        state, _, _, info = child_board.step(utils.action_1d_to_2d(move, self.board_size))
+        state, _, _, info = child_board.step(go_utils.action_1d_to_2d(move, self.board_size))
         our_action_probs, state_value = self.forward_func(state)
         # if it's our move, save our action prob
         if info['turn'] == self.our_player:
