@@ -12,24 +12,24 @@ import collections
 from functools import reduce
 from tqdm import tqdm_notebook
 
-def make_actor_critic(mode, board_size):
+def make_actor_critic(mode, board_size, critic_activation):
     inputs = layers.Input(shape=(board_size, board_size, 4), name="board")
     valid_inputs = layers.Input(shape=(board_size**2 + 1,), name="valid_moves")
     invalid_values = layers.Input(shape=(board_size**2 + 1,), name="invalid_values")
     
     x = layers.Flatten()(inputs)
     
-    x = layers.Dense(512)(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
+#     x = layers.Dense(512)(x)
+#     x = layers.BatchNormalization()(x)
+#     x = layers.ReLU()(x)
     
-    x = layers.Dense(1024)(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
+#     x = layers.Dense(1024)(x)
+#     x = layers.BatchNormalization()(x)
+#     x = layers.ReLU()(x)
     
-    x = layers.Dense(1024)(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
+#     x = layers.Dense(1024)(x)
+#     x = layers.BatchNormalization()(x)
+#     x = layers.ReLU()(x)
     
     x = layers.Dense(256)(x)
     x = layers.BatchNormalization()(x)
@@ -47,14 +47,14 @@ def make_actor_critic(mode, board_size):
         move_vals = layers.Dense(128)(x)
         move_vals = layers.BatchNormalization()(move_vals)
         move_vals = layers.ReLU()(move_vals)
-        move_vals = layers.Dense(50, activation='sigmoid')(move_vals)
+        move_vals = layers.Dense(50, activation=critic_activation)(move_vals)
         move_vals = layers.Multiply(name="move_vals")([move_vals, valid_inputs])
         out = move_vals
     elif mode == 'val_net':
         move_vals = layers.Dense(128)(x)
         move_vals = layers.BatchNormalization()(move_vals)
         move_vals = layers.ReLU()(move_vals)
-        move_vals = layers.Dense(1, activation='sigmoid')(move_vals)
+        move_vals = layers.Dense(1, activation=critic_activation)(move_vals)
         out = move_vals
     else:
         raise Exception("Unknown mode")
@@ -74,7 +74,7 @@ def forward_pass(states, network, training):
                     valid_moves.astype(np.float32), 
                     invalid_values.astype(np.float32)], training=training)
 
-def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done):
+def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, win):
     """
     Adds original event, plus augmented versions of those events
     """
@@ -83,8 +83,19 @@ def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done):
     for s, a, ns in list(zip(go_utils.all_orientations(state, board_size), 
                              go_utils.all_orientations(action_1d, board_size), 
                              go_utils.all_orientations(next_state, board_size))):
-        replay_mem.append((s, a, ns, reward, done))
+        replay_mem.append((s, a, ns, reward, done, win))
 
+def replay_mem_to_numpy(replay_mem):
+    replay_mem = list(zip(*replay_mem))
+    states = np.array(list(replay_mem[0]), dtype=np.float32).transpose(0,2,3,1)
+    actions = np.array(list(replay_mem[1]), dtype=np.int)
+    next_states = np.array(list(replay_mem[2]), dtype=np.float32).transpose(0,2,3,1)
+    rewards = np.array(list(replay_mem[3]), dtype=np.float32).reshape((-1,))
+    terminals = np.array(list(replay_mem[4]), dtype=np.uint8)
+    wins = np.array(list(replay_mem[5]), dtype=np.int)
+    
+    return states, actions, next_states, rewards, terminals, wins
+        
 def get_batch_obs(replay_mem, batch_size, index=None):
     '''
     Get a batch of orig_states, actions, states, rewards, terminals as np array out of replay memory
@@ -96,16 +107,9 @@ def get_batch_obs(replay_mem, batch_size, index=None):
         batch = random.sample(replay_mem, batch_size)
     else:
         batch = replay_mem[index*batch_size: (index+1)*batch_size]
-    batch = list(zip(*batch))
-    states = np.array(list(batch[0]), dtype=np.float32).transpose(0,2,3,1)
-    actions = np.array(list(batch[1]), dtype=np.int)
-    next_states = np.array(list(batch[2]), dtype=np.float32).transpose(0,2,3,1)
-    rewards = np.array(list(batch[3]), dtype=np.float32).reshape((-1,))
-    terminals = np.array(list(batch[4]), dtype=np.uint8)
-    
-    return states, actions, next_states, rewards, terminals 
+    return replay_mem_to_numpy(batch)
 
-def state_responses(actor, critic, states, taken_actions, next_states, rewards, terminals):
+def state_responses(actor, critic, states, taken_actions, next_states, rewards, terminals, wins):
     """
     Returns a figure of plots on the states and the models responses on those states
     """
@@ -129,51 +133,56 @@ def state_responses(actor, critic, states, taken_actions, next_states, rewards, 
         
         plt.subplot(num_states,num_cols, 2 + num_cols*i)
         if move_vals.shape[1] > 1:
-            go_utils.plot_move_distr('Critic', 100*move_vals[i], valid_moves[i], 
-                                     scalar=100*state_vals[i].numpy())
+            go_utils.plot_move_distr('Critic', move_vals[i], valid_moves[i], 
+                                     scalar=state_vals[i].numpy())
         else:
             plt.title('Critic')
             plt.bar(move_vals[i].numpy())
 
         plt.subplot(num_states,num_cols, 3 + num_cols*i)
-        go_utils.plot_move_distr('Actor', 100*move_probs[i], valid_moves[i], 
+        go_utils.plot_move_distr('Actor', move_probs[i], valid_moves[i], 
                               scalar=None)
         
         plt.subplot(num_states,num_cols, 4 + num_cols*i)
         plt.axis('off')
-        plt.title('Taken Action: {}\n{:.0f}R {}T'
+        plt.title('Taken Action: {}\n{:.0f}R {}T, {}W'
                   .format(go_utils.action_1d_to_2d(taken_actions[i], board_size), 
-                                                         rewards[i], terminals[i]))
+                                                         rewards[i], terminals[i], wins[i]))
         plt.imshow(next_states[i][:,:,[0,1,3]].astype(np.float))
 
     plt.tight_layout()
     return fig
 
 def sample_heatmaps(actor, critic, replay_mem, num_samples=2):
-    states, actions, next_states, rewards, terminals = get_batch_obs(replay_mem, batch_size=num_samples)
+    states, actions, next_states, rewards, terminals, wins = get_batch_obs(replay_mem, batch_size=num_samples)
     assert len(states[0].shape) == 3 and states[0].shape[0] == states[0].shape[1], states[0].shape
     board_size = states[0].shape[0]
-    
+        
     # Add latest terminal state
-    for (state, action, next_state, reward, terminal) in reversed(replay_mem):
-        if terminal:
+    got_terminal = False
+    got_last_state = False
+    for (state, action, next_state, reward, terminal, win) in reversed(replay_mem):
+        add_obs = False
+        if terminal and not got_terminal:
+            got_terminal = True
+            add_obs = True
+            
+        if np.sum(state[:2]) == 0 and not got_last_state:
+            got_last_state = True
+            add_obs = True
+            
+        if add_obs:
             states = np.append(states, state.transpose(1,2,0)[np.newaxis], axis=0)
             actions = np.append(actions, action)
             next_states = np.append(next_states, next_state.transpose(1,2,0)[np.newaxis], axis=0)
             rewards = np.append(rewards, reward)
             terminals = np.append(terminals, terminal)
-            break
-    # Add latest start state
-    for (state, action, next_state, reward, terminal) in reversed(replay_mem):
-        if np.sum(state[:2]) == 0:
-            states = np.append(states, state.transpose(1,2,0)[np.newaxis], axis=0)
-            actions = np.append(actions, action)
-            next_states = np.append(next_states, next_state.transpose(1,2,0)[np.newaxis], axis=0)
-            rewards = np.append(rewards, reward)
-            terminals = np.append(terminals, terminal)
+            wins = np.append(wins, win)
+            
+        if got_terminal and got_last_state:
             break
 
-    fig = state_responses(actor, critic, states, actions, next_states, rewards, terminals)
+    fig = state_responses(actor, critic, states, actions, next_states, rewards, terminals, wins)
     return fig
 
 def get_action(policy, state, epsilon=0):
@@ -262,7 +271,7 @@ def play_a_game(replay_mem, go_env, black_policy, white_policy, max_steps, black
         # Add to memory
         assert done == False
         if replay_mem is not None:
-            add_to_replay_mem(replay_mem, state, black_action, next_state, win, done)
+            add_to_replay_mem(replay_mem, state, black_action, next_state, reward, done, win)
             
         # Setup for next event
         state = next_state
@@ -271,11 +280,11 @@ def play_a_game(replay_mem, go_env, black_policy, white_policy, max_steps, black
     done = True
     
     # Set the winner if we're done
-    win[0] = int(info['area']['b'] > info['area']['w'])
+    win[0] = 1 if info['area']['b'] > info['area']['w'] else -1
     
     # Add the last event to memory
     if replay_mem is not None:
-        add_to_replay_mem(replay_mem, state, black_action, next_state, win, done)
+        add_to_replay_mem(replay_mem, state, black_action, next_state, reward, done, win)
     
     # Game ended
     return win.item(), num_steps
@@ -314,7 +323,7 @@ def evaluate(go_env, actor, opponent, level_paths, max_steps):
             for episode in tqdm_notebook(range(128), desc='Evaluating against level {} opponent'.format(level_idx)):
                 black_won, _ = play_a_game(None, go_env, black_policy=actor, white_policy=white_policy, max_steps=max_steps,
                                            black_first=black_first)
-                avg_metric(black_won)
+                avg_metric(1 if black_won > 0 else 0)
 
             print('{}L_{}: {:.1f}%'.format(level_idx, 'B' if black_first else 'W', 100*avg_metric.result().numpy()))
             

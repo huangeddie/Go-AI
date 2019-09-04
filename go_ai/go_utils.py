@@ -113,8 +113,8 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None):
     board_size = int((len(move_distr) - 1) ** 0.5)
     plt.axis('off')
     valid_values = np.extract(valid_moves[:-1] == 1, move_distr[:-1])
-    plt.title(title + (' ' if scalar is None else ' {:.1f}S').format(scalar) 
-              + '\n{:.1f}L {:.1f}H {:.1f}P'.format(np.min(valid_values) 
+    plt.title(title + (' ' if scalar is None else ' {:.3f}S').format(scalar) 
+              + '\n{:.3f}L {:.3f}H {:.3f}P'.format(np.min(valid_values) 
                                                    if len(valid_values) > 0 else 0, 
                                                    np.max(valid_values) 
                                                    if len(valid_values) > 0 else 0, 
