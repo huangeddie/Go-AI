@@ -9,7 +9,6 @@ class TestMCTS(unittest.TestCase):
     def setUp(self) -> None:
         self.env = gym.make('gym_go:go-v0', size=3, reward_method='real')
         self.action_length = self.env.size**2 + 1
-        MCTS.PI_CONST = 1
         MCTS.U_CONST = 1
         MCTS.TEMP_CONST = 1
 
@@ -49,7 +48,7 @@ class TestMCTS(unittest.TestCase):
 
         tree = MCTS.MCTree(self.env, mock_forward_func)
         # only perform one search, should only reach 1 state
-        pi, num_search, time_spent = tree.perform_search(1)
+        pi, num_search = tree.perform_search(1)
         # the first move should have pi = 1
         self.assertEqual(pi[0], 1)
         # the rest of the moves should have pi = 0
@@ -98,7 +97,7 @@ class TestMCTS(unittest.TestCase):
             return action_probs, state_value
 
         tree = MCTS.MCTree(self.env, mock_forward_func)
-        pi, num_search, time_spent = tree.perform_search(2)
+        pi, num_search = tree.perform_search(2)
         # the first move should have pi = 2
         self.assertEqual(pi[0], 1)
         # the rest of the moves should have pi = 0
@@ -169,7 +168,7 @@ class TestMCTS(unittest.TestCase):
             return action_probs, state_value
 
         tree = MCTS.MCTree(self.env, mock_forward_func)
-        pi, num_search, time_spent = tree.perform_search(3)
+        pi, num_search = tree.perform_search(3)
         # check pi
         self.assertEqual(pi[0], 1/3)
         self.assertEqual(pi[move_01], 2/3)
@@ -199,7 +198,7 @@ class TestMCTS(unittest.TestCase):
             return action_probs, state_value
 
         tree = MCTS.MCTree(self.env, mock_forward_func)
-        pi, num_search, time_spent = tree.perform_search(3)
+        pi, num_search = tree.perform_search(3)
         # check pi
         self.assertEqual(pi[move_pass], 1)
         # the rest of the moves should have pi = 0

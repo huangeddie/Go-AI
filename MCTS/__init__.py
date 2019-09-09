@@ -1,11 +1,7 @@
 from sklearn.preprocessing import normalize
 import numpy as np
-import time
 import copy
 from go_ai import go_utils
-
-U_CONST = None
-TEMP_CONST = 1
 
 class Node:
     def __init__(self, parent, action_probs, state_value, board):
@@ -60,7 +56,7 @@ class MCTree:
         self.board_size = board.size
         self.our_player = board.turn
 
-    def select_best_child(self, node):
+    def select_best_child(self, node, u_const=1):
         '''
         Description: If it's our turn, select the child that
             maximizes Q + U, where Q = V_sum / N, and
@@ -70,8 +66,7 @@ class MCTree:
         Args:
             node (Node): the parent node to choose from
         '''
-        if U_CONST is None:
-            raise Exception("U CONST is not set! (U = U_CONST * P / (1 + N))")
+
         # if it's our turn
         if node.board.turn == self.our_player:
             moves_1d = np.arange(node.board.action_space)
@@ -87,7 +82,7 @@ class MCTree:
                     Q = child.Q
                     N = child.N
                 # get U for child
-                U = node.action_probs[move] * np.sqrt(node.N) / (1 + N) * U_CONST
+                U = node.action_probs[move] * np.sqrt(node.N) / (1 + N) * u_const
                 # UCB: Upper confidence bound
                 if Q + U > max_UCB:
                     max_UCB = Q + U
@@ -124,7 +119,7 @@ class MCTree:
         return child
 
 
-    def perform_search(self, max_num_searches=100, max_time=300):
+    def perform_search(self, max_num_searches=100, temp=1):
         '''
         Description:
             Select a child node that maximizes Q + U,
@@ -136,14 +131,10 @@ class MCTree:
             num_search (int): number of search performed
             time_spent (float): number of seconds spent
         '''
-        if TEMP_CONST is None:
-            raise Exception("TEMP_CONST is not set! (pi = normalize(N**(1 / TEMP_CONST)))")
 
-        start_time = time.time()
         num_search = 0
-        time_spent = 0
 
-        while num_search < max_num_searches and time_spent < max_time:
+        while num_search < max_num_searches:
             # keep going down the tree with the best move
             curr_node = self.root
             next_node, move = self.select_best_child(curr_node)
@@ -155,7 +146,6 @@ class MCTree:
             curr_node.back_propagate(leaf.V)
             # increment counters
             num_search += 1
-            time_spent = time.time() - start_time
 
         N = []
         for child in self.root.children:
@@ -164,6 +154,6 @@ class MCTree:
             else:
                 N.append(child.N)
         N = np.array(N)
-        pi = normalize([N ** (1 / TEMP_CONST)], norm='l1')[0]
+        pi = normalize([N ** (1 / temp)], norm='l1')[0]
 
-        return pi, num_search, time_spent
+        return pi, num_search
