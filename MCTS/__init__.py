@@ -1,4 +1,3 @@
-import tensorflow as tf
 from sklearn.preprocessing import normalize
 import numpy as np
 import time
@@ -6,8 +5,7 @@ import copy
 from go_ai import go_utils
 
 U_CONST = None
-TEMP_CONST = None
-
+TEMP_CONST = 1
 
 class Node:
     def __init__(self, parent, action_probs, state_value, board):
@@ -23,7 +21,7 @@ class Node:
         self.parent = parent
         # 1d array of the size that can hold the moves including pass,
         # initially all None
-        self.children = np.empty(board.board_size**2 + 1, dtype=object)
+        self.children = np.empty(board.size**2 + 1, dtype=object)
         self.action_probs = action_probs
         self.board = board
         # number of time this node was visited
@@ -59,7 +57,7 @@ class MCTree:
         action_probs, state_value = forward_func(board.get_state())
         self.root = Node(None, action_probs, state_value, copy.deepcopy(board))
         self.forward_func = forward_func
-        self.board_size = board.board_size
+        self.board_size = board.size
         self.our_player = board.turn
 
     def select_best_child(self, node):
@@ -76,8 +74,7 @@ class MCTree:
             raise Exception("U CONST is not set! (U = U_CONST * P / (1 + N))")
         # if it's our turn
         if node.board.turn == self.our_player:
-            moves_2d = node.board.action_space
-            moves_1d = list(map(go_utils.action_2d_to_1d, moves_2d, [self.board_size] * len(moves_2d)))
+            moves_1d = np.arange(node.board.action_space)
             best_move = None
             max_UCB = np.NINF # negative infinity
             # calculate Q + U for all children
@@ -115,23 +112,19 @@ class MCTree:
             with the node passed in, nothing is created and return the node
         '''
         # if we reach a end state, return this node
-        if node.board.done:
+        if node.board.game_ended:
             return node
         child_board = copy.deepcopy(node.board)
-        state, _, _, info = child_board.step(utils.action_1d_to_2d(move, self.board_size))
+        state, _, _, info = child_board.step(go_utils.action_1d_to_2d(move, self.board_size))
         # if it's our move, save our action prob
-        if info['turn'] == self.our_player:
-            action_probs, state_value = self.forward_func(state)
-        # if it's opponent's move, mock oppo action prob with our model
-        else:
-            # swap black and white channels
-            action_probs, state_value = self.forward_func(state[[1, 0, 2, 3]])
+        canonical_state = child_board.get_canonical_state()
+        action_probs, state_value = self.forward_func(canonical_state)
         child = Node(node, action_probs, state_value, child_board)
         node.children[move] = child
         return child
 
 
-    def perform_search(self, max_num_searches=1000, max_time=300):
+    def perform_search(self, max_num_searches=100, max_time=300):
         '''
         Description:
             Select a child node that maximizes Q + U,
@@ -171,7 +164,6 @@ class MCTree:
             else:
                 N.append(child.N)
         N = np.array(N)
-#        import pdb; pdb.set_trace()
         pi = normalize([N ** (1 / TEMP_CONST)], norm='l1')[0]
 
         return pi, num_search, time_spent
