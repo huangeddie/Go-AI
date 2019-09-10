@@ -24,10 +24,10 @@ def action_2d_to_1d(action_2d, board_width):
 def get_invalid_moves(states):
     """
     Returns 1's where moves are invalid and 0's where moves are valid
-    Assumes shape to be [BATCH SIZE, BOARD SIZE, BOARD SIZE, 4]
+    Assumes shape to be [BATCH SIZE, BOARD SIZE, BOARD SIZE, 6]
     """
     board_size = states.shape[1]
-    invalid_moves = states[:,:,:,2].reshape((-1, board_size**2))
+    invalid_moves = states[:,:,:,3].reshape((-1, board_size**2))
     invalid_moves = np.insert(invalid_moves, board_size**2, 0, axis=1)
     return invalid_moves
 
@@ -151,7 +151,7 @@ def random_action(state):
     Assumed to be (BOARD_SIZE, BOARD_SIZE, 4)
     Action is 1D
     """
-    invalid_moves = state[:,:,2].flatten()
+    invalid_moves = state[:,:,3].flatten()
     invalid_moves = np.append(invalid_moves, 0)
     move_weights = 1 - invalid_moves
 

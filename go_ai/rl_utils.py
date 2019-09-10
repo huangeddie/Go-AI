@@ -1,65 +1,43 @@
 import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
-import gym
-import datetime
 import logging
 import random
-import itertools
 from go_ai import go_utils
 import matplotlib.pyplot as plt
-import collections
-from functools import reduce
 from tqdm import tqdm_notebook
 
-def make_actor_critic(mode, board_size, critic_activation):
-    inputs = layers.Input(shape=(board_size, board_size, 4), name="board")
+def make_actor_critic(board_size, critic_mode, critic_activation):
+    inputs = layers.Input(shape=(board_size, board_size, 6), name="board")
     valid_inputs = layers.Input(shape=(board_size**2 + 1,), name="valid_moves")
     invalid_values = layers.Input(shape=(board_size**2 + 1,), name="invalid_values")
-    
-    x = layers.Flatten()(inputs)
-    
-#     x = layers.Dense(512)(x)
-#     x = layers.BatchNormalization()(x)
-#     x = layers.ReLU()(x)
-    
-#     x = layers.Dense(1024)(x)
-#     x = layers.BatchNormalization()(x)
-#     x = layers.ReLU()(x)
-    
-#     x = layers.Dense(1024)(x)
-#     x = layers.BatchNormalization()(x)
-#     x = layers.ReLU()(x)
-    
-    x = layers.Dense(256)(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
-    
-    if mode == 'actor':
-        move_probs = layers.Dense(128)(x)
-        move_probs = layers.BatchNormalization()(move_probs)
-        move_probs = layers.ReLU()(move_probs)
-        move_probs = layers.Dense(50)(move_probs)
-        move_probs = layers.Add()([move_probs, invalid_values])
-        move_probs = layers.Softmax(name="move_probs")(move_probs)
-        out = move_probs
-    elif mode == 'q_net':
-        move_vals = layers.Dense(128)(x)
-        move_vals = layers.BatchNormalization()(move_vals)
-        move_vals = layers.ReLU()(move_vals)
+
+    x = inputs
+
+    x = layers.Conv2D(8, kernel_size=3, padding='same', activation='relu')(x)
+
+    # Actor
+    move_probs = layers.Conv2D(2, kernel_size=3, padding='same', activation='relu')(x)
+    move_probs = layers.Flatten()(move_probs)
+    move_probs = layers.Dense(50)(move_probs)
+    move_probs = layers.Add()([move_probs, invalid_values])
+    move_probs = layers.Softmax(name="move_probs")(move_probs)
+    actor_out = move_probs
+
+    # Critic
+    move_vals = layers.Conv2D(2, kernel_size=3, padding='same', activation='relu')(x)
+    move_vals = layers.Flatten()(move_vals)
+    if critic_mode == 'q_net':
         move_vals = layers.Dense(50, activation=critic_activation)(move_vals)
         move_vals = layers.Multiply(name="move_vals")([move_vals, valid_inputs])
-        out = move_vals
-    elif mode == 'val_net':
-        move_vals = layers.Dense(128)(x)
-        move_vals = layers.BatchNormalization()(move_vals)
-        move_vals = layers.ReLU()(move_vals)
+        critic_out = move_vals
+    elif critic_mode == 'val_net':
         move_vals = layers.Dense(1, activation=critic_activation)(move_vals)
-        out = move_vals
+        critic_out = move_vals
     else:
-        raise Exception("Unknown mode")
+        raise Exception("Unknown critic mode")
 
-    model = tf.keras.Model(inputs=[inputs, valid_inputs, invalid_values], outputs=out, name=mode)
+    model = tf.keras.Model(inputs=[inputs, valid_inputs, invalid_values], outputs=[actor_out, critic_out], name='actor_critic')
     return model
 
 def forward_pass(states, network, training):
@@ -109,14 +87,13 @@ def get_batch_obs(replay_mem, batch_size, index=None):
         batch = replay_mem[index*batch_size: (index+1)*batch_size]
     return replay_mem_to_numpy(batch)
 
-def state_responses(actor, critic, states, taken_actions, next_states, rewards, terminals, wins):
+def state_responses(actor_critic, states, taken_actions, next_states, rewards, terminals, wins):
     """
     Returns a figure of plots on the states and the models responses on those states
     """
     board_size = states[0].shape[0]
     
-    move_probs = forward_pass(states, actor, training=False)
-    move_vals = forward_pass(states, critic, training=False)
+    move_probs, move_vals = forward_pass(states, actor_critic, training=False)
     state_vals = tf.reduce_sum(move_probs * move_vals, axis=1)
     
     valid_moves = go_utils.get_valid_moves(states)
@@ -129,7 +106,7 @@ def state_responses(actor, critic, states, taken_actions, next_states, rewards, 
         plt.subplot(num_states,num_cols,1 + num_cols*i)
         plt.axis('off')
         plt.title('Board')
-        plt.imshow(states[i][:,:,[0,1,3]].astype(np.float))
+        plt.imshow(states[i][:,:,[0,1,4]].astype(np.float))
         
         plt.subplot(num_states,num_cols, 2 + num_cols*i)
         if move_vals.shape[1] > 1:
@@ -148,16 +125,15 @@ def state_responses(actor, critic, states, taken_actions, next_states, rewards, 
         plt.title('Taken Action: {}\n{:.0f}R {}T, {}W'
                   .format(go_utils.action_1d_to_2d(taken_actions[i], board_size), 
                                                          rewards[i], terminals[i], wins[i]))
-        plt.imshow(next_states[i][:,:,[0,1,3]].astype(np.float))
+        plt.imshow(next_states[i][:,:,[0,1,4]].astype(np.float))
 
     plt.tight_layout()
     return fig
 
-def sample_heatmaps(actor, critic, replay_mem, num_samples=2):
+def sample_heatmaps(actor_critic, replay_mem, num_samples=2):
     states, actions, next_states, rewards, terminals, wins = get_batch_obs(replay_mem, batch_size=num_samples)
     assert len(states[0].shape) == 3 and states[0].shape[0] == states[0].shape[1], states[0].shape
-    board_size = states[0].shape[0]
-        
+
     # Add latest terminal state
     got_terminal = False
     got_last_state = False
@@ -182,7 +158,7 @@ def sample_heatmaps(actor, critic, replay_mem, num_samples=2):
         if got_terminal and got_last_state:
             break
 
-    fig = state_responses(actor, critic, states, actions, next_states, rewards, terminals, wins)
+    fig = state_responses(actor_critic, states, actions, next_states, rewards, terminals, wins)
     return fig
 
 def get_action(policy, state, epsilon=0):
@@ -190,9 +166,9 @@ def get_action(policy, state, epsilon=0):
     Gets an action (1D) based on exploration/exploitation
     """
     
-    if state.shape[0] == 4:
-        # State shape will be (board_size, board_size, 4)
-        # Note that we are assuming board_size to be greater than 4
+    if state.shape[0] == 6:
+        # State shape will be (board_size, board_size, 6)
+        # Note that we are assuming board_size to be greater than 6
         state = state.transpose(1,2,0)
     
     epsilon_choice = np.random.uniform()
@@ -206,7 +182,7 @@ def get_action(policy, state, epsilon=0):
         logging.debug("Exploiting policy's move")
         reshaped_state = state[np.newaxis].astype(np.float32)
         
-        move_probs = forward_pass(reshaped_state, policy, training=False)
+        move_probs, _ = forward_pass(reshaped_state, policy, training=False)
         action = go_utils.random_weighted_action(move_probs)
         
     return action
@@ -229,7 +205,7 @@ def play_a_game(replay_mem, go_env, black_policy, white_policy, max_steps, black
     of rewards after every turn by the black player
     """
     
-    board_size = go_env.board_size
+    board_size = go_env.size
     
     # Basic setup
     done = False
@@ -259,7 +235,7 @@ def play_a_game(replay_mem, go_env, black_policy, white_policy, max_steps, black
             break
             
         # White move
-        white_action = get_action(white_policy, next_state[[1,0,2,3]], epsilon=0 if white_policy is not None else 1)
+        white_action = get_action(white_policy, next_state[[1,0,2,3,4,5]], epsilon=0 if white_policy is not None else 1)
         next_state, reward, done, info = go_env.step(go_utils.action_1d_to_2d(white_action, board_size))
         
         num_steps += 1
@@ -293,7 +269,7 @@ def reset_metrics(metrics):
     for key, metric in metrics.items():
         metric.reset_states()
 
-def log_to_tensorboard(summary_writer, metrics, step, replay_mem, actor, critic):
+def log_to_tensorboard(summary_writer, metrics, step, replay_mem, actor_critic):
     """
     Logs metrics to tensorboard. 
     Also resets keras metrics after use
@@ -307,7 +283,7 @@ def log_to_tensorboard(summary_writer, metrics, step, replay_mem, actor, critic)
         
         # Plot samples of states and response heatmaps
         logging.debug("Sampling heatmaps...")
-        fig = sample_heatmaps(actor, critic, replay_mem, num_samples=2)
+        fig = sample_heatmaps(actor_critic, replay_mem, num_samples=2)
         tf.summary.image("model heat maps", go_utils.plot_to_image(fig), step=step)
         
 def evaluate(go_env, actor, opponent, level_paths, max_steps):
@@ -337,7 +313,7 @@ def play_against(policy, go_env):
         # Actor's move
         action = get_action(policy, state, epsilon=0)
 
-        state, reward, done, info = go_env.step(go_utils.action_1d_to_2d(action, go_env.board_size))
+        state, reward, done, info = go_env.step(go_utils.action_1d_to_2d(action, go_env.size))
         go_env.render()
 
         # Player's move
