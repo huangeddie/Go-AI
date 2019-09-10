@@ -1,8 +1,9 @@
 from sklearn.preprocessing import normalize
 import numpy as np
-import copy
 from go_ai import go_utils
 import gym
+
+GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 class Node:
     def __init__(self, parent, action_probs, state_value, state):
@@ -53,10 +54,8 @@ class Node:
             if child is not None:
                 child.soft_reset()
 
-
 class MCTree:
     # Environment ot call the stateless go logic APIs
-    go_env = gym.make('gym_go:go-v0', size=0)
 
     def __init__(self, state, forward_func):
         '''
@@ -71,7 +70,7 @@ class MCTree:
         self.forward_func = forward_func
         assert state.shape[1] == state.shape[2]
         self.board_size = state.shape[1]
-        self.our_player = MCTree.go_env.gogame.get_turn(state)
+        self.our_player = GoGame.get_turn(state)
 
     def select_best_child(self, node, u_const=1):
         '''
@@ -85,8 +84,8 @@ class MCTree:
         '''
 
         # if it's our turn
-        if MCTree.go_env.gogame.get_turn(node.state) == self.our_player:
-            moves_1d = np.arange(MCTree.go_env.gogame.get_action_size(node.state))
+        if GoGame.get_turn(node.state) == self.our_player:
+            moves_1d = np.arange(GoGame.get_action_size(node.state))
             best_move = None
             max_UCB = np.NINF # negative infinity
             # calculate Q + U for all children
@@ -125,7 +124,7 @@ class MCTree:
             with the node passed in, nothing is created and return the node
         '''
         # if we reach a end state, return this node
-        if MCTree.go_env.gogame.get_game_ended(node.state):
+        if GoGame.get_game_ended(node.state):
             return node
         # if the child node already exists, but not expanded
         if node.children[move] is not None:
@@ -135,10 +134,10 @@ class MCTree:
             child.V_sum = child.V
         # if the child node doesn't exist, create it
         else:
-            next_state = MCTree.go_env.gogame.get_next_state(node.state, move)
-            next_turn = MCTree.go_env.gogame.get_turn(next_state)
+            next_state = GoGame.get_next_state(node.state, move)
+            next_turn = GoGame.get_turn(next_state)
             # save action prob and value
-            canonical_state = MCTree.go_env.gogame.get_canonical_form(next_state, next_turn)
+            canonical_state = GoGame.get_canonical_form(next_state, next_turn)
             action_probs, state_value = self.forward_func(canonical_state)
             if next_turn != self.our_player:
                 state_value = -1 * state_value
