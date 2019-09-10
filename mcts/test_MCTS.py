@@ -1,7 +1,7 @@
 import unittest
 import gym
 import numpy as np
-import MCTS
+import mcts
 from go_ai import go_utils
 
 class TestMCTS(unittest.TestCase):
@@ -9,8 +9,8 @@ class TestMCTS(unittest.TestCase):
     def setUp(self) -> None:
         self.env = gym.make('gym_go:go-v0', size=3, reward_method='real')
         self.action_length = self.env.size**2 + 1
-        MCTS.U_CONST = 1
-        MCTS.TEMP_CONST = 1
+        mcts.U_CONST = 1
+        mcts.TEMP_CONST = 1
 
     def tearDown(self) -> None:
         self.env.close()
@@ -46,7 +46,7 @@ class TestMCTS(unittest.TestCase):
                 raise Exception("Unexpected state", state)
             return action_probs, state_value
 
-        tree = MCTS.MCTree(self.env.get_state(), mock_forward_func)
+        tree = mcts.MCTree(self.env.get_state(), mock_forward_func)
         # only perform one search, should only reach 1 state
         pi, num_search = tree.get_action_probs(1)
         # the first move should have pi = 1
@@ -96,7 +96,7 @@ class TestMCTS(unittest.TestCase):
                 raise Exception("Unexpected state")
             return action_probs, state_value
 
-        tree = MCTS.MCTree(self.env.get_state(), mock_forward_func)
+        tree = mcts.MCTree(self.env.get_state(), mock_forward_func)
         pi, num_search = tree.get_action_probs(2)
         # the first move should have pi = 2
         self.assertEqual(pi[0], 1)
@@ -167,7 +167,7 @@ class TestMCTS(unittest.TestCase):
                 raise Exception("Unexpected state", state)
             return action_probs, state_value
 
-        tree = MCTS.MCTree(self.env.get_state(), mock_forward_func)
+        tree = mcts.MCTree(self.env.get_state(), mock_forward_func)
         pi, num_search = tree.get_action_probs(3)
         # check pi
         self.assertEqual(pi[0], 1/3)
@@ -200,7 +200,7 @@ class TestMCTS(unittest.TestCase):
                 raise Exception("Unexpected state", state[:2])
             return action_probs, state_value
 
-        tree = MCTS.MCTree(self.env.get_state(), mock_forward_func)
+        tree = mcts.MCTree(self.env.get_state(), mock_forward_func)
         pi, num_search = tree.get_action_probs(3)
         # check pi
         self.assertEqual(pi[move_pass], 1)
