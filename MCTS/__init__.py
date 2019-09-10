@@ -146,7 +146,7 @@ class MCTree:
         return child
 
 
-    def perform_search(self, max_num_searches=100, temp=1):
+    def get_action_probs(self, max_num_searches=100, temp=1):
         '''
         Description:
             Select a child node that maximizes Q + U,

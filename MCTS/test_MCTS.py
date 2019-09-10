@@ -48,7 +48,7 @@ class TestMCTS(unittest.TestCase):
 
         tree = MCTS.MCTree(self.env.get_state(), mock_forward_func)
         # only perform one search, should only reach 1 state
-        pi, num_search = tree.perform_search(1)
+        pi, num_search = tree.get_action_probs(1)
         # the first move should have pi = 1
         self.assertEqual(pi[0], 1)
         # the rest of the moves should have pi = 0
@@ -97,7 +97,7 @@ class TestMCTS(unittest.TestCase):
             return action_probs, state_value
 
         tree = MCTS.MCTree(self.env.get_state(), mock_forward_func)
-        pi, num_search = tree.perform_search(2)
+        pi, num_search = tree.get_action_probs(2)
         # the first move should have pi = 2
         self.assertEqual(pi[0], 1)
         # the rest of the moves should have pi = 0
@@ -168,7 +168,7 @@ class TestMCTS(unittest.TestCase):
             return action_probs, state_value
 
         tree = MCTS.MCTree(self.env.get_state(), mock_forward_func)
-        pi, num_search = tree.perform_search(3)
+        pi, num_search = tree.get_action_probs(3)
         # check pi
         self.assertEqual(pi[0], 1/3)
         self.assertEqual(pi[move_01], 2/3)
@@ -201,7 +201,7 @@ class TestMCTS(unittest.TestCase):
             return action_probs, state_value
 
         tree = MCTS.MCTree(self.env.get_state(), mock_forward_func)
-        pi, num_search = tree.perform_search(3)
+        pi, num_search = tree.get_action_probs(3)
         # check pi
         self.assertEqual(pi[move_pass], 1)
         # the rest of the moves should have pi = 0
@@ -212,7 +212,7 @@ class TestMCTS(unittest.TestCase):
         tree = self.test_two_branch_search()
         tree.soft_reset()
         # check the value after reset
-        pi, num_search = tree.perform_search(3)
+        pi, num_search = tree.get_action_probs(3)
         # check pi
         move_01 = go_utils.action_2d_to_1d((0, 1), self.env.size)
         self.assertEqual(pi[0], 1/3)
