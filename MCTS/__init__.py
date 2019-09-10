@@ -11,8 +11,6 @@ class Node:
             action_probs (tensor): the policy action probs (flattened)
             state_value (float): the state value of this node
             board (GoEnv): the board, assuming already deep copied
-            move (?tuple): the move that resulted in this node. None
-                for root node
         '''
         self.parent = parent
         # 1d array of the size that can hold the moves including pass,
@@ -24,9 +22,13 @@ class Node:
         self.N = 1
         self.V = state_value # the evaluation of this node (value)
         self.V_sum = self.V # the sum of values of this subtree
+        # later when soft reset is_expanded will be false
+        self.is_expanded = True
 
     @property
     def Q(self):
+        if self.N == 0:
+            return 0
         return self.V_sum / self.N
 
     def back_propagate(self, value_incre):
@@ -39,6 +41,14 @@ class Node:
         self.V_sum += value_incre
         if self.parent is not None:
             self.parent.back_propagate(value_incre)
+
+    def soft_reset(self):
+        self.is_expanded = False
+        self.N = 0
+        self.V_sum = 0
+        for child in self.children:
+            if child is not None:
+                child.soft_reset()
 
 
 class MCTree:
@@ -98,7 +108,8 @@ class MCTree:
     def expand(self, node, move):
         '''
         Description:
-            Expand a new node from given node with the given move.
+            Expand a new node from given node with the given move. Or after
+            soft reset, set the child corresponding to the move to be expanded
         Args:
             node (Node): parent node to expand from
             move (1d): the move from parent to child
@@ -109,13 +120,23 @@ class MCTree:
         # if we reach a end state, return this node
         if node.board.game_ended:
             return node
-        child_board = copy.deepcopy(node.board)
-        state, _, _, info = child_board.step(go_utils.action_1d_to_2d(move, self.board_size))
-        # if it's our move, save our action prob
-        canonical_state = child_board.get_canonical_state()
-        action_probs, state_value = self.forward_func(canonical_state)
-        child = Node(node, action_probs, state_value, child_board)
-        node.children[move] = child
+        # if the child node already exists, but not expanded
+        if node.children[move] is not None:
+            child = node.children[move]
+            child.is_expanded = True
+            child.N = 1
+            child.V_sum = child.V
+        # if the child node doesn't exist, create it
+        else:
+            child_board = copy.deepcopy(node.board)
+            state, _, _, info = child_board.step(go_utils.action_1d_to_2d(move, self.board_size))
+            # save action prob and value
+            canonical_state = child_board.get_canonical_state()
+            action_probs, state_value = self.forward_func(canonical_state)
+            if child_board.turn != self.our_player:
+                state_value = -1 * state_value
+            child = Node(node, action_probs, state_value, child_board)
+            node.children[move] = child
         return child
 
 
@@ -125,11 +146,10 @@ class MCTree:
             Select a child node that maximizes Q + U,
         Args:
             max_num_searches (int): maximum number of searches performed
-            max_time (float): maxtime spend in this function in seconds
+            temp (number): temperature constant
         Returns:
             pi (1d np array): the search probabilities
             num_search (int): number of search performed
-            time_spent (float): number of seconds spent
         '''
 
         num_search = 0
@@ -138,7 +158,7 @@ class MCTree:
             # keep going down the tree with the best move
             curr_node = self.root
             next_node, move = self.select_best_child(curr_node)
-            while next_node is not None:
+            while next_node is not None and next_node.is_expanded:
                 curr_node = next_node
                 next_node, move = self.select_best_child(curr_node)
             # reach a leaf and expand
@@ -162,3 +182,29 @@ class MCTree:
             pi[bestA] = 1
 
         return pi, num_search
+
+
+    def step(self, action):
+        '''
+        Move the root down to a child with action. Throw away all nodes
+        that are not in the child subtree. If such child doesn't exist yet,
+        expand it.
+        '''
+        child = self.root.children[action]
+        if child is None:
+            child = self.expand(self.root, action)
+
+        self.root = child
+        self.root.parent = None
+
+
+    def soft_reset(self):
+        '''
+        Reset the whole tree to be the state before any search. Keep the nodes
+        and their action probs/values. Save the time of constructing new tree.
+        '''
+        self.root.N = 1
+        self.root.V_sum = self.root.V 
+        for child in self.root.children:
+            if child is not None:
+                child.soft_reset()
