@@ -14,7 +14,7 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
 
     x = inputs
 
-    x = layers.Conv2D(8, kernel_size=3, padding='same', activation='relu')(x)
+    x = layers.Conv2D(32, kernel_size=3, padding='same', activation='relu')(x)
 
     # Actor
     move_probs = layers.Conv2D(2, kernel_size=3, padding='same', activation='relu')(x)
@@ -99,33 +99,37 @@ def state_responses(actor_critic, states, taken_actions, next_states, rewards, t
     valid_moves = go_utils.get_valid_moves(states)
     
     num_states = states.shape[0]
-    num_cols = 4
+    num_cols = 4 if move_vals.shape[1] > 1 else 3
     
     fig = plt.figure(figsize=(num_cols * 2.5, num_states * 2))
     for i in range(num_states):
-        plt.subplot(num_states,num_cols,1 + num_cols*i)
+        curr_col = 1
+        
+        plt.subplot(num_states,num_cols, curr_col + num_cols*i)
         plt.axis('off')
         plt.title('Board')
         plt.imshow(states[i][:,:,[0,1,4]].astype(np.float))
+        curr_col += 1
         
-        plt.subplot(num_states,num_cols, 2 + num_cols*i)
-        if move_vals.shape[1] > 1:
+        if num_cols == 4:
+            plt.subplot(num_states,num_cols, curr_col + num_cols*i)
             go_utils.plot_move_distr('Critic', move_vals[i], valid_moves[i], 
                                      scalar=state_vals[i].numpy())
-        else:
-            plt.title('Critic')
-            plt.bar(move_vals[i].numpy())
+            curr_col += 1
 
-        plt.subplot(num_states,num_cols, 3 + num_cols*i)
-        go_utils.plot_move_distr('Actor', move_probs[i], valid_moves[i], 
-                              scalar=None)
+        plt.subplot(num_states,num_cols, curr_col + num_cols*i)
+        go_utils.plot_move_distr('Actor{}'.format(' Critic' if num_cols == 3 else ''), 
+                                 move_probs[i], valid_moves[i], 
+                                 scalar=move_vals[i].numpy().item())
+        curr_col += 1
         
-        plt.subplot(num_states,num_cols, 4 + num_cols*i)
+        plt.subplot(num_states,num_cols, curr_col + num_cols*i)
         plt.axis('off')
         plt.title('Taken Action: {}\n{:.0f}R {}T, {}W'
                   .format(go_utils.action_1d_to_2d(taken_actions[i], board_size), 
                                                          rewards[i], terminals[i], wins[i]))
         plt.imshow(next_states[i][:,:,[0,1,4]].astype(np.float))
+        curr_col += 1
 
     plt.tight_layout()
     return fig

@@ -46,7 +46,7 @@ class TestMCTS(unittest.TestCase):
                 raise Exception("Unexpected state", state)
             return action_probs, state_value
 
-        tree = MCTS.MCTree(self.env, mock_forward_func)
+        tree = MCTS.MCTree(self.env.get_state(), mock_forward_func)
         # only perform one search, should only reach 1 state
         pi, num_search = tree.perform_search(1)
         # the first move should have pi = 1
@@ -96,7 +96,7 @@ class TestMCTS(unittest.TestCase):
                 raise Exception("Unexpected state")
             return action_probs, state_value
 
-        tree = MCTS.MCTree(self.env, mock_forward_func)
+        tree = MCTS.MCTree(self.env.get_state(), mock_forward_func)
         pi, num_search = tree.perform_search(2)
         # the first move should have pi = 2
         self.assertEqual(pi[0], 1)
@@ -167,7 +167,7 @@ class TestMCTS(unittest.TestCase):
                 raise Exception("Unexpected state", state)
             return action_probs, state_value
 
-        tree = MCTS.MCTree(self.env, mock_forward_func)
+        tree = MCTS.MCTree(self.env.get_state(), mock_forward_func)
         pi, num_search = tree.perform_search(3)
         # check pi
         self.assertEqual(pi[0], 1/3)
@@ -200,7 +200,7 @@ class TestMCTS(unittest.TestCase):
                 raise Exception("Unexpected state", state[:2])
             return action_probs, state_value
 
-        tree = MCTS.MCTree(self.env, mock_forward_func)
+        tree = MCTS.MCTree(self.env.get_state(), mock_forward_func)
         pi, num_search = tree.perform_search(3)
         # check pi
         self.assertEqual(pi[move_pass], 1)
@@ -225,9 +225,9 @@ class TestMCTS(unittest.TestCase):
     def test_tree_step(self):
         tree = self.test_two_branch_search()
         move_01 = go_utils.action_2d_to_1d((0, 1), self.env.size)
-        move_10 = go_utils.action_2d_to_1d((1, 0), self.env.size)
         tree.step(move_01)
-        self.assertEqual(tree.root.board.get_canonical_state()[1][0, 1], 1)
+        turn = self.env.gogame.get_turn(tree.root.state)
+        self.assertEqual(self.env.gogame.get_canonical_form(tree.root.state, turn)[1][0, 1], 1)
         
 
 if __name__ == '__main__':

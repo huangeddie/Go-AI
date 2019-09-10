@@ -2,22 +2,25 @@ from sklearn.preprocessing import normalize
 import numpy as np
 import copy
 from go_ai import go_utils
+import gym
 
 class Node:
-    def __init__(self, parent, action_probs, state_value, board):
+    def __init__(self, parent, action_probs, state_value, state):
         '''
         Args:
             parent (?Node): parent Node
             action_probs (tensor): the policy action probs (flattened)
             state_value (float): the state value of this node
-            board (GoEnv): the board, assuming already deep copied
+            state: state of the game as a numpy array
         '''
         self.parent = parent
         # 1d array of the size that can hold the moves including pass,
         # initially all None
-        self.children = np.empty(board.size**2 + 1, dtype=object)
+        assert state.shape[1] == state.shape[2]
+        board_size = state.shape[1]
+        self.children = np.empty(board_size**2 + 1, dtype=object)
         self.action_probs = action_probs
-        self.board = board
+        self.state = state
         # number of time this node was visited
         self.N = 1
         self.V = state_value # the evaluation of this node (value)
@@ -52,19 +55,23 @@ class Node:
 
 
 class MCTree:
-    def __init__(self, board, forward_func):
+    # Environment ot call the stateless go logic APIs
+    go_env = gym.make('gym_go:go-v0', size=0)
+
+    def __init__(self, state, forward_func):
         '''
         Description:
             Construct a Monte Carlo Tree that has current board as root
         Args:
-            board (GoEnv): current board
+            state (GoEnv): current board
             forward_func: function(GoEnv.state) => action_probs, state_value
         '''
-        action_probs, state_value = forward_func(board.get_state())
-        self.root = Node(None, action_probs, state_value, copy.deepcopy(board))
+        action_probs, state_value = forward_func(state)
+        self.root = Node(None, action_probs, state_value, state)
         self.forward_func = forward_func
-        self.board_size = board.size
-        self.our_player = board.turn
+        assert state.shape[1] == state.shape[2]
+        self.board_size = state.shape[1]
+        self.our_player = MCTree.go_env.gogame.get_turn(state)
 
     def select_best_child(self, node, u_const=1):
         '''
@@ -78,8 +85,8 @@ class MCTree:
         '''
 
         # if it's our turn
-        if node.board.turn == self.our_player:
-            moves_1d = np.arange(node.board.action_space)
+        if MCTree.go_env.gogame.get_turn(node.state) == self.our_player:
+            moves_1d = np.arange(MCTree.go_env.gogame.get_action_size(node.state))
             best_move = None
             max_UCB = np.NINF # negative infinity
             # calculate Q + U for all children
@@ -118,7 +125,7 @@ class MCTree:
             with the node passed in, nothing is created and return the node
         '''
         # if we reach a end state, return this node
-        if node.board.game_ended:
+        if MCTree.go_env.gogame.get_game_ended(node.state):
             return node
         # if the child node already exists, but not expanded
         if node.children[move] is not None:
@@ -128,14 +135,14 @@ class MCTree:
             child.V_sum = child.V
         # if the child node doesn't exist, create it
         else:
-            child_board = copy.deepcopy(node.board)
-            state, _, _, info = child_board.step(go_utils.action_1d_to_2d(move, self.board_size))
+            next_state = MCTree.go_env.gogame.get_next_state(node.state, move)
+            next_turn = MCTree.go_env.gogame.get_turn(next_state)
             # save action prob and value
-            canonical_state = child_board.get_canonical_state()
+            canonical_state = MCTree.go_env.gogame.get_canonical_form(next_state, next_turn)
             action_probs, state_value = self.forward_func(canonical_state)
-            if child_board.turn != self.our_player:
+            if next_turn != self.our_player:
                 state_value = -1 * state_value
-            child = Node(node, action_probs, state_value, child_board)
+            child = Node(node, action_probs, state_value, next_state)
             node.children[move] = child
         return child
 
@@ -167,12 +174,7 @@ class MCTree:
             # increment counters
             num_search += 1
 
-        N = []
-        for child in self.root.children:
-            if child is None:
-                N.append(0)
-            else:
-                N.append(child.N)
+        N = list(map(lambda node: node.N if node is not None else 0, self.root.children))
         N = np.array(N)
         if temp > 0:
             pi = normalize([N ** (1 / temp)], norm='l1')[0]
