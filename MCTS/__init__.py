@@ -154,6 +154,11 @@ class MCTree:
             else:
                 N.append(child.N)
         N = np.array(N)
-        pi = normalize([N ** (1 / temp)], norm='l1')[0]
+        if temp > 0:
+            pi = normalize([N ** (1 / temp)], norm='l1')[0]
+        else:
+            bestA = np.argmax(N)
+            pi = np.zeros(len(N))
+            pi[bestA] = 1
 
         return pi, num_search
