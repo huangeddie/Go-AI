@@ -15,6 +15,7 @@ class Node:
             state: state of the game as a numpy array
         '''
         self.parent = parent
+        self.height = parent.height + 1 if parent is not None else 0
         # 1d array of the size that can hold the moves including pass,
         # initially all None
         assert state.shape[1] == state.shape[2]
@@ -22,6 +23,7 @@ class Node:
         self.children = np.empty(board_size**2 + 1, dtype=object)
         self.action_probs = action_probs
         self.state = state
+        self.turn = GoGame.get_turn(state)
         # number of time this node was visited
         self.N = 1
         self.V = state_value # the evaluation of this node (value)
@@ -54,6 +56,9 @@ class Node:
             if child is not None:
                 child.soft_reset()
 
+    def __str__(self):
+        return '{} {}H {}/{}VVS {}N'.format(np.sum(self.state[[0,1]], axis=0), self.height, self.V, self.V_sum, self.N)
+
 class MCTree:
     # Environment ot call the stateless go logic APIs
 
@@ -71,80 +76,6 @@ class MCTree:
         assert state.shape[1] == state.shape[2]
         self.board_size = state.shape[1]
         self.our_player = GoGame.get_turn(state)
-
-    def select_best_child(self, node, u_const=1):
-        '''
-        Description: If it's our turn, select the child that
-            maximizes Q + U, where Q = V_sum / N, and
-            U = U_CONST * P / (1 + N), where P is action value.
-            If it's oppo's turn, randomly select the child according to
-            forward_func action probs.
-        Args:
-            node (Node): the parent node to choose from
-        '''
-
-        # if it's our turn
-        if GoGame.get_turn(node.state) == self.our_player:
-            moves_1d = np.arange(GoGame.get_action_size(node.state))
-            best_move = None
-            max_UCB = np.NINF # negative infinity
-            # calculate Q + U for all children
-            for move in moves_1d:
-                if node.children[move] is None:
-                    Q = 0
-                    N = 0
-                else:
-                    child = node.children[move]
-                    Q = child.Q
-                    N = child.N
-                # get U for child
-                U = node.action_probs[move] * np.sqrt(node.N) / (1 + N) * u_const
-                # UCB: Upper confidence bound
-                if Q + U > max_UCB:
-                    max_UCB = Q + U
-                    best_move = move
-        # if it's opponent's turn, choose an action based on action prob
-        else:
-            best_move = go_utils.random_weighted_action([node.action_probs])
-
-        if best_move is None:
-            raise Exception("MCTS: move shouldn't be None, please debug")
-        return node.children[best_move], best_move
-
-    def expand(self, node, move):
-        '''
-        Description:
-            Expand a new node from given node with the given move. Or after
-            soft reset, set the child corresponding to the move to be expanded
-        Args:
-            node (Node): parent node to expand from
-            move (1d): the move from parent to child
-        Returns:
-            If a node is created, return the new node. When the game ends
-            with the node passed in, nothing is created and return the node
-        '''
-        # if we reach a end state, return this node
-        if GoGame.get_game_ended(node.state):
-            return node
-        # if the child node already exists, but not expanded
-        if node.children[move] is not None:
-            child = node.children[move]
-            child.is_expanded = True
-            child.N = 1
-            child.V_sum = child.V
-        # if the child node doesn't exist, create it
-        else:
-            next_state = GoGame.get_next_state(node.state, move)
-            next_turn = GoGame.get_turn(next_state)
-            # save action prob and value
-            canonical_state = GoGame.get_canonical_form(next_state, next_turn)
-            action_probs, state_value = self.forward_func(canonical_state)
-            if next_turn != self.our_player:
-                state_value = -1 * state_value
-            child = Node(node, action_probs, state_value, next_state)
-            node.children[move] = child
-        return child
-
 
     def get_action_probs(self, max_num_searches=100, temp=1):
         '''
@@ -184,6 +115,76 @@ class MCTree:
 
         return pi, num_search
 
+    def select_best_child(self, node, u_const=1):
+        '''
+        Description: If it's our turn, select the child that
+            maximizes Q + U, where Q = V_sum / N, and
+            U = U_CONST * P / (1 + N), where P is action value.
+            If it's oppo's turn, randomly select the child according to
+            forward_func action probs.
+        Args:
+            node (Node): the parent node to choose from
+        '''
+
+        moves_1d = np.arange(GoGame.get_action_size(node.state))
+        best_move = None
+        max_UCB = np.NINF  # negative infinity
+        # calculate Q + U for all children
+        for move in moves_1d:
+            if node.children[move] is None:
+                Q = 0
+                N = 0
+            else:
+                child = node.children[move]
+                Q = child.Q if node.turn == self.our_player else -child.Q
+                N = child.N
+            # get U for child
+            U = node.action_probs[move] * np.sqrt(node.N) / (1 + N) * u_const
+            # UCB: Upper confidence bound
+            if Q + U > max_UCB:
+                max_UCB = Q + U
+                best_move = move
+
+        if best_move is None:
+            raise Exception("MCTS: move shouldn't be None, please debug")
+
+        return node.children[best_move], best_move
+
+
+    def expand(self, node, move):
+        '''
+        Description:
+            Expand a new node from given node with the given move. Or after
+            soft reset, set the child corresponding to the move to be expanded
+        Args:
+            node (Node): parent node to expand from
+            move (1d): the move from parent to child
+        Returns:
+            If a node is created, return the new node. When the game ends
+            with the node passed in, nothing is created and return the node
+        '''
+        # if we reach a end state, return this node
+        if GoGame.get_game_ended(node.state):
+            return node
+        # if the child node already exists, but not expanded
+        if node.children[move] is not None:
+            child = node.children[move]
+            child.is_expanded = True
+            child.N = 1
+            child.V_sum = child.V
+        # if the child node doesn't exist, create it
+        else:
+            next_state = GoGame.get_next_state(node.state, move)
+            next_turn = GoGame.get_turn(next_state)
+            # save action prob and value
+            canonical_state = GoGame.get_canonical_form(next_state, next_turn)
+            action_probs, state_value = self.forward_func(canonical_state)
+            if next_turn != self.our_player:
+                state_value = -state_value
+            child = Node(node, action_probs, state_value, next_state)
+            node.children[move] = child
+        return child
+
 
     def step(self, action):
         '''
@@ -209,3 +210,15 @@ class MCTree:
         for child in self.root.children:
             if child is not None:
                 child.soft_reset()
+
+    def __str__(self):
+        queue = [self.root]
+        str_builder = ''
+        while len(queue) > 0:
+            curr_node = queue.pop(0)
+            for child in curr_node.children:
+                if child is not None:
+                    queue.append(child)
+            str_builder += '{}\n\n'.format(curr_node)
+
+        return str_builder[:-2]

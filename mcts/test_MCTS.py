@@ -93,6 +93,7 @@ class TestMCTS(unittest.TestCase):
                 state_value = -1
             # unexpected states
             else:
+                print('Tree:\n{}\n\nState:\n{}'.format(tree, state))
                 raise Exception("Unexpected state")
             return action_probs, state_value
 
@@ -150,18 +151,18 @@ class TestMCTS(unittest.TestCase):
                 action_probs[0] = 0.5
                 action_probs[move_01] = 0.5
                 state_value = 0
+            # opponent/self at (0,1)/(0,0), for leaf node
+            elif np.count_nonzero(state[:2, 0, :1]) == 2:
+                action_probs[move_10] = 1
+                state_value = 0
             # opponent at (0,0)
-            elif np.count_nonzero(state[:2,0,0]) == 1:
+            elif np.count_nonzero(state[:2, 0, 0]) == 1:
                     action_probs[move_01] = 1
                     state_value = 0
             # opponent at (0,1)
-            elif np.count_nonzero(state[:2,0,1]) == 1:
+            elif np.count_nonzero(state[:2, 0, 1]) == 1:
                     action_probs[0] = 1
                     state_value = -1
-            # opponent/self at (0,1)/(0,0), for leaf node
-            elif np.count_nonzero(state[:2,0,1]) == 2:
-                    action_probs[move_10] = 1
-                    state_value = 0
             # unexpected states
             else:
                 raise Exception("Unexpected state", state)
@@ -170,7 +171,7 @@ class TestMCTS(unittest.TestCase):
         tree = mcts.MCTree(self.env.get_state(), mock_forward_func)
         pi, num_search = tree.get_action_probs(3)
         # check pi
-        self.assertEqual(pi[0], 1/3)
+        self.assertEqual(pi[0], 1/3, tree)
         self.assertEqual(pi[move_01], 2/3)
         # the rest of the moves should have pi = 0
         for i in range(2, self.action_length):

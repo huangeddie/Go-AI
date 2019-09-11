@@ -202,35 +202,26 @@ def get_values_for_actions(move_val_distrs, actions):
     move_values = tf.reduce_sum(one_hot_move_values, axis=1)
     return move_values
 
-def play_a_game(replay_mem, go_env, black_policy, white_policy, max_steps, black_first=True):
+def play_a_game(replay_mem, go_env, policy, max_steps):
     """
-    Plays out a game, and adds the events to the given replay memory
+    Plays out a game, by pitting the policy against itself,
+    and adds the events to the given replay memory
+
     Returns the number of moves by the end of the game and the list 
     of rewards after every turn by the black player
     """
-    
-    board_size = go_env.size
-    
+
     # Basic setup
-    done = False
     num_steps = 0
-    state = go_env.reset(black_first=black_first)
-    
-    # Make it a numpy array so it can be passed to the replay memory by reference
-    # That way, all events of the same game will have the same reward
-    win = np.zeros(1)
-    
-    if not black_first:
-        # White moves first
-        white_action = get_action(white_policy, state, 0 if white_policy is not None else 1)
-        state, reward, done, info = go_env.step(go_utils.action_1d_to_2d(white_action, board_size))
-        
-        num_steps += 1
-    
+    state = go_env.reset()
+
+    mem_cache = []
+
     while True:
         # Black move
-        black_action = get_action(black_policy, state, epsilon=0 if black_policy is not None else 1)
-        next_state, reward, done, info = go_env.step(go_utils.action_1d_to_2d(black_action, board_size))
+        black_action = get_action(policy, go_env.get_canonical_state())
+        next_state, reward, done, info = go_env.step(black_action)
+        mem_cache.append(go_env.turn, state, black_action, next_state, reward, done)
         
         num_steps += 1      
             
@@ -239,8 +230,8 @@ def play_a_game(replay_mem, go_env, black_policy, white_policy, max_steps, black
             break
             
         # White move
-        white_action = get_action(white_policy, next_state[[1,0,2,3,4,5]], epsilon=0 if white_policy is not None else 1)
-        next_state, reward, done, info = go_env.step(go_utils.action_1d_to_2d(white_action, board_size))
+        white_action = get_action(policy, go_env.get_canonical_state())
+        next_state, reward, done, info = go_env.step(white_action)
         
         num_steps += 1
         
