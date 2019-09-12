@@ -7,6 +7,9 @@ from go_ai import go_utils
 import matplotlib.pyplot as plt
 from tqdm import tqdm_notebook
 import mcts
+import gym
+
+gogame = gym.make('gym_go:go-v0', size=0).gogame
 
 def make_actor_critic(board_size, critic_mode, critic_activation):
     action_size = board_size**2+1
@@ -55,16 +58,36 @@ def forward_pass(states, network, training):
                     valid_moves.astype(np.float32), 
                     invalid_values.astype(np.float32)], training=training)
 
-def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, win):
+def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, win, mcts_action_probs):
     """
     Adds original event, plus augmented versions of those events
+    States are assumed to be (6, BOARD_SIZE, BOARD_SIZE)
     """
     assert len(state.shape) == 3 and state.shape[1] == state.shape[2]
     board_size = state.shape[1]
-    for s, a, ns in list(zip(go_utils.all_orientations(state, board_size), 
-                             go_utils.all_orientations(action_1d, board_size), 
-                             go_utils.all_orientations(next_state, board_size))):
-        replay_mem.append((s, a, ns, reward, done, win))
+    num_channels = state.shape[0]
+
+    if action_1d < board_size ** 2:
+        action_2d_one_hot = np.eye(board_size**2)[action_1d].reshape(board_size, board_size)
+    else:
+        action_2d_one_hot = np.zeros((board_size, board_size))
+
+    mc_board_pi = mcts_action_probs[:-1].reshape(board_size, board_size)
+
+    chunk = np.append(state, [action_2d_one_hot, next_state, mc_board_pi], axis=0)
+
+    for oriented_chunk in go_utils.all_orientations(chunk, board_size):
+        s = oriented_chunk[:num_channels]
+        a = oriented_chunk[num_channels]
+        if (a == 0).all():
+            a = board_size**2
+        else:
+            a = np.argmax(a)
+        ns = oriented_chunk[num_channels+1:(num_channels+1)+num_channels]
+        assert (num_channels+1)+num_channels == oriented_chunk.shape[0] - 2
+        mc_pi = oriented_chunk[-1].flatten()
+        mc_pi = np.append(mc_pi, mcts_action_probs[-1])
+        replay_mem.append((s, a, ns, reward, done, win, mc_pi))
 
 def replay_mem_to_numpy(replay_mem):
     replay_mem = list(zip(*replay_mem))
@@ -90,7 +113,17 @@ def get_batch_obs(replay_mem, batch_size, index=None):
         batch = replay_mem[index*batch_size: (index+1)*batch_size]
     return replay_mem_to_numpy(batch)
 
-def state_responses(actor_critic, states, taken_actions, next_states, rewards, terminals, wins):
+def state_responses(actor_critic, states, taken_actions, next_states, rewards, terminals, wins, mcts_move_probs):
+    def action_1d_to_2d(action_1d, board_width):
+        """
+        Converts 1D action to 2D or None if it's a pass
+        """
+        if action_1d == board_width ** 2:
+            action = None
+        else:
+            action = (action_1d // board_width, action_1d % board_width)
+        return action
+
     """
     Returns a figure of plots on the states and the models responses on those states
     """
@@ -129,8 +162,7 @@ def state_responses(actor_critic, states, taken_actions, next_states, rewards, t
         plt.subplot(num_states,num_cols, curr_col + num_cols*i)
         plt.axis('off')
         plt.title('Taken Action: {}\n{:.0f}R {}T, {}W'
-                  .format(go_utils.action_1d_to_2d(taken_actions[i], board_size), 
-                                                         rewards[i], terminals[i], wins[i]))
+                  .format(action_1d_to_2d(taken_actions[i], board_size), rewards[i], terminals[i], wins[i]))
         plt.imshow(next_states[i][:,:,[0,1,4]].astype(np.float))
         curr_col += 1
 
@@ -182,7 +214,7 @@ def get_action(policy, state, epsilon=0):
     if epsilon_choice < epsilon:
         # Random move
         logging.debug("Exploring a random move")
-        action = go_utils.random_action(state)
+        action = gogame.random_action(state.reshape(2,0,1))
         
     else:
         # policy makes a move
@@ -190,7 +222,7 @@ def get_action(policy, state, epsilon=0):
         reshaped_state = state[np.newaxis].astype(np.float32)
         
         move_probs, _ = forward_pass(reshaped_state, policy, training=False)
-        action = go_utils.random_weighted_action(move_probs)
+        action = gogame.random_weighted_action(move_probs[0])
         
     return action
 
@@ -256,7 +288,7 @@ def play_a_game(replay_mem, go_env, policy, max_steps):
             done = True
 
         # Add to memory cache
-        mem_cache.append((curr_turn, canonical_state, action, canonical_next_state, reward, done))
+        mem_cache.append((curr_turn, canonical_state, action, canonical_next_state, reward, done, mcts_action_probs))
 
         # Increment steps
         num_steps += 1      
@@ -274,12 +306,12 @@ def play_a_game(replay_mem, go_env, policy, max_steps):
 
     # Add the last event to memory
     if replay_mem is not None:
-        for turn, canonical_state, action, canonical_next_state, reward, done in mem_cache:
+        for turn, canonical_state, action, canonical_next_state, reward, done, mcts_action_probs in mem_cache:
             if turn == go_env.govars.BLACK:
                 win = black_won
             else:
                 win = -black_won
-            add_to_replay_mem(replay_mem, state, action, next_state, reward, done, win)
+            add_to_replay_mem(replay_mem, state, action, next_state, reward, done, win, mcts_action_probs)
     
     # Game ended
     return num_steps
@@ -332,7 +364,7 @@ def play_against(policy, go_env):
         # Actor's move
         action = get_action(policy, state, epsilon=0)
 
-        state, reward, done, info = go_env.step(go_utils.action_1d_to_2d(action, go_env.size))
+        state, reward, done, info = go_env.step(action)
         go_env.render()
 
         # Player's move

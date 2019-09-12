@@ -1,33 +1,19 @@
 import io
-from sklearn import preprocessing
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
+import gym
 
-def action_1d_to_2d(action_1d, board_width):
-    """
-    Converts 1D action to 2D or None if it's a pass
-    """
-    if action_1d == board_width**2:
-        action = None
-    else:
-        action = (action_1d // board_width, action_1d % board_width)
-    return action
-
-def action_2d_to_1d(action_2d, board_width):
-    if action_2d is None:
-        action_1d = board_width**2
-    else:
-        action_1d = action_2d[0] * board_width + action_2d[1]
-    return action_1d
+govars = gym.make('gym_go:go-v0', size=0).govars
 
 def get_invalid_moves(states):
     """
     Returns 1's where moves are invalid and 0's where moves are valid
     Assumes shape to be [BATCH SIZE, BOARD SIZE, BOARD SIZE, 6]
     """
+    batch_size = states.shape[0]
     board_size = states.shape[1]
-    invalid_moves = states[:,:,:,3].reshape((-1, board_size**2))
+    invalid_moves = states[:,:,:,govars.INVD_CHNL].reshape((batch_size, -1))
     invalid_moves = np.insert(invalid_moves, board_size**2, 0, axis=1)
     return invalid_moves
 
@@ -42,51 +28,20 @@ def get_invalid_values(states):
     invalid_moves = get_invalid_moves(states)
     invalid_values = np.finfo(np.float32).min * invalid_moves
     return invalid_values
-
-def horizontally_flip(state_or_action, board_size):
-    if isinstance(state_or_action, np.ndarray):
-        return np.flip(state_or_action, 2)
-    else:
-        if state_or_action == board_size**2:
-            return state_or_action
-        col = state_or_action % board_size
-        flipped_action = state_or_action - col + (board_size-1 - col)
-        return flipped_action
     
-def vertically_flip(state_or_action, board_size):
-    if isinstance(state_or_action, np.ndarray):
-        return np.flip(state_or_action, 1)
-    else:
-        if state_or_action == board_size**2:
-            return state_or_action
-        row = state_or_action // board_size
-        col = state_or_action % board_size
-        flipped_action = (board_size-1 - row) * board_size + col
-        return flipped_action
-    
-def rotate_90(state_or_action, board_size):
-    if isinstance(state_or_action, np.ndarray):
-        return np.rot90(state_or_action, axes=(1,2))
-    else:
-        row = state_or_action // board_size
-        col = state_or_action % board_size
-        rotated_action = (board_size-1 - col) * board_size + row
-        return rotated_action
-    
-def all_orientations(state_or_action, board_size):
+def all_orientations(state_or_action):
     orientations = []
     
-    v_flip = vertically_flip(state_or_action, board_size)
-    h_flip = horizontally_flip(state_or_action, board_size)
+    v_flip = np.flip(state_or_action, 1)
+    h_flip = np.flip(state_or_action, 2)
     
+    rot_90 = np.rot90(state_or_action, axes=(1,2))
+    rot_180 = np.rot90(rot_90, axes=(1,2))
+    rot_270 = np.rot90(rot_180, axes=(1,2))
     
-    rot_90 = rotate_90(state_or_action, board_size)
-    rot_180 = rotate_90(rot_90, board_size)
-    rot_270 = rotate_90(rot_180, board_size)
-    
-    x_flip = horizontally_flip(v_flip, board_size)
-    d_flip = horizontally_flip(rot_90, board_size)
-    m_flip = rotate_90(h_flip, board_size)
+    x_flip = np.flip(v_flip, 2)
+    d_flip = np.flip(rot_90, 2)
+    m_flip = np.rot90(h_flip, axes=(1,2))
     
     # vertical, horizontal flip
     orientations.append(v_flip)
@@ -136,23 +91,3 @@ def plot_to_image(figure):
     # Add the batch dimension
     image = tf.expand_dims(image, 0)
     return image
-
-def random_weighted_action(move_weights):
-    """
-    Assumes all invalid moves have weight 0
-    Action is 1D
-    Expected shape is (1, NUM OF MOVES)
-    """
-    move_weights = preprocessing.normalize(move_weights, norm='l1')
-    return np.random.choice(np.arange(len(move_weights[0])), p=move_weights[0])
-
-def random_action(state):
-    """
-    Assumed to be (BOARD_SIZE, BOARD_SIZE, 4)
-    Action is 1D
-    """
-    invalid_moves = state[:,:,3].flatten()
-    invalid_moves = np.append(invalid_moves, 0)
-    move_weights = 1 - invalid_moves
-
-    return random_weighted_action(move_weights.reshape((1,-1)))
