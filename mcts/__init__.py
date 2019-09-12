@@ -199,14 +199,8 @@ class MCTree:
         self.root = child
         self.root.parent = None
 
-
-    def soft_reset(self):
-        '''
-        Reset the whole tree to be the state before any search. Keep the nodes
-        and their action probs/values. Save the time of constructing new tree.
-        '''
         self.root.N = 1
-        self.root.V_sum = self.root.V 
+        self.root.V_sum = self.root.V
         for child in self.root.children:
             if child is not None:
                 child.soft_reset()

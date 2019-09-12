@@ -6,11 +6,14 @@ import random
 from go_ai import go_utils
 import matplotlib.pyplot as plt
 from tqdm import tqdm_notebook
+import mcts
 
 def make_actor_critic(board_size, critic_mode, critic_activation):
+    action_size = board_size**2+1
+    
     inputs = layers.Input(shape=(board_size, board_size, 6), name="board")
-    valid_inputs = layers.Input(shape=(board_size**2 + 1,), name="valid_moves")
-    invalid_values = layers.Input(shape=(board_size**2 + 1,), name="invalid_values")
+    valid_inputs = layers.Input(shape=(action_size,), name="valid_moves")
+    invalid_values = layers.Input(shape=(action_size,), name="invalid_values")
 
     x = inputs
 
@@ -19,7 +22,7 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
     # Actor
     move_probs = layers.Conv2D(2, kernel_size=3, padding='same', activation='relu')(x)
     move_probs = layers.Flatten()(move_probs)
-    move_probs = layers.Dense(50)(move_probs)
+    move_probs = layers.Dense(action_size)(move_probs)
     move_probs = layers.Add()([move_probs, invalid_values])
     move_probs = layers.Softmax(name="move_probs")(move_probs)
     actor_out = move_probs
@@ -28,7 +31,7 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
     move_vals = layers.Conv2D(2, kernel_size=3, padding='same', activation='relu')(x)
     move_vals = layers.Flatten()(move_vals)
     if critic_mode == 'q_net':
-        move_vals = layers.Dense(50, activation=critic_activation)(move_vals)
+        move_vals = layers.Dense(action_size, activation=critic_activation)(move_vals)
         move_vals = layers.Multiply(name="move_vals")([move_vals, valid_inputs])
         critic_out = move_vals
     elif critic_mode == 'val_net':
@@ -202,6 +205,16 @@ def get_values_for_actions(move_val_distrs, actions):
     move_values = tf.reduce_sum(one_hot_move_values, axis=1)
     return move_values
 
+def make_mcts_forward(policy):
+    def mcts_forward(state):
+        states = state[np.newaxis].transpose(0,2,3,1)
+        invalid_moves = go_utils.get_invalid_moves(states)
+        invalid_values = go_utils.get_invalid_values(states)
+        valid_moves = 1 - invalid_moves
+        move_probs, vals = policy([states, valid_moves, invalid_values])
+        return move_probs[0], vals[0]
+    return mcts_forward
+
 def play_a_game(replay_mem, go_env, policy, max_steps):
     """
     Plays out a game, by pitting the policy against itself,
@@ -217,48 +230,52 @@ def play_a_game(replay_mem, go_env, policy, max_steps):
 
     mem_cache = []
 
+    mcts_forward = make_mcts_forward(policy)
+    mct = mcts.MCTree(state, mcts_forward)
+
     while True:
-        # Black move
-        black_action = get_action(policy, go_env.get_canonical_state())
-        next_state, reward, done, info = go_env.step(black_action)
-        mem_cache.append(go_env.turn, state, black_action, next_state, reward, done)
-        
+        # Get turn
+        curr_turn = go_env.turn
+        # Get canonical state for policy and memory
+        canonical_state = go_env.gogame.get_canonical_form(state, curr_turn)
+        # Get action from policy
+        mcts_action_probs = mct.get_action_probs(max_num_searches=100)
+        action = go_utils.random_weighted_action(mcts_action_probs)
+        # Execute action
+        next_state, reward, done, info = go_env.step(action)
+        # Get canonical form of next state for memory
+        canonical_next_state = go_env.gogame.get_canonical_form(state, curr_turn)
+        # End if we've reached max steps
+        if num_steps >= max_steps:
+            done = True
+        # Add to memory cache
+        mem_cache.append((curr_turn, canonical_state, action, canonical_next_state, reward, done))
+
+        # Increment steps
         num_steps += 1      
             
         # Max number of steps or game ended by consecutive passing
-        if done or num_steps >= max_steps:
+        if done:
             break
-            
-        # White move
-        white_action = get_action(policy, go_env.get_canonical_state())
-        next_state, reward, done, info = go_env.step(white_action)
-        
-        num_steps += 1
-        
-        # Max number of steps or game ended by consecutive passing
-        if done or num_steps >= max_steps:
-            break
-            
-        # Add to memory
-        assert done == False
-        if replay_mem is not None:
-            add_to_replay_mem(replay_mem, state, black_action, next_state, reward, done, win)
-            
+
         # Setup for next event
         state = next_state
     
-    # We're done
-    done = True
-    
-    # Set the winner if we're done
-    win[0] = 1 if info['area']['b'] > info['area']['w'] else -1
-    
+    assert done
+
+    black_won = 1 if info['area']['b'] > info['area']['w'] else -1
+
     # Add the last event to memory
     if replay_mem is not None:
-        add_to_replay_mem(replay_mem, state, black_action, next_state, reward, done, win)
+        for turn, canonical_state, action, canonical_next_state, reward, done in mem_cache:
+            if turn == go_env.govars.BLACK:
+                win = black_won
+            else:
+                win = -black_won
+            add_to_replay_mem(replay_mem, state, action, next_state, reward, done, win)
     
     # Game ended
-    return win.item(), num_steps
+    return num_steps
 
 def reset_metrics(metrics):
     for key, metric in metrics.items():
