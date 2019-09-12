@@ -236,18 +236,25 @@ def play_a_game(replay_mem, go_env, policy, max_steps):
     while True:
         # Get turn
         curr_turn = go_env.turn
+
         # Get canonical state for policy and memory
         canonical_state = go_env.gogame.get_canonical_form(state, curr_turn)
-        # Get action from policy
+
+        # Get action from MCT
         mcts_action_probs = mct.get_action_probs(max_num_searches=100)
         action = go_utils.random_weighted_action(mcts_action_probs)
-        # Execute action
+
+        # Execute actions in environment and MCT tree
         next_state, reward, done, info = go_env.step(action)
+        mct.step(action)
+
         # Get canonical form of next state for memory
         canonical_next_state = go_env.gogame.get_canonical_form(state, curr_turn)
+
         # End if we've reached max steps
         if num_steps >= max_steps:
             done = True
+
         # Add to memory cache
         mem_cache.append((curr_turn, canonical_state, action, canonical_next_state, reward, done))
 
