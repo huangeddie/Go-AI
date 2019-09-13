@@ -2,7 +2,6 @@ import unittest
 import gym
 import numpy as np
 import mcts
-from go_ai import go_utils
 
 def action_2d_to_1d(action_2d, board_width):
     if action_2d is None:

@@ -1,6 +1,5 @@
 from sklearn.preprocessing import normalize
 import numpy as np
-from go_ai import go_utils
 import gym
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
@@ -70,11 +69,14 @@ class MCTree:
             state (GoEnv): current board
             forward_func: function(GoEnv.state) => action_probs, state_value
         '''
-        action_probs, state_value = forward_func(state)
+        action_probs, state_value = forward_func(state[np.newaxis])
+        action_probs, state_value = action_probs[0], state_value[0]
+
         self.root = Node(None, action_probs, state_value, state)
         self.forward_func = forward_func
         assert state.shape[1] == state.shape[2]
         self.board_size = state.shape[1]
+        self.action_size = GoGame.get_action_size(self.root.state)
         self.our_player = GoGame.get_turn(state)
 
     def get_action_probs(self, max_num_searches, temp):
@@ -89,31 +91,57 @@ class MCTree:
             num_search (int): number of search performed
         '''
 
-        num_search = 0
+        if max_num_searches <= 0:
+            valid_moves = GoGame.get_valid_moves(self.root.state)
+            states = []
+            for move, valid in enumerate(valid_moves):
+                if valid > 0:
+                    state = GoGame.get_next_state(self.root.state, move)
+                    states.append(state)
+            state_batch = np.array(states)
+            _, vals = self.forward_func(state_batch)
 
-        while num_search < max_num_searches:
-            # keep going down the tree with the best move
-            curr_node = self.root
-            next_node, move = self.select_best_child(curr_node)
-            while next_node is not None and next_node.is_expanded:
-                curr_node = next_node
-                next_node, move = self.select_best_child(curr_node)
-            # reach a leaf and expand
-            leaf = self.expand(curr_node, move)
-            curr_node.back_propagate(leaf.V)
-            # increment counters
-            num_search += 1
+            action_probs = np.zeros(self.action_size)
+            curr_idx = 0
+            for move in range(self.action_size):
+                if valid_moves[move]:
+                    action_probs[move] = vals[curr_idx].numpy()
+                    curr_idx += 1
 
-        N = list(map(lambda node: node.N if node is not None else 0, self.root.children))
-        N = np.array(N)
-        if temp > 0:
-            pi = normalize([N ** (1 / temp)], norm='l1')[0]
+            if temp > 0:
+                action_probs += np.min(action_probs)
+                action_probs = normalize((action_probs**(1/temp))[np.newaxis], norm='l1')[0]
+            else:
+                best_action = np.argmax(action_probs)
+                action_probs = np.zeros(self.action_size)
+                action_probs[best_action] = 1
+
+            return action_probs, 0
         else:
-            bestA = np.argmax(N)
-            pi = np.zeros(len(N))
-            pi[bestA] = 1
+            num_search = 0
+            while num_search < max_num_searches:
+                # keep going down the tree with the best move
+                curr_node = self.root
+                next_node, move = self.select_best_child(curr_node)
+                while next_node is not None and next_node.is_expanded:
+                    curr_node = next_node
+                    next_node, move = self.select_best_child(curr_node)
+                # reach a leaf and expand
+                leaf = self.expand(curr_node, move)
+                curr_node.back_propagate(leaf.V)
+                # increment counters
+                num_search += 1
 
-        return pi, num_search
+            N = list(map(lambda node: node.N if node is not None else 0, self.root.children))
+            N = np.array(N)
+            if temp > 0:
+                pi = normalize([N ** (1 / temp)], norm='l1')[0]
+            else:
+                bestA = np.argmax(N)
+                pi = np.zeros(len(N))
+                pi[bestA] = 1
+
+            return pi, num_search
 
     def select_best_child(self, node, u_const=1):
         '''
@@ -183,7 +211,8 @@ class MCTree:
             next_turn = GoGame.get_turn(next_state)
             # save action prob and value
             canonical_state = GoGame.get_canonical_form(next_state, next_turn)
-            action_probs, state_value = self.forward_func(canonical_state)
+            action_probs, state_value = self.forward_func(canonical_state[np.newaxis])
+            action_probs, state_value = action_probs[0], state_value[0]
             if next_turn != self.our_player:
                 state_value = -state_value
             child = Node(node, action_probs, state_value, next_state)
