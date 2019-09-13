@@ -77,7 +77,7 @@ class MCTree:
         self.board_size = state.shape[1]
         self.our_player = GoGame.get_turn(state)
 
-    def get_action_probs(self, max_num_searches=100, temp=1):
+    def get_action_probs(self, max_num_searches, temp):
         '''
         Description:
             Select a child node that maximizes Q + U,
@@ -127,13 +127,18 @@ class MCTree:
         '''
 
         moves_1d = np.arange(GoGame.get_action_size(node.state))
+        valid_moves = GoGame.get_valid_moves(node.state)
         best_move = None
         max_UCB = np.NINF  # negative infinity
         # calculate Q + U for all children
         for move in moves_1d:
             if node.children[move] is None:
-                Q = 0
-                N = 0
+                if valid_moves[move] > 0:
+                    Q = 0
+                    N = 0
+                else:
+                    Q = np.NINF
+                    N = np.NINF
             else:
                 child = node.children[move]
                 Q = child.Q if node.turn == self.our_player else -child.Q
