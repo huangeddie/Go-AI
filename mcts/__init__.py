@@ -91,25 +91,31 @@ class MCTree:
             num_search (int): number of search performed
         '''
 
-        if max_num_searches <= 0:
+        if max_num_searches is None or max_num_searches <= 0:
             valid_moves = GoGame.get_valid_moves(self.root.state)
-            states = []
+            canonical_next_states = []
             for move, valid in enumerate(valid_moves):
                 if valid > 0:
-                    state = GoGame.get_next_state(self.root.state, move)
-                    states.append(state)
-            state_batch = np.array(states)
-            _, vals = self.forward_func(state_batch)
+                    next_state = GoGame.get_next_state(self.root.state, move)
+                    canonical_next_state = GoGame.get_canonical_form(next_state, 1 - self.root.turn)
+                    canonical_next_states.append(canonical_next_state)
+            canonical_next_states = np.array(canonical_next_states)
+            _, vals = self.forward_func(canonical_next_states)
+            vals = -vals
 
             action_probs = np.zeros(self.action_size)
             curr_idx = 0
             for move in range(self.action_size):
                 if valid_moves[move]:
-                    action_probs[move] = vals[curr_idx].numpy()
+                    action_probs[move] = (vals[curr_idx].numpy() + 1) / 2
                     curr_idx += 1
 
+            assert curr_idx == np.count_nonzero(valid_moves) and np.min(action_probs) >= 0
+
+            action_probs += 1e-7
+            action_probs *= valid_moves
+
             if temp > 0:
-                action_probs += np.min(action_probs)
                 action_probs = normalize((action_probs**(1/temp))[np.newaxis], norm='l1')[0]
             else:
                 best_action = np.argmax(action_probs)

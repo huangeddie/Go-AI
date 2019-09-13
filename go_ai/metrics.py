@@ -5,9 +5,7 @@ import numpy as np
 import tensorflow as tf
 from matplotlib import pyplot as plt
 from tqdm import tqdm_notebook
-
-from go_ai.rl_utils import forward_pass, get_valid_moves, get_batch_obs, pit
-
+from go_ai import rl_utils
 
 def state_responses(actor_critic, states, taken_actions, next_states, rewards, terminals, wins, mcts_move_probs):
     def action_1d_to_2d(action_1d, board_width):
@@ -25,10 +23,10 @@ def state_responses(actor_critic, states, taken_actions, next_states, rewards, t
     """
     board_size = states[0].shape[0]
 
-    move_probs, move_vals = forward_pass(states, actor_critic, training=False)
+    move_probs, move_vals = rl_utils.forward_pass(states, actor_critic, training=False)
     state_vals = tf.reduce_sum(move_probs * move_vals, axis=1)
 
-    valid_moves = get_valid_moves(states)
+    valid_moves = rl_utils.get_valid_moves(states)
 
     num_states = states.shape[0]
     num_cols = 4
@@ -70,7 +68,7 @@ def state_responses(actor_critic, states, taken_actions, next_states, rewards, t
 
 
 def sample_heatmaps(actor_critic, replay_mem, num_samples=3):
-    states, actions, next_states, rewards, terminals, wins, mc_pis = get_batch_obs(replay_mem, batch_size=num_samples)
+    states, actions, next_states, rewards, terminals, wins, mc_pis = rl_utils.replay_mem_to_numpy(replay_mem[:num_samples])
     assert len(states[0].shape) == 3 and states[0].shape[0] == states[0].shape[1], states[0].shape
 
     # Add latest terminal state
@@ -166,11 +164,11 @@ def evaluate(go_env, policy, opponent, max_steps, num_games, mc_sims):
     pbar = tqdm_notebook(range(num_games), desc='Evaluating against former self', leave=False)
     for episode in pbar:
         if episode % 2 == 0:
-            black_won = pit(go_env, policy, opponent, max_steps, mc_sims)
-            avg_metric(black_won)
+            black_won = rl_utils.pit(go_env, policy, opponent, max_steps, mc_sims)
+            avg_metric((black_won + 1) / 2)
         else:
-            black_won = pit(go_env, opponent, policy, max_steps, mc_sims)
-            avg_metric(-black_won)
+            black_won = rl_utils.pit(go_env, opponent, policy, max_steps, mc_sims)
+            avg_metric((-black_won + 1) / 2)
         pbar.set_postfix_str('{:.1f}%'.format(100 * avg_metric.result()))
 
     return avg_metric.result()

@@ -190,21 +190,6 @@ def replay_mem_to_numpy(replay_mem):
 
     return states, actions, next_states, rewards, terminals, wins, mct_pis
 
-
-def get_batch_obs(replay_mem, batch_size, index=None):
-    '''
-    Get a batch of orig_states, actions, states, rewards, terminals as np array out of replay memory
-    '''
-
-    # States were (BATCH_SIZE, 6, board_size, board_size)
-    # Convert them to (BATCH_SIZE, board_size, board_size, 6)
-    if index is None:
-        batch = random.sample(replay_mem, batch_size)
-    else:
-        batch = replay_mem[index * batch_size: (index + 1) * batch_size]
-    return replay_mem_to_numpy(batch)
-
-
 def self_play(replay_mem, go_env, policy, max_steps, mc_sims):
     """
     Plays out a game, by pitting the policy against itself,
@@ -231,11 +216,7 @@ def self_play(replay_mem, go_env, policy, max_steps, mc_sims):
         canonical_state = go_env.gogame.get_canonical_form(state, curr_turn)
 
         # Get action from MCT
-        if num_steps > 30:
-            temp = 0
-        else:
-            temp = 1
-        mcts_action_probs, _ = mct.get_action_probs(max_num_searches=mc_sims, temp=temp)
+        mcts_action_probs, _ = mct.get_action_probs(max_num_searches=mc_sims, temp=1/16)
         action = gogame.random_weighted_action(mcts_action_probs)
 
         # Execute actions in environment and MCT tree
@@ -264,7 +245,12 @@ def self_play(replay_mem, go_env, policy, max_steps, mc_sims):
 
     assert done
 
-    black_won = 1 if info['area']['b'] > info['area']['w'] else -1
+    if info['area']['b'] > info['area']['w']:
+        black_won = 1
+    elif info['area']['b'] < info['area']['w']:
+        black_won = -1
+    else:
+        black_won = 0
 
     # Add the last event to memory
     if replay_mem is not None:
