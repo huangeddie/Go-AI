@@ -306,7 +306,7 @@ def play_a_game(replay_mem, go_env, policy, max_steps, mc_sims):
         mct.step(action)
 
         # Get canonical form of next state for memory
-        canonical_next_state = go_env.gogame.get_canonical_form(state, curr_turn)
+        canonical_next_state = go_env.gogame.get_canonical_form(next_state, curr_turn)
 
         # End if we've reached max steps
         if num_steps >= max_steps:
@@ -339,7 +339,7 @@ def play_a_game(replay_mem, go_env, policy, max_steps, mc_sims):
                 win = black_won
             else:
                 win = -black_won
-            add_to_replay_mem(replay_mem, state, action, next_state, reward, done, win, mcts_action_probs)
+            add_to_replay_mem(replay_mem, canonical_state, action, canonical_next_state, reward, done, win, mcts_action_probs)
 
     # Game ended
     return num_steps
@@ -425,10 +425,10 @@ def pit(go_env, black_policy, white_policy, max_steps, mc_sims):
     return black_won
 
 
-def evaluate(go_env, policy, opponent, max_steps, mc_sims):
+def evaluate(go_env, policy, opponent, max_steps, num_games, mc_sims):
     avg_metric = tf.keras.metrics.Mean()
 
-    pbar = tqdm_notebook(range(40), desc='Evaluating against former self', leave=False)
+    pbar = tqdm_notebook(range(num_games), desc='Evaluating against former self', leave=False)
     for episode in pbar:
         if episode % 2 == 0:
             black_won = pit(go_env, policy, opponent, max_steps, mc_sims)
