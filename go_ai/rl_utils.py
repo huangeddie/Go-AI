@@ -283,8 +283,6 @@ def play_a_game(replay_mem, go_env, policy, max_steps, mc_sims):
     mcts_forward = make_mcts_forward(policy)
     mct = mcts.MCTree(state, mcts_forward)
 
-    pbar = tqdm_notebook(total=max_steps, desc='Self-Play', leave=False)
-
     while True:
         # Get turn
         curr_turn = go_env.turn
@@ -325,9 +323,6 @@ def play_a_game(replay_mem, go_env, policy, max_steps, mc_sims):
         # Setup for next event
         state = next_state
 
-        pbar.update(1)
-
-    pbar.close()
     assert done
 
     black_won = 1 if info['area']['b'] > info['area']['w'] else -1
@@ -377,8 +372,6 @@ def pit(go_env, black_policy, white_policy, max_steps, mc_sims):
     black_mct = mcts.MCTree(state, black_forward)
     white_mct = mcts.MCTree(state, white_forward)
 
-    pbar = tqdm_notebook(total=max_steps, desc='Pitting policies', leave=False)
-
     while True:
         # Get turn
         curr_turn = go_env.turn
@@ -409,9 +402,6 @@ def pit(go_env, black_policy, white_policy, max_steps, mc_sims):
         if done:
             break
 
-        pbar.update(1)
-
-    pbar.close()
     assert done
 
     if info['area']['b'] > info['area']['w']:
