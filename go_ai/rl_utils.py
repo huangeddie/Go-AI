@@ -295,7 +295,6 @@ def play_a_game(replay_mem, go_env, policy, max_steps, mc_sims):
             temp = 0
         else:
             temp = 1
-        pbar.set_postfix_str("{}T".format(temp))
         mcts_action_probs, _ = mct.get_action_probs(max_num_searches=mc_sims, temp=temp)
         action = gogame.random_weighted_action(mcts_action_probs)
 
