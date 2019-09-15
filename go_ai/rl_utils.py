@@ -135,15 +135,6 @@ def get_values_for_actions(move_val_distrs, actions):
     return move_values
 
 
-def make_mcts_forward(policy):
-    def mcts_forward(state):
-        states = state.transpose(0, 2, 3, 1)
-        move_probs, vals = forward_pass(states, policy, training=False)
-        return move_probs, vals
-
-    return mcts_forward
-
-
 def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, win, mcts_action_probs, add_symmetries=True):
     """
     Adds original event, plus augmented versions of those events
@@ -193,6 +184,15 @@ def replay_mem_to_numpy(replay_mem):
     mct_pis = np.array(list(replay_mem[6]), dtype=np.float32)
 
     return states, actions, next_states, rewards, terminals, wins, mct_pis
+
+
+def make_mcts_forward(policy):
+    def mcts_forward(state):
+        states = state.transpose(0, 2, 3, 1)
+        move_probs, vals = forward_pass(states, policy, training=False)
+        return move_probs, vals
+
+    return mcts_forward
 
 def self_play(go_env, policy, max_steps, mc_sims, get_symmetries=True):
     """
@@ -287,11 +287,12 @@ def pit(go_env, black_policy, white_policy, max_steps, mc_sims):
         curr_turn = go_env.turn
 
         # Get an action
+        temp = 1 if num_steps < 2 else 0
         if curr_turn == go_env.govars.BLACK:
-            mcts_action_probs = black_mct.get_action_probs(max_num_searches=mc_sims, temp=0)
+            mcts_action_probs = black_mct.get_action_probs(max_num_searches=mc_sims, temp=temp)
         else:
             assert curr_turn == go_env.govars.WHITE
-            mcts_action_probs = white_mct.get_action_probs(max_num_searches=mc_sims, temp=0)
+            mcts_action_probs = white_mct.get_action_probs(max_num_searches=mc_sims, temp=temp)
         action = gogame.random_weighted_action(mcts_action_probs)
 
         # Execute actions in environment and MCT tree
