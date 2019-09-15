@@ -2,7 +2,6 @@ import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
 import logging
-import mcts
 import gym
 
 go_env = gym.make('gym_go:go-v0', size=0)
@@ -270,7 +269,7 @@ def self_play(go_env, policy, max_steps, mc_sims, get_symmetries=True):
                           mcts_action_probs, add_symmetries=get_symmetries)
 
     # Game ended
-    return replay_mem
+    return replay_mem, num_steps
 
 
 def pit(go_env, black_policy, white_policy, max_steps, mc_sims):

@@ -1,6 +1,5 @@
 import io
 import logging
-
 import numpy as np
 import tensorflow as tf
 from matplotlib import pyplot as plt

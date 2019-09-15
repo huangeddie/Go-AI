@@ -1,7 +1,7 @@
 import unittest
 import gym
 import numpy as np
-import mcts
+from go_ai import mcts
 
 def action_2d_to_1d(action_2d, board_width):
     if action_2d is None:
@@ -54,7 +54,7 @@ class TestMCTS(unittest.TestCase):
 
         tree = mcts.MCTree(self.env.get_state(), mock_forward_func)
         # only perform one search, should only reach 1 state
-        pi, num_search = tree.get_action_probs(1, 1)
+        pi = tree.get_action_probs(1, 1)
         # the first move should have pi = 1
         self.assertEqual(pi[0], 1)
         # the rest of the moves should have pi = 0
@@ -104,7 +104,7 @@ class TestMCTS(unittest.TestCase):
             return action_probs, state_value
 
         tree = mcts.MCTree(self.env.get_state(), mock_forward_func)
-        pi, num_search = tree.get_action_probs(2, 1)
+        pi = tree.get_action_probs(2, 1)
         # the first move should have pi = 2
         self.assertEqual(pi[0], 1)
         # the rest of the moves should have pi = 0
@@ -175,7 +175,7 @@ class TestMCTS(unittest.TestCase):
             return action_probs, state_value
 
         tree = mcts.MCTree(self.env.get_state(), mock_forward_func)
-        pi, num_search = tree.get_action_probs(3, 1)
+        pi = tree.get_action_probs(3, 1)
         # check pi
         self.assertEqual(pi[0], 1/3, tree)
         self.assertEqual(pi[move_01], 2/3)
@@ -208,7 +208,7 @@ class TestMCTS(unittest.TestCase):
             return action_probs, state_value
 
         tree = mcts.MCTree(self.env.get_state(), mock_forward_func)
-        pi, num_search = tree.get_action_probs(3, 1)
+        pi = tree.get_action_probs(3, 1)
         # check pi
         self.assertEqual(pi[move_pass], 1)
         # the rest of the moves should have pi = 0

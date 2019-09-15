@@ -6,7 +6,7 @@ GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
 class Node:
-    def __init__(self, parent, action_probs, state_value, state):
+    def __init__(self, parentaction, action_probs, state_value, state):
         '''
         Args:
             parent (?Node): parent Node
@@ -14,8 +14,13 @@ class Node:
             state_value (float): the state value of this node
             state: state of the game as a numpy array
         '''
-        self.parent = parent
-        self.height = parent.height + 1 if parent is not None else 0
+        if parentaction is not None:
+            self.parent = parentaction[0]
+            self.parent.children[parentaction[1]] = self
+        else:
+            self.parent = None
+
+        self.height = self.parent.height + 1 if self.parent is not None else 0
         # 1d array of the size that can hold the moves including pass,
         # initially all None
         assert state.shape[1] == state.shape[2]
@@ -35,10 +40,10 @@ class Node:
     def is_leaf(self):
         return self.N == 0
 
-    def Q(self, move):
+    def avg_Q(self, move):
         child = self.children[move]
         avg_Q = (child.V + self.Q_sum) / (1 + self.N)
-        return avg_Q.numpy().item()
+        return -avg_Q.numpy().item()
 
     def back_propagate(self, value_incre):
         '''
@@ -49,7 +54,7 @@ class Node:
         self.N += 1
         self.Q_sum += value_incre
         if self.parent is not None:
-            self.parent.back_propagate(value_incre)
+            self.parent.back_propagate(-value_incre)
 
     def soft_reset(self):
         self.is_expanded = False
@@ -84,9 +89,9 @@ class MCTree:
         assert state.shape[1] == state.shape[2]
         self.board_size = state.shape[1]
         self.action_size = GoGame.get_action_size(self.root.state)
-        self.our_player = GoGame.get_turn(state)
 
-        self.expand_children(self.root)
+        if not self.root.terminal:
+            self.cache_children(self.root)
 
     def get_action_probs(self, max_num_searches, temp):
         '''
@@ -105,7 +110,7 @@ class MCTree:
             action_probs = []
             for move in range(self.action_size):
                 if self.root.children[move] is not None:
-                    action_probs.append((self.root.Q(move) + 1) / 2)
+                    action_probs.append((self.root.avg_Q(move) + 1) / 2)
                 else:
                     action_probs.append(0)
 
@@ -119,7 +124,7 @@ class MCTree:
                 action_probs = np.zeros(self.action_size)
                 action_probs[best_action] = 1
 
-            return action_probs, 0
+            return action_probs
 
         else:
             num_search = 0
@@ -130,10 +135,17 @@ class MCTree:
                 while next_node is not None and next_node.is_expanded:
                     curr_node = next_node
                     next_node, move = self.select_best_child(curr_node)
-                # reach a leaf and expand
-                leaf = self.visit(curr_node, move)
-                curr_node.back_propagate(leaf.V)
-                # increment counters
+
+                # reach a leaf
+                assert curr_node.is_leaf()
+                # If it's not a terminal state, expand
+                if not curr_node.terminal:
+                    leaf = self.visit(curr_node, move)
+                    curr_node.back_propagate(leaf.V)
+                else:
+                    curr_node.back_propagate(curr_node.V)
+
+                # increment search counter
                 num_search += 1
 
             N = list(map(lambda node: node.N if node is not None else 0, self.root.children))
@@ -145,14 +157,13 @@ class MCTree:
                 pi = np.zeros(len(N))
                 pi[bestA] = 1
 
-            return pi, num_search
+            return pi
 
     def select_best_child(self, node, u_const=1):
         '''
         Description: If it's our turn, select the child that
             maximizes Q + U, where Q = V_sum / N, and
             U = U_CONST * P / (1 + N), where P is action value.
-            If it's oppo's turn, randomly select the child according to
             forward_func action probs.
         Args:
             node (Node): the parent node to choose from
@@ -165,7 +176,9 @@ class MCTree:
         # calculate Q + U for all children
         for move in moves_1d:
             if valid_moves[move]:
-                Q = node.Q(move)
+                Q = node.avg_Q(move)
+                if node.turn != self.our_player:
+                    Q = -Q
                 child = node.children[move]
                 Nsa = child.N
                 Psa = node.action_probs[move]
@@ -181,7 +194,13 @@ class MCTree:
 
         return node.children[best_move], best_move
 
-    def expand_children(self, node):
+    def cache_children(self, node):
+        """
+        Expands children for analysis by the forward function.
+        Doesn't actually put them as part of the MC Tree yet
+        :param node:
+        :return:
+        """
         valid_moves = GoGame.get_valid_moves(node.state)
         canonical_next_states = []
         for move, valid in enumerate(valid_moves):
@@ -192,13 +211,11 @@ class MCTree:
                 canonical_next_states.append(canonical_next_state)
         canonical_next_states = np.array(canonical_next_states)
         action_probs, vals = self.forward_func(canonical_next_states)
-        # Invert values because we played from opponent's perspective
-        vals = -vals
 
         curr_idx = 0
         for move in range(self.action_size):
             if valid_moves[move]:
-                node.children[move] = Node(node, action_probs[curr_idx], vals[curr_idx],
+                node.children[move] = Node((node, move), action_probs[curr_idx], vals[curr_idx],
                                            canonical_next_states[curr_idx])
                 curr_idx += 1
 
@@ -206,37 +223,27 @@ class MCTree:
             (curr_idx, valid_moves, action_probs)
 
     def visit(self, node, move):
-        '''
-        Description:
-            Expand a new node from given node with the given move. Or after
-            soft reset, set the child corresponding to the move to be expanded
-        Args:
-            node (Node): parent node to expand from
-            move (1d): the move from parent to child
-        Returns:
-            If a node is created, return the new node. When the game ends
-            with the node passed in, nothing is created and return the node
-        '''
-        # if we reach a end state, return this node
-        if GoGame.get_game_ended(node.state):
-            return node
+        """
+        If the resulting child node doesn't exist in the tree yet, the child node is created
+        :param node: The node starting
+        :param move: The move taken on the node
+        :return: The resulting child node from taking the move on the given node
+        """
+        assert not node.terminal
+
         # if the child node already exists, but not expanded
         if node.children[move] is not None:
             child = node.children[move]
             child.is_expanded = True
-            child.N = 1
-            child.V_sum = child.V
-        # if the child node doesn't exist, create it
         else:
+            # if the child node doesn't exist, create it
             next_state = GoGame.get_next_state(node.state, move)
             next_turn = GoGame.get_turn(next_state)
             # save action prob and value
             canonical_state = GoGame.get_canonical_form(next_state, next_turn)
             action_probs, state_value = self.forward_func(canonical_state[np.newaxis])
             action_probs, state_value = action_probs[0], state_value[0]
-            if next_turn != self.our_player:
-                state_value = -state_value
-            child = Node(node, action_probs, state_value, next_state)
+            child = Node((node, move), action_probs, state_value, next_state)
             node.children[move] = child
         return child
 
@@ -252,12 +259,7 @@ class MCTree:
 
         self.root = child
         self.root.parent = None
-
-        self.root.N = 1
-        self.root.Q_sum = self.root.V
-        for child in self.root.children:
-            if child is not None:
-                child.soft_reset()
+        self.root.soft_reset()
 
     def __str__(self):
         queue = [self.root]
