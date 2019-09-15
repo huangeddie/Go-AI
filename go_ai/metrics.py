@@ -150,17 +150,17 @@ def reset_metrics(metrics):
         metric.reset_states()
 
 
-def evaluate(go_env, policy, opponent, max_steps, num_games, mc_sims):
+def evaluate(go_env, policy, opponent, max_steps, num_games, mc_sims, temp_threshold):
     win_metric = tf.keras.metrics.Mean()
 
     pbar = tqdm_notebook(range(num_games), desc='Evaluating against former self', leave=False)
     for episode in pbar:
         if episode % 2 == 0:
-            black_won = rl_utils.pit(go_env, policy, opponent, max_steps, mc_sims)
+            black_won = rl_utils.pit(go_env, policy, opponent, max_steps, mc_sims, temp_threshold)
             win = (black_won + 1) / 2
 
         else:
-            black_won = rl_utils.pit(go_env, opponent, policy, max_steps, mc_sims)
+            black_won = rl_utils.pit(go_env, opponent, policy, max_steps, mc_sims, temp_threshold)
             win = (-black_won + 1) / 2
 
         win_metric.update_state(win)

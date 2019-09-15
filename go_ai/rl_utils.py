@@ -194,7 +194,7 @@ def make_mcts_forward(policy):
 
     return mcts_forward
 
-def self_play(go_env, policy, max_steps, mc_sims, get_symmetries=True):
+def self_play(go_env, policy, max_steps, mc_sims, temp_threshold, get_symmetries=True):
     """
     Plays out a game, by pitting the policy against itself,
     and adds the events to the given replay memory
@@ -223,7 +223,7 @@ def self_play(go_env, policy, max_steps, mc_sims, get_symmetries=True):
         canonical_state = go_env.gogame.get_canonical_form(state, curr_turn)
 
         # Get action from MCT
-        mcts_action_probs = mct.get_action_probs(max_num_searches=mc_sims, temp=0 if num_steps > 2 else 1)
+        mcts_action_probs = mct.get_action_probs(max_num_searches=mc_sims, temp=0 if num_steps > temp_threshold else 1)
         action = gogame.random_weighted_action(mcts_action_probs)
 
         # Execute actions in environment and MCT tree
@@ -273,7 +273,7 @@ def self_play(go_env, policy, max_steps, mc_sims, get_symmetries=True):
     return replay_mem, num_steps
 
 
-def pit(go_env, black_policy, white_policy, max_steps, mc_sims):
+def pit(go_env, black_policy, white_policy, max_steps, mc_sims, temp_threshold):
     num_steps = 0
     state = go_env.reset()
 
@@ -287,7 +287,7 @@ def pit(go_env, black_policy, white_policy, max_steps, mc_sims):
         curr_turn = go_env.turn
 
         # Get an action
-        temp = 1 if num_steps < 2 else 0
+        temp = 1 if num_steps <= temp_threshold else 0
         if curr_turn == go_env.govars.BLACK:
             mcts_action_probs = black_mct.get_action_probs(max_num_searches=mc_sims, temp=temp)
         else:

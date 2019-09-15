@@ -1,6 +1,7 @@
 from sklearn.preprocessing import normalize
 import numpy as np
 import gym
+import threading
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -194,20 +195,33 @@ class MCTree:
 
     def cache_children(self, node):
         """
-        Expands children for analysis by the forward function.
+        Caches children for analysis by the forward function.
         Doesn't actually put them as part of the MC Tree yet
         :param node:
         :return:
         """
         valid_moves = GoGame.get_valid_moves(node.state)
-        canonical_next_states = []
+        canonical_next_states = np.empty(self.action_size, dtype=object)
+
+        def thread_cache_child(move):
+            next_state = GoGame.get_next_state(node.state, move)
+            next_turn = GoGame.get_turn(next_state)
+            canonical_next_state = GoGame.get_canonical_form(next_state, next_turn)
+            canonical_next_states[move] = canonical_next_state
+
+        threads = []
         for move, valid in enumerate(valid_moves):
             if valid > 0:
-                next_state = GoGame.get_next_state(node.state, move)
-                next_turn = GoGame.get_turn(next_state)
-                canonical_next_state = GoGame.get_canonical_form(next_state, next_turn)
-                canonical_next_states.append(canonical_next_state)
+                thread = threading.Thread(target=thread_cache_child, args=(move,))
+                thread.start()
+                threads.append(thread)
+
+        for thread in threads:
+            thread.join()
+
+        canonical_next_states = list(filter(lambda x: x is not None, canonical_next_states))
         canonical_next_states = np.array(canonical_next_states)
+
         action_probs, vals = self.forward_func(canonical_next_states)
 
         curr_idx = 0
