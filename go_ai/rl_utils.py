@@ -331,9 +331,7 @@ def play_against(policy, go_env, mc_sims, temp):
     mct_forward = make_mcts_forward(policy)
     mct = mcts.MCTree(state, mct_forward)
 
-
-    done = False
-    while not done:
+    while not go_env.game_ended:
         go_env.render()
 
         # Model's move
@@ -346,33 +344,30 @@ def play_against(policy, go_env, mc_sims, temp):
         go_env.render()
 
         # Player's move
-        player_moved = False
         player_action = None
-        while not player_moved:
+        valid_moves = go_env.get_valid_moves()
+        while True:
             coords = input("Enter coordinates separated by space (`q` to quit)\n")
             if coords == 'q':
-                done = True
-                break
-            if coords == 'r':
-                go_env.reset()
-                mct.reset()
-                break
-            if coords == 'p':
+                return
+            elif coords == 'p':
                 player_action = None
+            else:
+                try:
+                    coords = coords.split()
+                    row = int(coords[0])
+                    col = int(coords[1])
+                    player_action = (row, col)
+                except Exception as e:
+                    print(e)
+            player_action = go_env.action_2d_to_1d(player_action)
+            if valid_moves[player_action]:
                 break
-            coords = coords.split()
-            try:
-                row = int(coords[0])
-                col = int(coords[1])
-                print(row, col)
-                player_action = (row, col)
-                player_moved = True
-            except Exception as e:
-                print(e)
-        player_action = action_2d_to_1d(player_action)
-        if player_moved:
-            go_env.step(player_action)
-            mct.step(player_action)
+            else:
+                print("Invalid action")
+
+        go_env.step(player_action)
+        mct.step(player_action)
 
 
 
