@@ -3,6 +3,7 @@ from tensorflow.keras import layers
 import numpy as np
 import logging
 import gym
+from go_ai import mcts
 
 go_env = gym.make('gym_go:go-v0', size=0)
 govars = go_env.govars
@@ -222,7 +223,7 @@ def self_play(go_env, policy, max_steps, mc_sims, get_symmetries=True):
         canonical_state = go_env.gogame.get_canonical_form(state, curr_turn)
 
         # Get action from MCT
-        mcts_action_probs, _ = mct.get_action_probs(max_num_searches=mc_sims, temp=0 if num_steps > 2 else 1)
+        mcts_action_probs = mct.get_action_probs(max_num_searches=mc_sims, temp=0 if num_steps > 2 else 1)
         action = gogame.random_weighted_action(mcts_action_probs)
 
         # Execute actions in environment and MCT tree
@@ -287,10 +288,10 @@ def pit(go_env, black_policy, white_policy, max_steps, mc_sims):
 
         # Get an action
         if curr_turn == go_env.govars.BLACK:
-            mcts_action_probs, _ = black_mct.get_action_probs(max_num_searches=mc_sims, temp=0)
+            mcts_action_probs = black_mct.get_action_probs(max_num_searches=mc_sims, temp=0)
         else:
             assert curr_turn == go_env.govars.WHITE
-            mcts_action_probs, _ = white_mct.get_action_probs(max_num_searches=mc_sims, temp=0)
+            mcts_action_probs = white_mct.get_action_probs(max_num_searches=mc_sims, temp=0)
         action = gogame.random_weighted_action(mcts_action_probs)
 
         # Execute actions in environment and MCT tree

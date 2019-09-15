@@ -177,8 +177,6 @@ class MCTree:
         for move in moves_1d:
             if valid_moves[move]:
                 Q = node.avg_Q(move)
-                if node.turn != self.our_player:
-                    Q = -Q
                 child = node.children[move]
                 Nsa = child.N
                 Psa = node.action_probs[move]
