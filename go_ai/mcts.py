@@ -109,7 +109,7 @@ class MCTree:
         if max_num_searches is None or max_num_searches <= 0:
             action_probs = []
             for move in range(self.action_size):
-                if self.root.children[move] is not None:
+                if valid_moves[move]:
                     action_probs.append((self.root.avg_Q(move) + 1) / 2)
                 else:
                     action_probs.append(0)
@@ -258,6 +258,8 @@ class MCTree:
         self.root = child
         self.root.parent = None
         self.root.soft_reset()
+        if not self.root.terminal:
+            self.cache_children(self.root)
 
     def __str__(self):
         queue = [self.root]
