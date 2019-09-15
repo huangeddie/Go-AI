@@ -7,7 +7,21 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm_notebook
 from go_ai import rl_utils
 
-def state_responses(actor_critic, states, taken_actions, next_states, rewards, terminals, wins, mcts_move_probs):
+
+def state_responses_helper(actor_critic, states, taken_actions, next_states, rewards, terminals, wins, mcts_move_probs):
+    """
+    Helper function for
+    :param actor_critic:
+    :param states:
+    :param taken_actions:
+    :param next_states:
+    :param rewards:
+    :param terminals:
+    :param wins:
+    :param mcts_move_probs:
+    :return:
+    """
+
     def action_1d_to_2d(action_1d, board_width):
         """
         Converts 1D action to 2D or None if it's a pass
@@ -18,9 +32,6 @@ def state_responses(actor_critic, states, taken_actions, next_states, rewards, t
             action = (action_1d // board_width, action_1d % board_width)
         return action
 
-    """
-    Returns a figure of plots on the states and the models responses on those states
-    """
     board_size = states[0].shape[0]
 
     move_probs, move_vals = rl_utils.forward_pass(states, actor_critic, training=False)
@@ -67,36 +78,18 @@ def state_responses(actor_critic, states, taken_actions, next_states, rewards, t
     return fig
 
 
-def sample_heatmaps(actor_critic, replay_mem, num_samples=3):
-    states, actions, next_states, rewards, terminals, wins, mc_pis = rl_utils.replay_mem_to_numpy(replay_mem[:num_samples])
+def state_responses(actor_critic, replay_mem):
+    """
+    :param actor_critic: The model
+    :param replay_mem: List of events
+    :param num_samples: Prefix size of the replay memory to use
+    :return: The responses of the model
+    on those events
+    """
+    states, actions, next_states, rewards, terminals, wins, mc_pis = rl_utils.replay_mem_to_numpy(replay_mem)
     assert len(states[0].shape) == 3 and states[0].shape[0] == states[0].shape[1], states[0].shape
 
-    # Add latest terminal state
-    got_terminal = False
-    got_last_state = False
-    for (state, action, next_state, reward, terminal, win, mc_pi) in reversed(replay_mem):
-        add_obs = False
-        if terminal and not got_terminal:
-            got_terminal = True
-            add_obs = True
-
-        if np.sum(state[:2]) == 0 and not got_last_state:
-            got_last_state = True
-            add_obs = True
-
-        if add_obs:
-            states = np.append(states, state.transpose(1, 2, 0)[np.newaxis], axis=0)
-            actions = np.append(actions, action)
-            next_states = np.append(next_states, next_state.transpose(1, 2, 0)[np.newaxis], axis=0)
-            rewards = np.append(rewards, reward)
-            terminals = np.append(terminals, terminal)
-            wins = np.append(wins, win)
-            mc_pis = np.append(mc_pis, mc_pi[np.newaxis], axis=0)
-
-        if got_terminal and got_last_state:
-            break
-
-    fig = state_responses(actor_critic, states, actions, next_states, rewards, terminals, wins, mc_pis)
+    fig = state_responses_helper(actor_critic, states, actions, next_states, rewards, terminals, wins, mc_pis)
     return fig
 
 
@@ -114,7 +107,7 @@ def log_to_tensorboard(summary_writer, metrics, step, replay_mem, actor_critic):
 
         # Plot samples of states and response heatmaps
         logging.debug("Sampling heatmaps...")
-        fig = sample_heatmaps(actor_critic, replay_mem, num_samples=2)
+        fig = state_responses(actor_critic, replay_mem)
         tf.summary.image("model heat maps", plot_to_image(fig), step=step)
 
 
@@ -126,7 +119,7 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None):
     plt.axis('off')
     valid_values = np.extract(valid_moves[:-1] == 1, move_distr[:-1])
     assert np.isnan(move_distr).any() == False, move_distr
-    pass_val = move_distr[-1] if isinstance(move_distr[-1], np.float) else move_distr[-1].numpy()
+    pass_val = float(move_distr[-1])
     plt.title(title + (' ' if scalar is None else ' {:.3f}S').format(scalar)
               + '\n{:.3f}L {:.3f}H {:.3f}P'.format(np.min(valid_values)
                                                    if len(valid_values) > 0 else 0,
@@ -159,16 +152,19 @@ def reset_metrics(metrics):
 
 
 def evaluate(go_env, policy, opponent, max_steps, num_games, mc_sims):
-    avg_metric = tf.keras.metrics.Mean()
+    win_metric = tf.keras.metrics.Mean()
 
     pbar = tqdm_notebook(range(num_games), desc='Evaluating against former self', leave=False)
     for episode in pbar:
         if episode % 2 == 0:
             black_won = rl_utils.pit(go_env, policy, opponent, max_steps, mc_sims)
-            avg_metric((black_won + 1) / 2)
+            win = (black_won + 1) / 2
+
         else:
             black_won = rl_utils.pit(go_env, opponent, policy, max_steps, mc_sims)
-            avg_metric((-black_won + 1) / 2)
-        pbar.set_postfix_str('{:.1f}%'.format(100 * avg_metric.result()))
+            win = (-black_won + 1) / 2
 
-    return avg_metric.result()
+        win_metric.update_state(win)
+        pbar.set_postfix_str('{} {:.1f}%'.format(win, 100 * win_metric.result().numpy()))
+
+    return win_metric.result().numpy()

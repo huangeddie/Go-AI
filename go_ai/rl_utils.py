@@ -2,7 +2,6 @@ import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
 import logging
-import random
 import mcts
 import gym
 
@@ -50,8 +49,11 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
     x = layers.Conv2D(32, kernel_size=3, padding='same', activation='relu',
                                kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
 
+    x = layers.Conv2D(16, kernel_size=3, padding='same', activation='relu',
+                      kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
+
     # Actor
-    move_probs = layers.Conv2D(2, kernel_size=3, padding='same', activation='relu',
+    move_probs = layers.Conv2D(2, kernel_size=1, activation='relu',
                                kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
     move_probs = layers.Flatten()(move_probs)
     move_probs = layers.Dense(action_size, kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_probs)
@@ -60,9 +62,10 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
     actor_out = move_probs
 
     # Critic
-    move_vals = layers.Conv2D(2, kernel_size=3, padding='same', activation='relu',
+    move_vals = layers.Conv2D(2, kernel_size=1, activation='relu',
                                kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
     move_vals = layers.Flatten()(move_vals)
+    move_vals = layers.Dense(16, kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)
     if critic_mode == 'q_net':
         move_vals = layers.Dense(action_size, activation=critic_activation,
                                kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)
@@ -141,7 +144,7 @@ def make_mcts_forward(policy):
     return mcts_forward
 
 
-def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, win, mcts_action_probs):
+def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, win, mcts_action_probs, add_symmetries=True):
     """
     Adds original event, plus augmented versions of those events
     States are assumed to be (6, BOARD_SIZE, BOARD_SIZE)
@@ -159,7 +162,8 @@ def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, wi
 
     chunk = np.concatenate([state, action_2d_one_hot, next_state, mc_board_pi], axis=0)
 
-    for oriented_chunk in gogame.get_symmetries(chunk):
+    orientations = gogame.get_symmetries(chunk) if add_symmetries else [chunk]
+    for oriented_chunk in orientations:
         s = oriented_chunk[:num_channels]
         a = oriented_chunk[num_channels]
         if np.count_nonzero(a) == 0:
@@ -190,13 +194,16 @@ def replay_mem_to_numpy(replay_mem):
 
     return states, actions, next_states, rewards, terminals, wins, mct_pis
 
-def self_play(replay_mem, go_env, policy, max_steps, mc_sims):
+def self_play(go_env, policy, max_steps, mc_sims, get_symmetries=True):
     """
     Plays out a game, by pitting the policy against itself,
     and adds the events to the given replay memory
-
-    Returns the number of moves by the end of the game and the list
-    of rewards after every turn by the black player
+    :param go_env:
+    :param policy:
+    :param max_steps:
+    :param mc_sims:
+    :param get_symmetries:
+    :return: The trajectory of events and number of steps
     """
 
     # Basic setup
@@ -216,7 +223,7 @@ def self_play(replay_mem, go_env, policy, max_steps, mc_sims):
         canonical_state = go_env.gogame.get_canonical_form(state, curr_turn)
 
         # Get action from MCT
-        mcts_action_probs, _ = mct.get_action_probs(max_num_searches=mc_sims, temp=1/16)
+        mcts_action_probs, _ = mct.get_action_probs(max_num_searches=mc_sims, temp=0 if num_steps > 2 else 1)
         action = gogame.random_weighted_action(mcts_action_probs)
 
         # Execute actions in environment and MCT tree
@@ -253,17 +260,17 @@ def self_play(replay_mem, go_env, policy, max_steps, mc_sims):
         black_won = 0
 
     # Add the last event to memory
-    if replay_mem is not None:
-        for turn, canonical_state, action, canonical_next_state, reward, done, mcts_action_probs in mem_cache:
-            if turn == go_env.govars.BLACK:
-                win = black_won
-            else:
-                win = -black_won
-            add_to_replay_mem(replay_mem, canonical_state, action, canonical_next_state, reward, done, win,
-                              mcts_action_probs)
+    replay_mem = []
+    for turn, canonical_state, action, canonical_next_state, reward, done, mcts_action_probs in mem_cache:
+        if turn == go_env.govars.BLACK:
+            win = black_won
+        else:
+            win = -black_won
+        add_to_replay_mem(replay_mem, canonical_state, action, canonical_next_state, reward, done, win,
+                          mcts_action_probs, add_symmetries=get_symmetries)
 
     # Game ended
-    return num_steps
+    return replay_mem
 
 
 def pit(go_env, black_policy, white_policy, max_steps, mc_sims):

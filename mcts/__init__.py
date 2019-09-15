@@ -4,6 +4,7 @@ import gym
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
+
 class Node:
     def __init__(self, parent, action_probs, state_value, state):
         '''
@@ -19,22 +20,25 @@ class Node:
         # initially all None
         assert state.shape[1] == state.shape[2]
         board_size = state.shape[1]
-        self.children = np.empty(board_size**2 + 1, dtype=object)
+        self.children = np.empty(board_size ** 2 + 1, dtype=object)
         self.action_probs = action_probs
         self.state = state
         self.turn = GoGame.get_turn(state)
+        self.terminal = GoGame.get_game_ended(state)
         # number of time this node was visited
-        self.N = 1
-        self.V = state_value # the evaluation of this node (value)
-        self.V_sum = self.V # the sum of values of this subtree
+        self.N = 0
+        self.V = state_value  # the evaluation of this node (value)
+        self.Q_sum = 0
         # later when soft reset is_expanded will be false
         self.is_expanded = True
 
-    @property
-    def Q(self):
-        if self.N == 0:
-            return 0
-        return self.V_sum / self.N
+    def is_leaf(self):
+        return self.N == 0
+
+    def Q(self, move):
+        child = self.children[move]
+        avg_Q = (child.V + self.Q_sum) / (1 + self.N)
+        return avg_Q.numpy().item()
 
     def back_propagate(self, value_incre):
         '''
@@ -43,20 +47,21 @@ class Node:
             V_sum by value increment from this node up to the root node.
         '''
         self.N += 1
-        self.V_sum += value_incre
+        self.Q_sum += value_incre
         if self.parent is not None:
             self.parent.back_propagate(value_incre)
 
     def soft_reset(self):
         self.is_expanded = False
         self.N = 0
-        self.V_sum = 0
+        self.Q_sum = 0
         for child in self.children:
             if child is not None:
                 child.soft_reset()
 
     def __str__(self):
-        return '{} {}H {}/{}VVS {}N'.format(np.sum(self.state[[0,1]], axis=0), self.height, self.V, self.V_sum, self.N)
+        return '{} {}H {}/{}VVS {}N'.format(np.sum(self.state[[0, 1]], axis=0), self.height, self.V, self.Q_sum, self.N)
+
 
 class MCTree:
     # Environment ot call the stateless go logic APIs
@@ -69,15 +74,19 @@ class MCTree:
             state (GoEnv): current board
             forward_func: function(GoEnv.state) => action_probs, state_value
         '''
+        self.forward_func = forward_func
+
         action_probs, state_value = forward_func(state[np.newaxis])
         action_probs, state_value = action_probs[0], state_value[0]
 
         self.root = Node(None, action_probs, state_value, state)
-        self.forward_func = forward_func
+
         assert state.shape[1] == state.shape[2]
         self.board_size = state.shape[1]
         self.action_size = GoGame.get_action_size(self.root.state)
         self.our_player = GoGame.get_turn(state)
+
+        self.expand_children(self.root)
 
     def get_action_probs(self, max_num_searches, temp):
         '''
@@ -91,38 +100,27 @@ class MCTree:
             num_search (int): number of search performed
         '''
 
+        valid_moves = GoGame.get_valid_moves(self.root.state)
         if max_num_searches is None or max_num_searches <= 0:
-            valid_moves = GoGame.get_valid_moves(self.root.state)
-            canonical_next_states = []
-            for move, valid in enumerate(valid_moves):
-                if valid > 0:
-                    next_state = GoGame.get_next_state(self.root.state, move)
-                    canonical_next_state = GoGame.get_canonical_form(next_state, 1 - self.root.turn)
-                    canonical_next_states.append(canonical_next_state)
-            canonical_next_states = np.array(canonical_next_states)
-            _, vals = self.forward_func(canonical_next_states)
-            vals = -vals
-
-            action_probs = np.zeros(self.action_size)
-            curr_idx = 0
+            action_probs = []
             for move in range(self.action_size):
-                if valid_moves[move]:
-                    action_probs[move] = (vals[curr_idx].numpy() + 1) / 2
-                    curr_idx += 1
+                if self.root.children[move] is not None:
+                    action_probs.append((self.root.Q(move) + 1) / 2)
+                else:
+                    action_probs.append(0)
 
-            assert curr_idx == np.count_nonzero(valid_moves) and np.min(action_probs) >= 0
-
-            action_probs += 1e-7
+            action_probs = np.array(action_probs) + 1e-7
             action_probs *= valid_moves
 
             if temp > 0:
-                action_probs = normalize((action_probs**(1/temp))[np.newaxis], norm='l1')[0]
+                action_probs = normalize((action_probs ** (1 / temp))[np.newaxis], norm='l1')[0]
             else:
                 best_action = np.argmax(action_probs)
                 action_probs = np.zeros(self.action_size)
                 action_probs[best_action] = 1
 
             return action_probs, 0
+
         else:
             num_search = 0
             while num_search < max_num_searches:
@@ -133,7 +131,7 @@ class MCTree:
                     curr_node = next_node
                     next_node, move = self.select_best_child(curr_node)
                 # reach a leaf and expand
-                leaf = self.expand(curr_node, move)
+                leaf = self.visit(curr_node, move)
                 curr_node.back_propagate(leaf.V)
                 # increment counters
                 num_search += 1
@@ -166,31 +164,48 @@ class MCTree:
         max_UCB = np.NINF  # negative infinity
         # calculate Q + U for all children
         for move in moves_1d:
-            if node.children[move] is None:
-                if valid_moves[move] > 0:
-                    Q = 0
-                    N = 0
-                else:
-                    Q = np.NINF
-                    N = np.NINF
-            else:
+            if valid_moves[move]:
+                Q = node.Q(move)
                 child = node.children[move]
-                Q = child.Q if node.turn == self.our_player else -child.Q
-                N = child.N
-            # get U for child
-            U = node.action_probs[move] * np.sqrt(node.N) / (1 + N) * u_const
-            # UCB: Upper confidence bound
-            if Q + U > max_UCB:
-                max_UCB = Q + U
-                best_move = move
+                Nsa = child.N
+                Psa = node.action_probs[move]
+                U = u_const * Psa * np.sqrt(node.N) / (1 + Nsa)
+
+                # UCB: Upper confidence bound
+                if Q + U > max_UCB:
+                    max_UCB = Q + U
+                    best_move = move
 
         if best_move is None:
             raise Exception("MCTS: move shouldn't be None, please debug")
 
         return node.children[best_move], best_move
 
+    def expand_children(self, node):
+        valid_moves = GoGame.get_valid_moves(node.state)
+        canonical_next_states = []
+        for move, valid in enumerate(valid_moves):
+            if valid > 0:
+                next_state = GoGame.get_next_state(node.state, move)
+                next_turn = GoGame.get_turn(next_state)
+                canonical_next_state = GoGame.get_canonical_form(next_state, next_turn)
+                canonical_next_states.append(canonical_next_state)
+        canonical_next_states = np.array(canonical_next_states)
+        action_probs, vals = self.forward_func(canonical_next_states)
+        # Invert values because we played from opponent's perspective
+        vals = -vals
 
-    def expand(self, node, move):
+        curr_idx = 0
+        for move in range(self.action_size):
+            if valid_moves[move]:
+                node.children[move] = Node(node, action_probs[curr_idx], vals[curr_idx],
+                                           canonical_next_states[curr_idx])
+                curr_idx += 1
+
+        assert curr_idx == np.count_nonzero(valid_moves) and np.min(action_probs) >= 0, \
+            (curr_idx, valid_moves, action_probs)
+
+    def visit(self, node, move):
         '''
         Description:
             Expand a new node from given node with the given move. Or after
@@ -225,7 +240,6 @@ class MCTree:
             node.children[move] = child
         return child
 
-
     def step(self, action):
         '''
         Move the root down to a child with action. Throw away all nodes
@@ -234,13 +248,13 @@ class MCTree:
         '''
         child = self.root.children[action]
         if child is None:
-            child = self.expand(self.root, action)
+            child = self.visit(self.root, action)
 
         self.root = child
         self.root.parent = None
 
         self.root.N = 1
-        self.root.V_sum = self.root.V
+        self.root.Q_sum = self.root.V
         for child in self.root.children:
             if child is not None:
                 child.soft_reset()
