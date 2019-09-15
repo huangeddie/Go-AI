@@ -326,21 +326,28 @@ def pit(go_env, black_policy, white_policy, max_steps, mc_sims):
     return black_won
 
 
-def play_against(policy, go_env):
+def play_against(policy, go_env, mc_sims, temp):
     state = go_env.reset()
+    mct_forward = make_mcts_forward(policy)
+    mct = mcts.MCTree(state, mct_forward)
+
 
     done = False
     while not done:
         go_env.render()
 
-        # Actor's move
-        action = get_action(policy, state, epsilon=0)
+        # Model's move
+        mcts_action_probs = mct.get_action_probs(max_num_searches=mc_sims, temp=temp)
+        action = gogame.random_weighted_action(mcts_action_probs)
 
-        state, reward, done, info = go_env.step(action)
+        go_env.step(action)
+        mct.step(action)
+
         go_env.render()
 
         # Player's move
         player_moved = False
+        player_action = None
         while not player_moved:
             coords = input("Enter coordinates separated by space (`q` to quit)\n")
             if coords == 'q':
@@ -348,18 +355,24 @@ def play_against(policy, go_env):
                 break
             if coords == 'r':
                 go_env.reset()
+                mct.reset()
                 break
             if coords == 'p':
-                go_env.step(None)
+                player_action = None
                 break
             coords = coords.split()
             try:
                 row = int(coords[0])
                 col = int(coords[1])
                 print(row, col)
-                state, reward, done, info = go_env.step((row, col))
+                player_action = (row, col)
                 player_moved = True
             except Exception as e:
                 print(e)
+        player_action = action_2d_to_1d(player_action)
+        if player_moved:
+            go_env.step(player_action)
+            mct.step(player_action)
+
 
 

@@ -3,13 +3,6 @@ import gym
 import numpy as np
 from go_ai import mcts
 
-def action_2d_to_1d(action_2d, board_width):
-    if action_2d is None:
-        action_1d = board_width**2
-    else:
-        action_1d = action_2d[0] * board_width + action_2d[1]
-    return action_1d
-
 class TestMCTS(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -45,7 +38,7 @@ class TestMCTS(unittest.TestCase):
             # black at (0,0)
             elif state[1,0,0] == 1 and np.count_nonzero(state[1]) == 1 \
                 and np.count_nonzero(state[0]) == 0:
-                    idx = action_2d_to_1d((0, 1), self.env.size)
+                    idx = self.env.action_2d_to_1d((0, 1))
                     action_probs[idx] = 1
                     state_value = 1
             else:
@@ -90,11 +83,11 @@ class TestMCTS(unittest.TestCase):
                 action_probs[0] = 1
                 state_value = 0
             elif np.count_nonzero(state[0:2, 0, 0]) == 1 and np.count_nonzero(state[0:2, 0, 1]) == 1:
-                idx = action_2d_to_1d((1, 0), self.env.size)
+                idx = self.env.action_2d_to_1d((1, 0))
                 action_probs[idx] = 1
                 state_value = 0.5
             elif np.count_nonzero(state[0:2,0,0]) == 1:
-                idx = action_2d_to_1d((0, 1), self.env.size)
+                idx = self.env.action_2d_to_1d((0, 1))
                 action_probs[idx] = 1
                 state_value = -1
             # unexpected states
@@ -121,7 +114,7 @@ class TestMCTS(unittest.TestCase):
         self.assertEqual(black_node.V, 1)
         self.assertEqual(black_node.N, 2)
 
-        white_node = black_node.children[action_2d_to_1d((0, 1), self.env.size)]
+        white_node = black_node.children[self.env.action_2d_to_1d((0, 1))]
         self.assertEqual(white_node.V_sum, 0.5)
         self.assertEqual(white_node.V, 0.5)
         self.assertEqual(white_node.N, 1)
@@ -137,8 +130,8 @@ class TestMCTS(unittest.TestCase):
                  \> _,_,_   value = 1     should return      0,  0,0
                     _,_,_                                    0,  0,0
         '''
-        move_01 = action_2d_to_1d((0, 1), self.env.size)
-        move_10 = action_2d_to_1d((1, 0), self.env.size)
+        move_01 = self.env.action_2d_to_1d((0, 1))
+        move_10 = self.env.action_2d_to_1d((1, 0))
         def mock_forward_func(state):
             '''
             Empty board:
@@ -190,7 +183,7 @@ class TestMCTS(unittest.TestCase):
         '''
         Tests that two player pass
         '''
-        move_pass = action_2d_to_1d(None, self.env.size)
+        move_pass = self.env.action_2d_to_1d(None)
         def mock_forward_func(state):
             '''
             Empty board:
@@ -217,7 +210,7 @@ class TestMCTS(unittest.TestCase):
 
     def test_tree_step(self):
         tree = self.test_two_branch_search()
-        move_01 = action_2d_to_1d((0, 1), self.env.size)
+        move_01 = self.env.action_2d_to_1d((0, 1))
         tree.step(move_01)
         turn = self.env.gogame.get_turn(tree.root.state)
         self.assertEqual(self.env.gogame.get_canonical_form(tree.root.state, turn)[1][0, 1], 1)

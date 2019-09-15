@@ -261,6 +261,10 @@ class MCTree:
         if not self.root.terminal:
             self.cache_children(self.root)
 
+    def reset(self):
+        initial_state = GoGame.get_init_board(self.board_size)
+        self.__init__(initial_state, self.forward_func)
+
     def __str__(self):
         queue = [self.root]
         str_builder = ''
