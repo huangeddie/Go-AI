@@ -91,9 +91,6 @@ class MCTree:
         self.board_size = state.shape[1]
         self.action_size = GoGame.get_action_size(self.root.state)
 
-        if not self.root.terminal:
-            self.cache_children(self.root)
-
     def get_action_probs(self, max_num_searches, temp):
         '''
         Description:
@@ -108,6 +105,8 @@ class MCTree:
 
         valid_moves = GoGame.get_valid_moves(self.root.state)
         if max_num_searches is None or max_num_searches <= 0:
+            if (self.root.children == None).all():
+                self.cache_children(self.root)
             action_probs = []
             for move in range(self.action_size):
                 if valid_moves[move]:
@@ -169,6 +168,9 @@ class MCTree:
         Args:
             node (Node): the parent node to choose from
         '''
+
+        if (node.children == None).all():
+            self.cache_children(node)
 
         moves_1d = np.arange(GoGame.get_action_size(node.state))
         valid_moves = GoGame.get_valid_moves(node.state)
@@ -273,8 +275,6 @@ class MCTree:
         self.root = child
         self.root.parent = None
         self.root.soft_reset()
-        if not self.root.terminal:
-            self.cache_children(self.root)
 
     def reset(self):
         initial_state = GoGame.get_init_board(self.board_size)
