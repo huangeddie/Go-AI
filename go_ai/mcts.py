@@ -200,22 +200,27 @@ class MCTree:
         :param node:
         :return:
         """
-        valid_moves = GoGame.get_valid_moves(node.state)
+        num_threads = 2
+
+        valid_move_idcs = GoGame.get_valid_moves(node.state)
+        valid_move_idcs = np.argwhere(valid_move_idcs > 0).flatten()
+        valid_move_chunks = np.array_split(valid_move_idcs, num_threads)
         canonical_next_states = np.empty(self.action_size, dtype=object)
 
-        def thread_cache_child(move):
-            next_state = GoGame.get_next_state(node.state, move)
-            next_turn = GoGame.get_turn(next_state)
-            canonical_next_state = GoGame.get_canonical_form(next_state, next_turn)
-            canonical_next_states[move] = canonical_next_state
+        def thread_cache_child(moves):
+            for move in moves:
+                next_state = GoGame.get_next_state(node.state, move)
+                next_turn = GoGame.get_turn(next_state)
+                canonical_next_state = GoGame.get_canonical_form(next_state, next_turn)
+                canonical_next_states[move] = canonical_next_state
 
         threads = []
-        for move, valid in enumerate(valid_moves):
-            if valid > 0:
-                thread = threading.Thread(target=thread_cache_child, args=(move,))
-                thread.start()
-                threads.append(thread)
+        for moves in valid_move_chunks:
+            thread = threading.Thread(target=thread_cache_child, args=(moves,))
+            thread.start()
+            threads.append(thread)
 
+        assert len(threads) == num_threads
         for thread in threads:
             thread.join()
 
@@ -224,15 +229,11 @@ class MCTree:
 
         action_probs, vals = self.forward_func(canonical_next_states)
 
-        curr_idx = 0
-        for move in range(self.action_size):
-            if valid_moves[move]:
-                node.children[move] = Node((node, move), action_probs[curr_idx], vals[curr_idx],
-                                           canonical_next_states[curr_idx])
-                curr_idx += 1
+        for curr_idx, move in enumerate(valid_move_idcs):
+            node.children[move] = Node((node, move), action_probs[curr_idx], vals[curr_idx],
+                                       canonical_next_states[curr_idx])
 
-        assert curr_idx == np.count_nonzero(valid_moves) and np.min(action_probs) >= 0, \
-            (curr_idx, valid_moves, action_probs)
+        assert np.min(action_probs) >= 0, (valid_move_idcs, action_probs)
 
     def visit(self, node, move):
         """
