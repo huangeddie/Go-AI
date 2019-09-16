@@ -36,10 +36,13 @@ class Node:
         self.Q_sum = 0
 
     def is_leaf(self):
-        return self.N == 1
+        if self.N == 1:
+            return True
+        real_children = filter(lambda child: child is not None, self.children)
+        return sum(map(lambda child: child.N, real_children)) <= 0
 
     def visited(self):
-        return self.N <= 0
+        return self.N > 0
 
     @property
     def cached_children(self):
@@ -128,19 +131,12 @@ class MCTree:
         else:
             num_search = 0
             while num_search < max_num_searches:
-                # keep going down the tree with the best move
                 curr_node = self.root
-                while not curr_node.is_leaf():
+                # keep going down the tree with the best move
+                while curr_node.visited() and not curr_node.terminal:
                     curr_node, move = self.select_best_child(curr_node)
 
-                # If it's not a terminal state
-                if not curr_node.terminal:
-                    # reach a leaf
-                    leaf, move = self.select_best_child(curr_node)
-                    assert leaf.visited()
-                    leaf.back_propagate(leaf.V)
-                else:
-                    curr_node.back_propagate(curr_node.V)
+                curr_node.back_propagate(curr_node.V)
 
                 # increment search counter
                 num_search += 1
@@ -165,27 +161,25 @@ class MCTree:
             U = U_CONST * P / (1 + N), where P is action value.
             forward_func action probs
         """
-
         if not node.cached_children:
             self.cache_children(node)
 
-        moves_1d = np.arange(GoGame.get_action_size(node.state))
         valid_moves = GoGame.get_valid_moves(node.state)
+        valid_move_idcs = np.argwhere(valid_moves > 0).flatten()
         best_move = None
         max_UCB = np.NINF  # negative infinity
         # calculate Q + U for all children
-        for move in moves_1d:
-            if valid_moves[move]:
-                Q = node.avg_Q(move)
-                child = node.children[move]
-                Nsa = child.N
-                Psa = node.action_probs[move]
-                U = u_const * Psa * np.sqrt(node.N) / (1 + Nsa)
+        for move in valid_move_idcs:
+            Q = node.avg_Q(move)
+            child = node.children[move]
+            Nsa = child.N
+            Psa = node.action_probs[move]
+            U = u_const * Psa * np.sqrt(node.N) / (1 + Nsa)
 
-                # UCB: Upper confidence bound
-                if Q + U > max_UCB:
-                    max_UCB = Q + U
-                    best_move = move
+            # UCB: Upper confidence bound
+            if Q + U > max_UCB:
+                max_UCB = Q + U
+                best_move = move
 
         if best_move is None:
             raise Exception("MCTS: move shouldn't be None, please debug")
