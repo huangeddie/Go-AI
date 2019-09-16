@@ -46,10 +46,10 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
 
     x = inputs
 
-    x = layers.Conv2D(32, kernel_size=3, padding='same', activation='relu',
+    x = layers.Conv2D(64, kernel_size=3, padding='same', activation='relu',
                                kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
 
-    x = layers.Conv2D(16, kernel_size=3, padding='same', activation='relu',
+    x = layers.Conv2D(64, kernel_size=3, padding='same', activation='relu',
                       kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
 
     # Actor
@@ -65,7 +65,7 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
     move_vals = layers.Conv2D(2, kernel_size=1, activation='relu',
                                kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
     move_vals = layers.Flatten()(move_vals)
-    move_vals = layers.Dense(16, kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)
+    move_vals = layers.Dense(64, kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)
     if critic_mode == 'q_net':
         move_vals = layers.Dense(action_size, activation=critic_activation,
                                kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)

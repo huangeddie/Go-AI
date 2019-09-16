@@ -1,7 +1,6 @@
 from sklearn.preprocessing import normalize
 import numpy as np
 import gym
-import threading
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -35,11 +34,16 @@ class Node:
         self.N = 0
         self.V = state_value  # the evaluation of this node (value)
         self.Q_sum = 0
-        # later when soft reset is_expanded will be false
-        self.is_expanded = True
 
     def is_leaf(self):
-        return self.N == 0
+        return self.N == 1
+
+    def visited(self):
+        return self.N <= 0
+
+    @property
+    def cached_children(self):
+        return (self.children != None).any()
 
     def avg_Q(self, move):
         child = self.children[move]
@@ -56,14 +60,6 @@ class Node:
         self.Q_sum += value_incre
         if self.parent is not None:
             self.parent.back_propagate(-value_incre)
-
-    def soft_reset(self):
-        self.is_expanded = False
-        self.N = 0
-        self.Q_sum = 0
-        for child in self.children:
-            if child is not None:
-                child.soft_reset()
 
     def __str__(self):
         return '{} {}H {}/{}VVS {}N'.format(np.sum(self.state[[0, 1]], axis=0), self.height, self.V, self.Q_sum, self.N)
@@ -86,6 +82,8 @@ class MCTree:
         action_probs, state_value = action_probs[0], state_value[0]
 
         self.root = Node(None, action_probs, state_value, state)
+        assert not self.root.visited()
+        self.root.back_propagate(self.root.V)
 
         assert state.shape[1] == state.shape[2]
         self.board_size = state.shape[1]
@@ -105,8 +103,9 @@ class MCTree:
 
         valid_moves = GoGame.get_valid_moves(self.root.state)
         if max_num_searches is None or max_num_searches <= 0:
-            if (self.root.children == None).all():
+            if not self.root.cached_children:
                 self.cache_children(self.root)
+
             action_probs = []
             for move in range(self.action_size):
                 if valid_moves[move]:
@@ -131,17 +130,15 @@ class MCTree:
             while num_search < max_num_searches:
                 # keep going down the tree with the best move
                 curr_node = self.root
-                next_node, move = self.select_best_child(curr_node)
-                while next_node is not None and next_node.is_expanded:
-                    curr_node = next_node
-                    next_node, move = self.select_best_child(curr_node)
+                while not curr_node.is_leaf():
+                    curr_node, move = self.select_best_child(curr_node)
 
-                # reach a leaf
-                assert curr_node.is_leaf()
-                # If it's not a terminal state, expand
+                # If it's not a terminal state
                 if not curr_node.terminal:
-                    leaf = self.visit(curr_node, move)
-                    curr_node.back_propagate(leaf.V)
+                    # reach a leaf
+                    leaf, move = self.select_best_child(curr_node)
+                    assert leaf.visited()
+                    leaf.back_propagate(leaf.V)
                 else:
                     curr_node.back_propagate(curr_node.V)
 
@@ -160,16 +157,16 @@ class MCTree:
             return pi
 
     def select_best_child(self, node, u_const=1):
-        '''
-        Description: If it's our turn, select the child that
+        """
+        :param node:
+        :param u_const: 'Exploration' factor of U
+        :return: the child that
             maximizes Q + U, where Q = V_sum / N, and
             U = U_CONST * P / (1 + N), where P is action value.
-            forward_func action probs.
-        Args:
-            node (Node): the parent node to choose from
-        '''
+            forward_func action probs
+        """
 
-        if (node.children == None).all():
+        if not node.cached_children:
             self.cache_children(node)
 
         moves_1d = np.arange(GoGame.get_action_size(node.state))
@@ -198,69 +195,31 @@ class MCTree:
     def cache_children(self, node):
         """
         Caches children for analysis by the forward function.
-        Doesn't actually put them as part of the MC Tree yet
+        Cached children have zero visit count, N = 0
         :param node:
         :return:
         """
-        num_threads = 2
+        if node.terminal:
+            return
 
         valid_move_idcs = GoGame.get_valid_moves(node.state)
         valid_move_idcs = np.argwhere(valid_move_idcs > 0).flatten()
-        valid_move_chunks = np.array_split(valid_move_idcs, num_threads)
-        canonical_next_states = np.empty(self.action_size, dtype=object)
+        canonical_next_states = []
 
-        def thread_cache_child(moves):
-            for move in moves:
-                next_state = GoGame.get_next_state(node.state, move)
-                next_turn = GoGame.get_turn(next_state)
-                canonical_next_state = GoGame.get_canonical_form(next_state, next_turn)
-                canonical_next_states[move] = canonical_next_state
-
-        threads = []
-        for moves in valid_move_chunks:
-            thread = threading.Thread(target=thread_cache_child, args=(moves,))
-            thread.start()
-            threads.append(thread)
-
-        assert len(threads) == num_threads
-        for thread in threads:
-            thread.join()
-
-        canonical_next_states = list(filter(lambda x: x is not None, canonical_next_states))
-        canonical_next_states = np.array(canonical_next_states)
-
-        action_probs, vals = self.forward_func(canonical_next_states)
-
-        for curr_idx, move in enumerate(valid_move_idcs):
-            node.children[move] = Node((node, move), action_probs[curr_idx], vals[curr_idx],
-                                       canonical_next_states[curr_idx])
-
-        assert np.min(action_probs) >= 0, (valid_move_idcs, action_probs)
-
-    def visit(self, node, move):
-        """
-        If the resulting child node doesn't exist in the tree yet, the child node is created
-        :param node: The node starting
-        :param move: The move taken on the node
-        :return: The resulting child node from taking the move on the given node
-        """
-        assert not node.terminal
-
-        # if the child node already exists, but not expanded
-        if node.children[move] is not None:
-            child = node.children[move]
-            child.is_expanded = True
-        else:
-            # if the child node doesn't exist, create it
+        for move in valid_move_idcs:
             next_state = GoGame.get_next_state(node.state, move)
             next_turn = GoGame.get_turn(next_state)
-            # save action prob and value
-            canonical_state = GoGame.get_canonical_form(next_state, next_turn)
-            action_probs, state_value = self.forward_func(canonical_state[np.newaxis])
-            action_probs, state_value = action_probs[0], state_value[0]
-            child = Node((node, move), action_probs, state_value, next_state)
-            node.children[move] = child
-        return child
+            canonical_next_state = GoGame.get_canonical_form(next_state, next_turn)
+            canonical_next_states.append(canonical_next_state)
+
+        canonical_next_states = np.array(canonical_next_states)
+        action_probs, vals = self.forward_func(canonical_next_states)
+
+        for idx, move in enumerate(valid_move_idcs):
+            node.children[move] = Node((node, move), action_probs[idx], vals[idx],
+                                       canonical_next_states[idx])
+
+        assert np.min(action_probs) >= 0, (valid_move_idcs, action_probs)
 
     def step(self, action):
         '''
@@ -270,11 +229,18 @@ class MCTree:
         '''
         child = self.root.children[action]
         if child is None:
-            child = self.visit(self.root, action)
+            next_state = GoGame.get_next_state(self.root.state, action)
+            next_turn = GoGame.get_turn(next_state)
+            canonical_state = GoGame.get_canonical_form(next_state, next_turn)
+            action_probs, state_value = self.forward_func(canonical_state[np.newaxis])
+            action_probs, state_value = action_probs[0], state_value[0]
+            # Set parent to None because we know we're going to set it as root
+            child = Node(None, action_probs, state_value, next_state)
 
         self.root = child
         self.root.parent = None
-        self.root.soft_reset()
+        if not self.root.visited():
+            self.root.back_propagate(self.root.V)
 
     def reset(self):
         initial_state = GoGame.get_init_board(self.board_size)
