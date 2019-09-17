@@ -2,6 +2,7 @@ import unittest
 import gym
 import numpy as np
 from go_ai import mcts
+import tensorflow as tf
 
 class TestMCTS(unittest.TestCase):
 
@@ -13,6 +14,34 @@ class TestMCTS(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.env.close()
+
+    def test_obvious_good_black_move(self):
+        self.env.step(0)
+        next_state, reward, done, info = self.env.step(None)
+
+        def mock_forward_func(states):
+            batch_size = states.shape[0]
+            return tf.zeros((batch_size,self.env.action_space)), tf.zeros((batch_size,1))
+
+        mct = mcts.MCTree(next_state, mock_forward_func)
+        action_probs = mct.get_action_probs(max_num_searches=0, temp=0)
+        self.assertEqual(np.count_nonzero(action_probs[:-1]), 0, action_probs)
+        self.assertEqual(action_probs[-1], 1, action_probs)
+
+    def test_obvious_good_white_move(self):
+        self.env.step(None)
+        self.env.step(0)
+        next_state, reward, done, info = self.env.step(None)
+
+        def mock_forward_func(states):
+            batch_size = states.shape[0]
+            return tf.zeros((batch_size, self.env.action_space)), tf.zeros((batch_size, 1))
+
+        mct = mcts.MCTree(next_state, mock_forward_func)
+        action_probs = mct.get_action_probs(max_num_searches=0, temp=0)
+        self.assertEqual(np.count_nonzero(action_probs[:-1]), 0, action_probs)
+        self.assertEqual(action_probs[-1], 1, action_probs)
+
 
     def test_one_step_search(self):
         '''
