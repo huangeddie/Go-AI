@@ -4,12 +4,30 @@ import numpy as np
 import tensorflow as tf
 from matplotlib import pyplot as plt
 from tqdm import tqdm_notebook
-from go_ai import rl_utils
+from go_ai import rl_utils, mcts
+
+
+def plot_move_distr(title, move_distr, valid_moves, scalar=None):
+    """
+    Takes in a 1d array of move values and plots its heatmap
+    """
+    board_size = int((len(move_distr) - 1) ** 0.5)
+    plt.axis('off')
+    valid_values = np.extract(valid_moves[:-1] == 1, move_distr[:-1])
+    assert np.isnan(move_distr).any() == False, move_distr
+    pass_val = float(move_distr[-1])
+    plt.title(title + (' ' if scalar is None else ' {:.3f}S').format(scalar)
+              + '\n{:.3f}L {:.3f}H {:.3f}P'.format(np.min(valid_values)
+                                                   if len(valid_values) > 0 else 0,
+                                                   np.max(valid_values)
+                                                   if len(valid_values) > 0 else 0,
+                                                   pass_val))
+    plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
 
 
 def state_responses_helper(actor_critic, states, taken_actions, next_states, rewards, terminals, wins, mcts_move_probs):
     """
-    Helper function for
+    Helper function for state_responses
     :param actor_critic:
     :param states:
     :param taken_actions:
@@ -81,8 +99,7 @@ def state_responses(actor_critic, replay_mem):
     """
     :param actor_critic: The model
     :param replay_mem: List of events
-    :param num_samples: Prefix size of the replay memory to use
-    :return: The responses of the model
+    :return: The figure visualizing responses of the model
     on those events
     """
     states, actions, next_states, rewards, terminals, wins, mc_pis = rl_utils.replay_mem_to_numpy(replay_mem)
@@ -92,43 +109,31 @@ def state_responses(actor_critic, replay_mem):
     return fig
 
 
-def log_to_tensorboard(summary_writer, metrics, step, replay_mem, actor_critic):
-    """
-    Logs metrics to tensorboard.
-    Also resets keras metrics after use
-    """
-    with summary_writer.as_default():
-        # Keras metrics
-        for key, metric in metrics.items():
-            tf.summary.scalar(key, metric.result(), step=step)
-
-        reset_metrics(metrics)
-
-        # Plot samples of states and response heatmaps
-        logging.debug("Sampling heatmaps...")
-        fig = state_responses(actor_critic, replay_mem)
-        tf.summary.image("model heat maps", plot_to_image(fig), step=step)
+def gen_traj_fig(go_env, actor_critic, max_steps, mc_sims):
+    traj, _ = rl_utils.self_play(go_env, policy=actor_critic, max_steps=max_steps, mc_sims=mc_sims,
+                                 temp_threshold=max_steps, get_symmetries=False)
+    fig = state_responses(actor_critic, traj)
+    return fig
 
 
-def plot_move_distr(title, move_distr, valid_moves, scalar=None):
-    """
-    Takes in a 1d array of move values and plots its heatmap
-    """
-    board_size = int((len(move_distr) - 1) ** 0.5)
-    plt.axis('off')
-    valid_values = np.extract(valid_moves[:-1] == 1, move_distr[:-1])
-    assert np.isnan(move_distr).any() == False, move_distr
-    pass_val = float(move_distr[-1])
-    plt.title(title + (' ' if scalar is None else ' {:.3f}S').format(scalar)
-              + '\n{:.3f}L {:.3f}H {:.3f}P'.format(np.min(valid_values)
-                                                   if len(valid_values) > 0 else 0,
-                                                   np.max(valid_values)
-                                                   if len(valid_values) > 0 else 0,
-                                                   pass_val))
-    plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
+def plot_symmetries(go_env, actor_critic, outpath):
+    mct_forward = rl_utils.make_mcts_forward(actor_critic)
+
+    mem = []
+    state = go_env.reset()
+    action = (1, 2)
+    action_1d = go_env.action_2d_to_1d(action)
+    next_state, reward, done, info = go_env.step(action)
+    mct = mcts.MCTree(state, mct_forward)
+    mc_pi = mct.get_action_probs(max_num_searches=0, temp=1)
+    rl_utils.add_to_replay_mem(mem, state, action_1d, next_state, reward, done, 0, mc_pi)
+
+    fig = state_responses(actor_critic, mem)
+    fig.savefig(outpath)
+    plt.close()
 
 
-def plot_to_image(figure):
+def figure_to_image(figure):
     """Converts the matplotlib plot specified by 'figure' to a PNG image and
     returns it. The supplied figure is closed and inaccessible after this call."""
     # Save the plot to a PNG in memory.
@@ -143,6 +148,24 @@ def plot_to_image(figure):
     # Add the batch dimension
     image = tf.expand_dims(image, 0)
     return image
+
+
+def log_to_tensorboard(summary_writer, metrics, step, go_env, actor_critic):
+    """
+    Logs metrics to tensorboard.
+    Also resets keras metrics after use
+    """
+    with summary_writer.as_default():
+        # Keras metrics
+        for key, metric in metrics.items():
+            tf.summary.scalar(key, metric.result(), step=step)
+
+        reset_metrics(metrics)
+
+        # Plot samples of states and response heatmaps
+        board_size = go_env.size
+        fig = gen_traj_fig(go_env, actor_critic, 2 * board_size ** 2, 0)
+        tf.summary.image("Trajectory and Responses", figure_to_image(fig), step=step)
 
 
 def reset_metrics(metrics):

@@ -47,7 +47,7 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
     x = inputs
 
     x = layers.Conv2D(64, kernel_size=3, padding='same', activation='relu',
-                               kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
+                      kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
 
     x = layers.Conv2D(64, kernel_size=3, padding='same', activation='relu',
                       kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
@@ -63,17 +63,17 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
 
     # Critic
     move_vals = layers.Conv2D(2, kernel_size=1, activation='relu',
-                               kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
+                              kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
     move_vals = layers.Flatten()(move_vals)
     move_vals = layers.Dense(64, kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)
     if critic_mode == 'q_net':
         move_vals = layers.Dense(action_size, activation=critic_activation,
-                               kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)
+                                 kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)
         move_vals = layers.Multiply(name="move_vals")([move_vals, valid_inputs])
         critic_out = move_vals
     elif critic_mode == 'val_net':
         move_vals = layers.Dense(1, activation=critic_activation,
-                               kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)
+                                 kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)
         critic_out = move_vals
     else:
         raise Exception("Unknown critic mode")
@@ -109,12 +109,10 @@ def get_action(policy, state, epsilon=0):
     epsilon_choice = np.random.uniform()
     if epsilon_choice < epsilon:
         # Random move
-        logging.debug("Exploring a random move")
         action = gogame.random_action(state.reshape(2, 0, 1))
 
     else:
         # policy makes a move
-        logging.debug("Exploiting policy's move")
         reshaped_state = state[np.newaxis].astype(np.float32)
 
         move_probs, _ = forward_pass(reshaped_state, policy, training=False)
@@ -135,7 +133,8 @@ def get_values_for_actions(move_val_distrs, actions):
     return move_values
 
 
-def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, win, mcts_action_probs, add_symmetries=True):
+def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, win, mcts_action_probs,
+                      add_symmetries=True):
     """
     Adds original event, plus augmented versions of those events
     States are assumed to be (6, BOARD_SIZE, BOARD_SIZE)
@@ -187,12 +186,24 @@ def replay_mem_to_numpy(replay_mem):
 
 
 def make_mcts_forward(policy):
-    def mcts_forward(state):
-        states = state.transpose(0, 2, 3, 1)
+    def mcts_forward(states):
+        states = states.transpose(0, 2, 3, 1)
         move_probs, vals = forward_pass(states, policy, training=False)
         return move_probs, vals
 
     return mcts_forward
+
+
+def black_winning(info):
+    if info['area']['b'] > info['area']['w']:
+        black_won = 1
+    elif info['area']['b'] < info['area']['w']:
+        black_won = -1
+    else:
+        black_won = 0
+
+    return black_won
+
 
 def self_play(go_env, policy, max_steps, mc_sims, temp_threshold, get_symmetries=True):
     """
@@ -253,12 +264,7 @@ def self_play(go_env, policy, max_steps, mc_sims, temp_threshold, get_symmetries
 
     assert done
 
-    if info['area']['b'] > info['area']['w']:
-        black_won = 1
-    elif info['area']['b'] < info['area']['w']:
-        black_won = -1
-    else:
-        black_won = 0
+    black_won = black_winning(info)
 
     # Add the last event to memory
     replay_mem = []
@@ -316,13 +322,7 @@ def pit(go_env, black_policy, white_policy, max_steps, mc_sims, temp_threshold):
 
     assert done
 
-    if info['area']['b'] > info['area']['w']:
-        black_won = 1
-    elif info['area']['b'] < info['area']['w']:
-        black_won = -1
-    else:
-        assert info['area']['b'] == info['area']['w']
-        black_won = 0
+    black_won = black_winning(info)
 
     return black_won
 
@@ -369,6 +369,3 @@ def play_against(policy, go_env, mc_sims, temp):
 
         go_env.step(player_action)
         mct.step(player_action)
-
-
-
