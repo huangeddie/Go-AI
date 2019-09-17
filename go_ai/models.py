@@ -41,7 +41,7 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
     move_vals = layers.Flatten()(move_vals)
 
     move_vals = layers.Dense(action_size)(move_vals)
-    move_vals = layers.ReLU(move_vals)(move_vals)
+    move_vals = layers.ReLU()(move_vals)
     if critic_mode == 'q_net':
         move_vals = layers.Dense(action_size, activation=critic_activation)(move_vals)
         move_vals = layers.Multiply(name="move_vals")([move_vals, valid_inputs])
