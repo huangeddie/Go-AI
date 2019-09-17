@@ -114,7 +114,7 @@ def update_temporal_difference(actor_critic, batched_mem, optimizer, iteration, 
     mean_squared_error = tf.keras.losses.MeanSquaredError()
     gamma = 9 / 10
 
-    pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
+    pbar = tqdm(batched_mem, desc='Optimization', leave=True, position=0)
     for states, actions, next_states, rewards, terminals, wins, mcts_action_probs in pbar:
         wins = wins[:, np.newaxis]
         terminals = terminals[:, np.newaxis]

@@ -1,9 +1,8 @@
 import io
-import logging
 import numpy as np
 import tensorflow as tf
 from matplotlib import pyplot as plt
-from tqdm import tqdm_notebook
+from tqdm import tqdm
 
 import go_ai.models
 from go_ai import data, mcts
@@ -180,7 +179,7 @@ def reset_metrics(metrics):
 def evaluate(go_env, policy, opponent, max_steps, num_games, mc_sims, temp_func):
     win_metric = tf.keras.metrics.Mean()
 
-    pbar = tqdm_notebook(range(num_games), desc='Evaluating against former self', leave=False)
+    pbar = tqdm(range(num_games), desc='Evaluation', leave=False, position=0)
     for episode in pbar:
         if episode % 2 == 0:
             black_won = data.pit(go_env, policy, opponent, max_steps, mc_sims, temp_func)
