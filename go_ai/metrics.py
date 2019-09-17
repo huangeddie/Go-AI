@@ -165,7 +165,7 @@ def log_to_tensorboard(summary_writer, metrics, step, go_env, actor_critic, figp
 
         # Plot samples of states and response heatmaps
         board_size = go_env.size
-        fig = gen_traj_fig(go_env, actor_critic, lambda x: 1 / 64, 2 * board_size ** 2, 0)
+        fig = gen_traj_fig(go_env, actor_critic, lambda x: 1 / 8, 2 * board_size ** 2, 0)
         if figpath is not None:
             fig.savefig(figpath)
         tf.summary.image("Trajectory and Responses", figure_to_image(fig), step=step)
