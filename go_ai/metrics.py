@@ -179,7 +179,7 @@ def reset_metrics(metrics):
 def evaluate(go_env, policy, opponent, max_steps, num_games, mc_sims, temp_func):
     win_metric = tf.keras.metrics.Mean()
 
-    pbar = tqdm(range(num_games), desc='Evaluation', leave=False, position=0)
+    pbar = tqdm(range(num_games), desc='Evaluation', leave=True, position=0)
     for episode in pbar:
         if episode % 2 == 0:
             black_won = data.pit(go_env, policy, opponent, max_steps, mc_sims, temp_func)
