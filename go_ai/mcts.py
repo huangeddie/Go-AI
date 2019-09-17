@@ -209,11 +209,22 @@ class MCTree:
             canonical_next_states.append(canonical_next_state)
 
         canonical_next_states = np.array(canonical_next_states)
-        action_probs, vals = self.forward_func(canonical_next_states)
+        action_probs, critic_vals = self.forward_func(canonical_next_states)
 
         for idx, move in enumerate(valid_move_idcs):
-            node.children[move] = Node((node, move), action_probs[idx], vals[idx],
-                                       canonical_next_states[idx])
+            canonical_next_state = canonical_next_states[idx]
+            terminal = GoGame.get_game_ended(canonical_next_state)
+            my_area, opp_area = GoGame.get_areas(canonical_next_state)
+            if my_area > opp_area:
+                winning = 1
+            elif my_area < opp_area:
+                winning = -1
+            else:
+                winning = 0
+
+            val = (1 - terminal) * critic_vals[idx] + (terminal) * winning
+
+            node.children[move] = Node((node, move), action_probs[idx], val, canonical_next_state)
 
         assert np.min(action_probs) >= 0, (valid_move_idcs, action_probs)
 
