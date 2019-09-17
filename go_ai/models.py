@@ -115,7 +115,9 @@ def update_temporal_difference(actor_critic, batched_mem, optimizer, iteration, 
         assert terminals.shape == wins.shape
         _, next_state_vals = forward_pass(next_states, actor_critic, training=True)
         assert next_state_vals.shape == wins.shape
+
         targets = (wins * terminals) + (1 - terminals) * gamma * next_state_vals
+
         with tf.GradientTape() as tape:
             move_prob_distrs, state_vals = forward_pass(states, actor_critic, training=True)
 
