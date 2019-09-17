@@ -148,7 +148,7 @@ def update_temporal_difference(actor_critic, batched_mem, optimizer, iteration, 
         optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
 
         # Metrics
-        pbar.set_postfix_str('{:1f}%'.format(100 * tb_metrics['pred_win_acc'].result().numpy()))
+        pbar.set_postfix_str('{:.1f}%'.format(100 * tb_metrics['pred_win_acc'].result().numpy()))
 
 
 def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_metrics):
@@ -186,4 +186,4 @@ def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_me
         optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
 
         # Metrics
-        pbar.set_postfix_str('{:1f}%'.format(100 * tb_metrics['pred_win_acc'].result().numpy()))
+        pbar.set_postfix_str('{:.1f}%'.format(100 * tb_metrics['pred_win_acc'].result().numpy()))
