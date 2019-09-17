@@ -92,7 +92,9 @@ def self_play(go_env, policy, max_steps, mc_sims, temp_func, get_symmetries=True
     mcts_forward = make_mcts_forward(policy)
     mct = mcts.MCTree(state, mcts_forward)
 
-    while True:
+    done = False
+    info = None
+    while not done:
         # Get turn
         curr_turn = go_env.turn
 
@@ -121,15 +123,12 @@ def self_play(go_env, policy, max_steps, mc_sims, temp_func, get_symmetries=True
         # Increment steps
         num_steps += 1
 
-        # Max number of steps or game ended by consecutive passing
-        if done:
-            break
-
         # Setup for next event
         state = next_state
 
     assert done
 
+    # Determine who won
     black_won = black_winning(info)
 
     # Add the last event to memory

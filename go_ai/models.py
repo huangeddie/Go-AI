@@ -103,13 +103,14 @@ def make_mcts_forward(policy):
 
     return mcts_forward
 
+
 def update_temporal_difference(actor_critic, batched_mem, optimizer, iteration, tb_metrics):
     """
     Optimizes the actor over the batched memory
     """
     binary_cross_entropy = tf.keras.losses.BinaryCrossentropy()
     mean_squared_error = tf.keras.losses.MeanSquaredError()
-    gamma = 9/10
+    gamma = 9 / 10
 
     pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
     for states, actions, next_states, rewards, terminals, wins, mcts_action_probs in pbar:
@@ -146,6 +147,10 @@ def update_temporal_difference(actor_critic, batched_mem, optimizer, iteration, 
         gradients = tape.gradient(overall_loss, actor_critic.trainable_variables)
         optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
 
+        # Metrics
+        pbar.set_postfix_str('{:1f}%'.format(100 * tb_metrics['pred_win_acc'].result().numpy()))
+
+
 def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_metrics):
     """
     Optimizes the actor over the batched memory
@@ -173,10 +178,12 @@ def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_me
 
         tb_metrics['overall_loss'].update_state(overall_loss)
 
-        wins_01 = np.copy(wins)
-        wins_01[wins_01 < 0] = 0
+        wins_01 = (np.copy(wins) + 1) / 2
         tb_metrics['pred_win_acc'].update_state(wins_01, state_vals > 0)
 
         # compute and apply gradients
         gradients = tape.gradient(overall_loss, actor_critic.trainable_variables)
         optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
+
+        # Metrics
+        pbar.set_postfix_str('{:1f}%'.format(100 * tb_metrics['pred_win_acc'].result().numpy()))
