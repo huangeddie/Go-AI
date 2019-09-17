@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
 import gym
+from tqdm import tqdm
 
 go_env = gym.make('gym_go:go-v0', size=0)
 govars = go_env.govars
@@ -109,7 +110,9 @@ def update_temporal_difference(actor_critic, batched_mem, optimizer, iteration, 
     binary_cross_entropy = tf.keras.losses.BinaryCrossentropy()
     mean_squared_error = tf.keras.losses.MeanSquaredError()
     gamma = 9/10
-    for states, actions, next_states, rewards, terminals, wins, mcts_action_probs in batched_mem:
+
+    pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
+    for states, actions, next_states, rewards, terminals, wins, mcts_action_probs in pbar:
         wins = wins[:, np.newaxis]
         terminals = terminals[:, np.newaxis]
         assert terminals.shape == wins.shape
@@ -149,7 +152,9 @@ def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_me
     """
     binary_cross_entropy = tf.keras.losses.BinaryCrossentropy()
     mean_squared_error = tf.keras.losses.MeanSquaredError()
-    for states, actions, next_states, rewards, terminals, wins, mcts_action_probs in batched_mem:
+
+    pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
+    for states, actions, next_states, rewards, terminals, wins, mcts_action_probs in pbar:
         wins = wins[:, np.newaxis]
         with tf.GradientTape() as tape:
             move_prob_distrs, state_vals = forward_pass(states, actor_critic, training=True)
