@@ -153,7 +153,7 @@ def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_me
     binary_cross_entropy = tf.keras.losses.BinaryCrossentropy()
     mean_squared_error = tf.keras.losses.MeanSquaredError()
 
-    pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
+    pbar = tqdm(batched_mem, desc='Updating', leave=True, position=1)
     for states, actions, next_states, rewards, terminals, wins, mcts_action_probs in pbar:
         wins = wins[:, np.newaxis]
         with tf.GradientTape() as tape:
