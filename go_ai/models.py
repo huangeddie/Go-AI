@@ -16,12 +16,17 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
 
     x = inputs
 
-    x = layers.Conv2D(64, kernel_size=3, padding='same', activation='relu')(x)
-
-    x = layers.Conv2D(64, kernel_size=3, padding='same', activation='relu')(x)
+    x = layers.Conv2D(64, kernel_size=3, padding='same')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    x = layers.Conv2D(64, kernel_size=3, padding='same')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
 
     # Actor
-    move_probs = layers.Conv2D(2, kernel_size=1, activation='relu')(x)
+    move_probs = layers.Conv2D(2, kernel_size=1)(x)
+    move_probs = layers.BatchNormalization()(move_probs)
+    move_probs = layers.ReLU()(move_probs)
     move_probs = layers.Flatten()(move_probs)
     move_probs = layers.Dense(action_size)(move_probs)
     move_probs = layers.Add()([move_probs, invalid_values])
@@ -29,15 +34,17 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
     actor_out = move_probs
 
     # Critic
-    move_vals = layers.Conv2D(2, kernel_size=1, activation='relu')(x)
+    move_vals = layers.Conv2D(2, kernel_size=1)(x)
+    move_vals = layers.BatchNormalization()(move_vals)
+    move_vals = layers.ReLU()(move_vals)
     move_vals = layers.Flatten()(move_vals)
-    move_vals = layers.Dense(64)(move_vals)
+    move_vals = layers.Dense(action_size)(move_vals)
     if critic_mode == 'q_net':
         move_vals = layers.Dense(action_size, activation=critic_activation)(move_vals)
         move_vals = layers.Multiply(name="move_vals")([move_vals, valid_inputs])
         critic_out = move_vals
     elif critic_mode == 'val_net':
-        move_vals = layers.Dense(1, activation=critic_activation)(move_vals)
+        move_vals = layers.Dense(1, activation=critic_activation, name="value")(move_vals)
         critic_out = move_vals
     else:
         raise Exception("Unknown critic mode")
@@ -95,8 +102,46 @@ def make_mcts_forward(policy):
 
     return mcts_forward
 
+def update_temporal_difference(actor_critic, batched_mem, optimizer, iteration, tb_metrics):
+    """
+    Optimizes the actor over the batched memory
+    """
+    binary_cross_entropy = tf.keras.losses.BinaryCrossentropy()
+    mean_squared_error = tf.keras.losses.MeanSquaredError()
+    gamma = 9/10
+    for states, actions, next_states, rewards, terminals, wins, mcts_action_probs in batched_mem:
+        wins = wins[:, np.newaxis]
+        terminals = terminals[:, np.newaxis]
+        assert terminals.shape == wins.shape
+        _, next_state_vals = forward_pass(next_states, actor_critic, training=True)
+        assert next_state_vals.shape == wins.shape
+        targets = (wins * terminals) + (1 - terminals) * gamma * next_state_vals
+        with tf.GradientTape() as tape:
+            move_prob_distrs, state_vals = forward_pass(states, actor_critic, training=True)
 
-def update_actor_critic(actor_critic, batched_mem, optimizer, iteration, tb_metrics):
+            # Actor
+            move_loss = binary_cross_entropy(mcts_action_probs, move_prob_distrs)
+
+            # Critic
+            assert targets.shape == wins.shape
+            val_loss = mean_squared_error(targets, state_vals)
+
+            overall_loss = val_loss + move_loss
+
+        tb_metrics['move_loss'].update_state(move_loss)
+        tb_metrics['val_loss'].update_state(val_loss)
+
+        tb_metrics['overall_loss'].update_state(overall_loss)
+
+        wins_01 = np.copy(wins)
+        wins_01[wins_01 < 0] = 0
+        tb_metrics['pred_win_acc'].update_state(wins_01, state_vals > 0)
+
+        # compute and apply gradients
+        gradients = tape.gradient(overall_loss, actor_critic.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
+
+def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_metrics):
     """
     Optimizes the actor over the batched memory
     """

@@ -118,6 +118,8 @@ class MCTree:
 
             action_probs = np.array(action_probs) + 1e-7
             action_probs *= valid_moves
+            # assert action_probs.shape == self.root.action_probs.shape
+            # action_probs += self.root.action_probs
 
             if temp > 0:
                 action_probs = normalize((action_probs ** (1 / temp))[np.newaxis], norm='l1')[0]

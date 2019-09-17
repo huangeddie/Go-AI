@@ -111,9 +111,9 @@ def state_responses(actor_critic, replay_mem):
     return fig
 
 
-def gen_traj_fig(go_env, actor_critic, max_steps, mc_sims):
+def gen_traj_fig(go_env, actor_critic, temp_func, max_steps, mc_sims):
     traj, _ = data.self_play(go_env, policy=actor_critic, max_steps=max_steps, mc_sims=mc_sims,
-                             temp_threshold=max_steps, get_symmetries=False)
+                             temp_func=temp_func, get_symmetries=False)
     fig = state_responses(actor_critic, traj)
     return fig
 
@@ -166,7 +166,7 @@ def log_to_tensorboard(summary_writer, metrics, step, go_env, actor_critic):
 
         # Plot samples of states and response heatmaps
         board_size = go_env.size
-        fig = gen_traj_fig(go_env, actor_critic, 2 * board_size ** 2, 0)
+        fig = gen_traj_fig(go_env, actor_critic, lambda x: 1/64, 2 * board_size ** 2, 0)
         tf.summary.image("Trajectory and Responses", figure_to_image(fig), step=step)
 
 
@@ -175,17 +175,17 @@ def reset_metrics(metrics):
         metric.reset_states()
 
 
-def evaluate(go_env, policy, opponent, max_steps, num_games, mc_sims, temp_threshold):
+def evaluate(go_env, policy, opponent, max_steps, num_games, mc_sims, temp_func):
     win_metric = tf.keras.metrics.Mean()
 
     pbar = tqdm_notebook(range(num_games), desc='Evaluating against former self', leave=False)
     for episode in pbar:
         if episode % 2 == 0:
-            black_won = data.pit(go_env, policy, opponent, max_steps, mc_sims, temp_threshold)
+            black_won = data.pit(go_env, policy, opponent, max_steps, mc_sims, temp_func)
             win = (black_won + 1) / 2
 
         else:
-            black_won = data.pit(go_env, opponent, policy, max_steps, mc_sims, temp_threshold)
+            black_won = data.pit(go_env, opponent, policy, max_steps, mc_sims, temp_func)
             win = (-black_won + 1) / 2
 
         win_metric.update_state(win)
