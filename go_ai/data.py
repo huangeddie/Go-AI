@@ -1,136 +1,11 @@
-import tensorflow as tf
-from tensorflow.keras import layers
 import numpy as np
-import logging
 import gym
 from go_ai import mcts
+from go_ai.models import make_mcts_forward
 
 go_env = gym.make('gym_go:go-v0', size=0)
 govars = go_env.govars
 gogame = go_env.gogame
-
-
-def get_valid_moves(states):
-    return 1 - get_invalid_moves(states)
-
-
-def get_invalid_values(states):
-    """
-    Returns the action values of the states where invalid moves have -infinity value (minimum value of float32)
-    and valid moves have 0 value
-    """
-    invalid_moves = get_invalid_moves(states)
-    invalid_values = np.finfo(np.float32).min * invalid_moves
-    return invalid_values
-
-
-def get_invalid_moves(states):
-    """
-    Returns 1's where moves are invalid and 0's where moves are valid
-    Assumes shape to be [BATCH SIZE, BOARD SIZE, BOARD SIZE, 6]
-    """
-    assert len(states.shape) == 4
-    batch_size = states.shape[0]
-    board_size = states.shape[1]
-    invalid_moves = states[:, :, :, govars.INVD_CHNL].reshape((batch_size, -1))
-    invalid_moves = np.insert(invalid_moves, board_size ** 2, 0, axis=1)
-    return invalid_moves
-
-
-def make_actor_critic(board_size, critic_mode, critic_activation):
-    action_size = board_size ** 2 + 1
-
-    inputs = layers.Input(shape=(board_size, board_size, 6), name="board")
-    valid_inputs = layers.Input(shape=(action_size,), name="valid_moves")
-    invalid_values = layers.Input(shape=(action_size,), name="invalid_values")
-
-    x = inputs
-
-    x = layers.Conv2D(64, kernel_size=3, padding='same', activation='relu',
-                      kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
-
-    x = layers.Conv2D(64, kernel_size=3, padding='same', activation='relu',
-                      kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
-
-    # Actor
-    move_probs = layers.Conv2D(2, kernel_size=1, activation='relu',
-                               kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
-    move_probs = layers.Flatten()(move_probs)
-    move_probs = layers.Dense(action_size, kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_probs)
-    move_probs = layers.Add()([move_probs, invalid_values])
-    move_probs = layers.Softmax(name="move_probs")(move_probs)
-    actor_out = move_probs
-
-    # Critic
-    move_vals = layers.Conv2D(2, kernel_size=1, activation='relu',
-                              kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
-    move_vals = layers.Flatten()(move_vals)
-    move_vals = layers.Dense(64, kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)
-    if critic_mode == 'q_net':
-        move_vals = layers.Dense(action_size, activation=critic_activation,
-                                 kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)
-        move_vals = layers.Multiply(name="move_vals")([move_vals, valid_inputs])
-        critic_out = move_vals
-    elif critic_mode == 'val_net':
-        move_vals = layers.Dense(1, activation=critic_activation,
-                                 kernel_regularizer=tf.keras.regularizers.l2(1e-4))(move_vals)
-        critic_out = move_vals
-    else:
-        raise Exception("Unknown critic mode")
-
-    model = tf.keras.Model(inputs=[inputs, valid_inputs, invalid_values], outputs=[actor_out, critic_out],
-                           name='actor_critic')
-    return model
-
-
-def forward_pass(states, network, training):
-    """
-    Since the neural nets take in more than one parameter,
-    this functions serves as a wrapper to forward pass the data through the networks
-    """
-    invalid_moves = get_invalid_moves(states)
-    invalid_values = get_invalid_values(states)
-    valid_moves = 1 - invalid_moves
-    return network([states.astype(np.float32),
-                    valid_moves.astype(np.float32),
-                    invalid_values.astype(np.float32)], training=training)
-
-
-def get_action(policy, state, epsilon=0):
-    """
-    Gets an action (1D) based on exploration/exploitation
-    """
-
-    if state.shape[0] == 6:
-        # State shape will be (board_size, board_size, 6)
-        # Note that we are assuming board_size to be greater than 6
-        state = state.transpose(1, 2, 0)
-
-    epsilon_choice = np.random.uniform()
-    if epsilon_choice < epsilon:
-        # Random move
-        action = gogame.random_action(state.reshape(2, 0, 1))
-
-    else:
-        # policy makes a move
-        reshaped_state = state[np.newaxis].astype(np.float32)
-
-        move_probs, _ = forward_pass(reshaped_state, policy, training=False)
-        action = gogame.random_weighted_action(move_probs[0])
-
-    return action
-
-
-def get_values_for_actions(move_val_distrs, actions):
-    '''
-    Actions should be a one hot array [batch size, ] array
-    Get value from board_values based on action, or take the passing_values if the action is None
-    '''
-    one_hot_actions = tf.one_hot(actions, depth=move_val_distrs.shape[1])
-    assert move_val_distrs.shape == one_hot_actions.shape
-    one_hot_move_values = move_val_distrs * one_hot_actions
-    move_values = tf.reduce_sum(one_hot_move_values, axis=1)
-    return move_values
 
 
 def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, win, mcts_action_probs,
@@ -183,15 +58,6 @@ def replay_mem_to_numpy(replay_mem):
     mct_pis = np.array(list(replay_mem[6]), dtype=np.float32)
 
     return states, actions, next_states, rewards, terminals, wins, mct_pis
-
-
-def make_mcts_forward(policy):
-    def mcts_forward(states):
-        states = states.transpose(0, 2, 3, 1)
-        move_probs, vals = forward_pass(states, policy, training=False)
-        return move_probs, vals
-
-    return mcts_forward
 
 
 def black_winning(info):

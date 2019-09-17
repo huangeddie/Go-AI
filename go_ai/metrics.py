@@ -4,7 +4,9 @@ import numpy as np
 import tensorflow as tf
 from matplotlib import pyplot as plt
 from tqdm import tqdm_notebook
-from go_ai import rl_utils, mcts
+
+import go_ai.models
+from go_ai import data, mcts
 
 
 def plot_move_distr(title, move_distr, valid_moves, scalar=None):
@@ -51,10 +53,10 @@ def state_responses_helper(actor_critic, states, taken_actions, next_states, rew
 
     board_size = states[0].shape[0]
 
-    move_probs, move_vals = rl_utils.forward_pass(states, actor_critic, training=False)
+    move_probs, move_vals = go_ai.models.forward_pass(states, actor_critic, training=False)
     state_vals = tf.reduce_sum(move_probs * move_vals, axis=1)
 
-    valid_moves = rl_utils.get_valid_moves(states)
+    valid_moves = go_ai.models.get_valid_moves(states)
 
     num_states = states.shape[0]
     num_cols = 4
@@ -102,7 +104,7 @@ def state_responses(actor_critic, replay_mem):
     :return: The figure visualizing responses of the model
     on those events
     """
-    states, actions, next_states, rewards, terminals, wins, mc_pis = rl_utils.replay_mem_to_numpy(replay_mem)
+    states, actions, next_states, rewards, terminals, wins, mc_pis = data.replay_mem_to_numpy(replay_mem)
     assert len(states[0].shape) == 3 and states[0].shape[0] == states[0].shape[1], states[0].shape
 
     fig = state_responses_helper(actor_critic, states, actions, next_states, rewards, terminals, wins, mc_pis)
@@ -110,14 +112,14 @@ def state_responses(actor_critic, replay_mem):
 
 
 def gen_traj_fig(go_env, actor_critic, max_steps, mc_sims):
-    traj, _ = rl_utils.self_play(go_env, policy=actor_critic, max_steps=max_steps, mc_sims=mc_sims,
-                                 temp_threshold=max_steps, get_symmetries=False)
+    traj, _ = data.self_play(go_env, policy=actor_critic, max_steps=max_steps, mc_sims=mc_sims,
+                             temp_threshold=max_steps, get_symmetries=False)
     fig = state_responses(actor_critic, traj)
     return fig
 
 
 def plot_symmetries(go_env, actor_critic, outpath):
-    mct_forward = rl_utils.make_mcts_forward(actor_critic)
+    mct_forward = go_ai.models.make_mcts_forward(actor_critic)
 
     mem = []
     state = go_env.reset()
@@ -126,7 +128,7 @@ def plot_symmetries(go_env, actor_critic, outpath):
     next_state, reward, done, info = go_env.step(action)
     mct = mcts.MCTree(state, mct_forward)
     mc_pi = mct.get_action_probs(max_num_searches=0, temp=1)
-    rl_utils.add_to_replay_mem(mem, state, action_1d, next_state, reward, done, 0, mc_pi)
+    data.add_to_replay_mem(mem, state, action_1d, next_state, reward, done, 0, mc_pi)
 
     fig = state_responses(actor_critic, mem)
     fig.savefig(outpath)
@@ -179,11 +181,11 @@ def evaluate(go_env, policy, opponent, max_steps, num_games, mc_sims, temp_thres
     pbar = tqdm_notebook(range(num_games), desc='Evaluating against former self', leave=False)
     for episode in pbar:
         if episode % 2 == 0:
-            black_won = rl_utils.pit(go_env, policy, opponent, max_steps, mc_sims, temp_threshold)
+            black_won = data.pit(go_env, policy, opponent, max_steps, mc_sims, temp_threshold)
             win = (black_won + 1) / 2
 
         else:
-            black_won = rl_utils.pit(go_env, opponent, policy, max_steps, mc_sims, temp_threshold)
+            black_won = data.pit(go_env, opponent, policy, max_steps, mc_sims, temp_threshold)
             win = (-black_won + 1) / 2
 
         win_metric.update_state(win)

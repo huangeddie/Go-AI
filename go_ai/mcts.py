@@ -77,7 +77,7 @@ class MCTree:
             Construct a Monte Carlo Tree that has current board as root
         Args:
             state (GoEnv): current board
-            forward_func: function(GoEnv.state) => action_probs, state_value
+            forward_func: function([GoEnv.state]) => action_probs, state_value
         '''
         self.forward_func = forward_func
 
