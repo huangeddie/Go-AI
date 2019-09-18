@@ -58,17 +58,6 @@ def replay_mem_to_numpy(replay_mem):
     return states, actions, next_states, rewards, terminals, wins, mct_pis
 
 
-def black_winning(info):
-    if info['area']['b'] > info['area']['w']:
-        black_won = 1
-    elif info['area']['b'] < info['area']['w']:
-        black_won = -1
-    else:
-        black_won = 0
-
-    return black_won
-
-
 def self_play(go_env, policy, max_steps, get_symmetries=True):
     """
     Plays out a game, by pitting the policy against itself,
@@ -152,7 +141,12 @@ def pit(go_env, black_policy, white_policy, max_steps, get_memory=False, get_sym
     assert done
 
     # Determine who won
-    black_won = black_winning(info)
+    if info['area']['b'] > info['area']['w']:
+        black_won = 1
+    elif info['area']['b'] < info['area']['w']:
+        black_won = -1
+    else:
+        black_won = 0
 
     # Dump cache into replay memory
     replay_mem = []

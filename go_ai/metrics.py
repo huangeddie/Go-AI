@@ -181,11 +181,11 @@ def evaluate(go_env, my_policy, opponent_policy, max_steps, num_games):
     pbar = tqdm(range(num_games), desc='Evaluation', leave=True, position=0)
     for episode in pbar:
         if episode % 2 == 0:
-            black_won = data.pit(go_env, my_policy, opponent_policy, max_steps)
+            black_won, _, _ = data.pit(go_env, my_policy, opponent_policy, max_steps)
             win = (black_won + 1) / 2
 
         else:
-            black_won = data.pit(go_env, opponent_policy, my_policy, max_steps)
+            black_won, _, _ = data.pit(go_env, opponent_policy, my_policy, max_steps)
             win = (-black_won + 1) / 2
 
         win_metric.update_state(win)
