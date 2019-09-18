@@ -50,7 +50,7 @@ class TestMCTS(unittest.TestCase):
         _,_,_ => _,_,_     should return    0,0,0
         _,_,_    _,_,_                      0,0,0
         '''
-        def mock_forward_func(state):
+        def mock_forward_func(states):
             '''
             Empty board:
                 action probs: 1 at the top left corner (0,0)
@@ -59,19 +59,20 @@ class TestMCTS(unittest.TestCase):
                 action probs: 1 at (0, 1)
                 state value: 1
             '''
-            action_probs = np.zeros(self.action_length)
+            batch_size = states.shape[0]
+            action_probs = np.zeros((batch_size, self.action_length))
             # empty board
-            if np.count_nonzero(state[0:2]) == 0:
-                action_probs[0] = 1
-                state_value = 0
+            if np.count_nonzero(states[0][0:2]) == 0:
+                action_probs[:][0] = 1
+                state_value = tf.constant(0, shape=(batch_size,1))
             # black at (0,0)
-            elif state[1,0,0] == 1 and np.count_nonzero(state[1]) == 1 \
-                and np.count_nonzero(state[0]) == 0:
+            elif states[0][1, 0, 0] == 1 and np.count_nonzero(states[0][1]) == 1 \
+                and np.count_nonzero(states[0][0]) == 0:
                     idx = self.env.action_2d_to_1d((0, 1))
-                    action_probs[idx] = 1
-                    state_value = 1
+                    action_probs[:][idx] = 1
+                    state_value = tf.constant(1, shape=(batch_size,1))
             else:
-                raise Exception("Unexpected state", state)
+                raise Exception("Unexpected state", states)
             return action_probs, state_value
 
         tree = mcts.MCTree(self.env.get_state(), mock_forward_func)
@@ -82,7 +83,6 @@ class TestMCTS(unittest.TestCase):
         # the rest of the moves should have pi = 0
         for i in range(1, self.action_length):
             self.assertEqual(pi[i], 0)
-        self.assertEqual(num_search, 1)
 
     def test_two_step_search(self):
         '''
@@ -91,7 +91,7 @@ class TestMCTS(unittest.TestCase):
         _,_,_ => _,_,_ => _,_,_    should return    0,0,0
         _,_,_    _,_,_    _,_,_                     0,0,0
         '''
-        def mock_forward_func(state):
+        def mock_forward_func(states):
             '''
             Empty board:
                 action probs: 1 at the top left corner (0,0)
@@ -106,22 +106,23 @@ class TestMCTS(unittest.TestCase):
                 action probs: 1 at (0, 1)
                 state value: ??
             '''
-            action_probs = np.zeros(self.action_length)
+            batch_size = states.shape[0]
+            action_probs = np.zeros((batch_size, self.action_length))
             # empty board
-            if np.count_nonzero(state[0:2]) == 0:
+            if np.count_nonzero(states[0][0:2]) == 0:
                 action_probs[0] = 1
-                state_value = 0
-            elif np.count_nonzero(state[0:2, 0, 0]) == 1 and np.count_nonzero(state[0:2, 0, 1]) == 1:
+                state_value = tf.constant(0, shape=(batch_size,1))
+            elif np.count_nonzero(states[0][0:2, 0, 0]) == 1 and np.count_nonzero(states[0][0:2, 0, 1]) == 1:
                 idx = self.env.action_2d_to_1d((1, 0))
                 action_probs[idx] = 1
-                state_value = 0.5
-            elif np.count_nonzero(state[0:2,0,0]) == 1:
+                state_value = tf.constant(0.5, shape=(batch_size,1))
+            elif np.count_nonzero(states[0][0:2, 0, 0]) == 1:
                 idx = self.env.action_2d_to_1d((0, 1))
                 action_probs[idx] = 1
-                state_value = -1
+                state_value = tf.constant(-1, shape=(batch_size,1))
             # unexpected states
             else:
-                print('Tree:\n{}\n\nState:\n{}'.format(tree, state))
+                print('Tree:\n{}\n\nState:\n{}'.format(tree, states))
                 raise Exception("Unexpected state")
             return action_probs, state_value
 
