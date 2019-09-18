@@ -119,7 +119,7 @@ class MCTree:
             for move in range(self.action_size):
                 if valid_moves[move]:
                     child = self.root.children[move]
-                    action_probs.append((-child.V + 1) / 2)
+                    action_probs.append((-child.V.numpy().item() + 1) / 2)
                 else:
                     action_probs.append(0)
 
