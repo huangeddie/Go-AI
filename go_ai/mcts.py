@@ -114,20 +114,12 @@ class MCTree:
         if max_num_searches is None or max_num_searches <= 0:
             if not self.root.cached_children:
                 self.cache_children(self.root)
-            for child in self.root.children:
-                if child is None:
-                    continue
-                self.cache_children(child)
 
             action_probs = []
             for move in range(self.action_size):
                 if valid_moves[move]:
-                    child = self.root.children[move]
-                    if child.terminal:
-                        val = -self.canonical_winning(child.state)
-                    else:
-                        val = -np.sum(child.Qs * child.action_probs)
-                    action_probs.append((val + 1) / 2)
+                    child = self.root.children
+                    action_probs.append((-child.V + 1) / 2)
                 else:
                     action_probs.append(0)
 
