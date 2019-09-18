@@ -125,6 +125,9 @@ class MCTree:
             action_probs *= valid_moves
 
             if temp > 0:
+                # Normalize it twice in the case that the largest value is so small, only normalizing it after raising
+                # it to the 1/temp power may result in all 0's
+                action_probs = normalize(action_probs[np.newaxis], norm='l1')[0]
                 action_probs = normalize((action_probs ** (1 / temp))[np.newaxis], norm='l1')[0]
             else:
                 best_action = np.argmax(action_probs)
