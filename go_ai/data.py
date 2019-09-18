@@ -81,10 +81,28 @@ def self_play(go_env, policy, max_steps, get_symmetries=True):
     :return: The trajectory of events and number of steps
     """
 
-    # Basic setup
+    black_won, replay_mem, num_steps = pit(go_env, black_policy=policy, white_policy=policy, max_steps=max_steps,
+                                           get_memory=True, get_symmetries=get_symmetries)
+
+    # Game ended
+    return replay_mem, num_steps
+
+
+def pit(go_env, black_policy, white_policy, max_steps, get_memory=False, get_symmetries=True):
+    """
+    Pits two policies against each other
+    :param go_env:
+    :param black_policy:
+    :param white_policy:
+    :param max_steps:
+    :param mc_sims:
+    :param temp_func:
+    :return: Whether or not black won {1, 0, -1}, number of steps, replay memory (if requested None otherwise)
+    """
     num_steps = 0
     state = go_env.reset()
-    policy.reset()
+    black_policy.reset()
+    white_policy.reset()
 
     mem_cache = []
 
@@ -97,23 +115,33 @@ def self_play(go_env, policy, max_steps, get_symmetries=True):
         # Get canonical state for policy and memory
         canonical_state = go_env.gogame.get_canonical_form(state, curr_turn)
 
-        # Get action from MCT
-        mcts_action_probs = policy(state=canonical_state, step=num_steps)
+        # Get an action
+        if curr_turn == go_env.govars.BLACK:
+            mcts_action_probs = black_policy(state, step=num_steps)
+        else:
+            assert curr_turn == go_env.govars.WHITE
+            mcts_action_probs = white_policy(state, step=num_steps)
         action = gogame.random_weighted_action(mcts_action_probs)
 
         # Execute actions in environment and MCT tree
         next_state, reward, done, info = go_env.step(action)
-        policy.step(action)
 
         # Get canonical form of next state for memory
         canonical_next_state = go_env.gogame.get_canonical_form(next_state, curr_turn)
+
+        # Sync the policies
+        black_policy.step(action)
+        if white_policy != black_policy:
+            white_policy.step(action)
 
         # End if we've reached max steps
         if num_steps >= max_steps:
             done = True
 
         # Add to memory cache
-        mem_cache.append((curr_turn, canonical_state, action, canonical_next_state, reward, done, mcts_action_probs))
+        if get_memory:
+            mem_cache.append((curr_turn, canonical_state, action, canonical_next_state, reward, done,
+                              mcts_action_probs))
 
         # Increment steps
         num_steps += 1
@@ -128,69 +156,16 @@ def self_play(go_env, policy, max_steps, get_symmetries=True):
 
     # Dump cache into replay memory
     replay_mem = []
-    for turn, canonical_state, action, canonical_next_state, reward, done, mcts_action_probs in mem_cache:
-        if turn == go_env.govars.BLACK:
-            win = black_won
-        else:
-            win = -black_won
-        add_to_replay_mem(replay_mem, canonical_state, action, canonical_next_state, reward, done, win,
-                          mcts_action_probs, add_symmetries=get_symmetries)
+    if get_memory:
+        for turn, canonical_state, action, canonical_next_state, reward, done, mcts_action_probs in mem_cache:
+            if turn == go_env.govars.BLACK:
+                win = black_won
+            else:
+                win = -black_won
+            add_to_replay_mem(replay_mem, canonical_state, action, canonical_next_state, reward, done, win,
+                              mcts_action_probs, add_symmetries=get_symmetries)
 
-    # Game ended
-    return replay_mem, num_steps
-
-
-def pit(go_env, black_policy, white_policy, max_steps):
-    """
-    Pits two policies against each other
-    :param go_env:
-    :param black_policy:
-    :param white_policy:
-    :param max_steps:
-    :param mc_sims:
-    :param temp_func:
-    :return: Whether or not black won {1, 0, -1}
-    """
-    num_steps = 0
-    state = go_env.reset()
-    black_policy.reset()
-    white_policy.reset()
-
-    while True:
-        # Get turn
-        curr_turn = go_env.turn
-
-        # Get an action
-        if curr_turn == go_env.govars.BLACK:
-            mcts_action_probs = black_policy(state, step=num_steps)
-        else:
-            assert curr_turn == go_env.govars.WHITE
-            mcts_action_probs = white_policy(state, step=num_steps)
-        action = gogame.random_weighted_action(mcts_action_probs)
-
-        # Execute actions in environment and MCT tree
-        next_state, reward, done, info = go_env.step(action)
-
-        # Sync the policies
-        black_policy.step(action)
-        white_policy.step(action)
-
-        # End if we've reached max steps
-        if num_steps >= max_steps:
-            done = True
-
-        # Increment steps
-        num_steps += 1
-
-        # Max number of steps or game ended by consecutive passing
-        if done:
-            break
-
-    assert done
-
-    black_won = black_winning(info)
-
-    return black_won
+    return black_won, replay_mem, num_steps
 
 
 def play_against(mct_policy, go_env):
