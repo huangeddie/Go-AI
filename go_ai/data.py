@@ -160,5 +160,3 @@ def self_play(go_env, policy, max_steps, get_symmetries=True):
 
     # Game ended
     return replay_mem, num_steps
-
-

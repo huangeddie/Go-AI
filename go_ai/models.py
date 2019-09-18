@@ -45,14 +45,12 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
     if critic_mode == 'q_net':
         move_vals = layers.Dense(action_size, activation=critic_activation)(move_vals)
         move_vals = layers.Multiply(name="move_vals")([move_vals, valid_inputs])
-        critic_out = move_vals
     elif critic_mode == 'val_net':
         move_vals = layers.Dense(1, activation=critic_activation, name="value")(move_vals)
-        critic_out = move_vals
     else:
         raise Exception("Unknown critic mode")
 
-    model = tf.keras.Model(inputs=[inputs, valid_inputs, invalid_values], outputs=[actor_out, critic_out],
+    model = tf.keras.Model(inputs=[inputs, valid_inputs, invalid_values], outputs=[actor_out, move_vals],
                            name='actor_critic')
     return model
 
@@ -150,7 +148,8 @@ def update_temporal_difference(actor_critic, batched_mem, optimizer, iteration, 
         optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
 
         # Metrics
-        pbar.set_postfix_str('{:.1f}%'.format(100 * tb_metrics['pred_win_acc'].result().numpy()))
+        pbar.set_postfix_str('{:.1f}% {:.3f}L'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
+                                                      tb_metrics['val_loss'].result().numpy()))
 
 
 def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_metrics):
@@ -188,4 +187,5 @@ def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_me
         optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
 
         # Metrics
-        pbar.set_postfix_str('{:.1f}%'.format(100 * tb_metrics['pred_win_acc'].result().numpy()))
+        pbar.set_postfix_str('{:.1f}% {:.3f}L'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
+                                                      tb_metrics['val_loss'].result().numpy()))
