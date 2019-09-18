@@ -53,6 +53,12 @@ class Node:
         avg_Q = (child.V + self.Q_sum) / (1 + self.N)
         return -avg_Q.numpy().item()
 
+    @property
+    def Qs(self):
+        valid_moves = GoGame.get_valid_moves(self.state)
+        Qs = [(self.avg_Q(move) if valid_moves[move] else 0) for move in range(GoGame.get_action_size(self.state))]
+        return np.array(Qs)
+
     def back_propagate(self, value_incre):
         '''
         Description:
@@ -108,11 +114,20 @@ class MCTree:
         if max_num_searches is None or max_num_searches <= 0:
             if not self.root.cached_children:
                 self.cache_children(self.root)
+            for child in self.root.children:
+                if child is None:
+                    continue
+                self.cache_children(child)
 
             action_probs = []
             for move in range(self.action_size):
                 if valid_moves[move]:
-                    action_probs.append((self.root.avg_Q(move) + 1) / 2)
+                    child = self.root.children[move]
+                    if child.terminal:
+                        val = -self.canonical_winning(child.state)
+                    else:
+                        val = -np.sum(child.Qs * child.action_probs)
+                    action_probs.append((val + 1) / 2)
                 else:
                     action_probs.append(0)
 
@@ -188,6 +203,17 @@ class MCTree:
 
         return node.children[best_move], best_move
 
+    def canonical_winning(self, canonical_state):
+        my_area, opp_area = GoGame.get_areas(canonical_state)
+        if my_area > opp_area:
+            winning = 1
+        elif my_area < opp_area:
+            winning = -1
+        else:
+            winning = 0
+
+        return winning
+
     def cache_children(self, node):
         """
         Caches children for analysis by the forward function.
@@ -214,13 +240,7 @@ class MCTree:
         for idx, move in enumerate(valid_move_idcs):
             canonical_next_state = canonical_next_states[idx]
             terminal = GoGame.get_game_ended(canonical_next_state)
-            my_area, opp_area = GoGame.get_areas(canonical_next_state)
-            if my_area > opp_area:
-                winning = 1
-            elif my_area < opp_area:
-                winning = -1
-            else:
-                winning = 0
+            winning = self.canonical_winning(canonical_next_state)
 
             val = (1 - terminal) * critic_vals[idx] + (terminal) * winning
 
