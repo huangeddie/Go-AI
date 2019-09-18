@@ -78,13 +78,11 @@ class MCTree:
     # Environment ot call the stateless go logic APIs
 
     def __init__(self, state, forward_func):
-        '''
-        Description:
-            Construct a Monte Carlo Tree that has current board as root
-        Args:
-            state (GoEnv): current board
-            forward_func: function([GoEnv.state]) => action_probs, state_value
-        '''
+        """
+        :param state: Starting state
+        :param forward_func: Takes in a batch of states and returns action
+        probs and state values
+        """
         self.forward_func = forward_func
 
         action_probs, state_value = forward_func(state[np.newaxis])

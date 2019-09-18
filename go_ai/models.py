@@ -87,23 +87,23 @@ def get_invalid_values(states):
 def forward_pass(states, network, training):
     """
     Since the neural nets take in more than one parameter,
-    this functions serves as a wrapper to forward pass the data through the networks
+    this functions serves as a wrapper to forward pass the data through the networks.
+
+    Automatically moves the channel to the last dimension if necessary
+
+    :param states:
+    :param network:
+    :param training: Boolean parameter for layers like BatchNorm
+    :return: action probs and state vals
     """
+    if states.shape[1] != states.shape[2]:
+        states = states.transpose(0, 2, 3, 1)
     invalid_moves = get_invalid_moves(states)
     invalid_values = get_invalid_values(states)
     valid_moves = 1 - invalid_moves
     return network([states.astype(np.float32),
                     valid_moves.astype(np.float32),
                     invalid_values.astype(np.float32)], training=training)
-
-
-def make_mcts_forward(policy):
-    def mcts_forward(states):
-        states = states.transpose(0, 2, 3, 1)
-        move_probs, vals = forward_pass(states, policy, training=False)
-        return move_probs, vals
-
-    return mcts_forward
 
 
 def update_temporal_difference(actor_critic, batched_mem, optimizer, iteration, tb_metrics):

@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 import go_ai.models
-from go_ai import data, mcts
+from go_ai import data, mcts, policies
 
 
 def plot_move_distr(title, move_distr, valid_moves, scalar=None):
@@ -111,22 +111,21 @@ def state_responses(actor_critic, replay_mem):
 
 
 def gen_traj_fig(go_env, actor_critic, temp_func, max_steps, mc_sims):
-    traj, _ = data.self_play(go_env, policy=actor_critic, max_steps=max_steps, mc_sims=mc_sims,
-                             temp_func=temp_func, get_symmetries=False)
+    state = go_env.get_state()
+    mct_policy = policies.MctPolicy(actor_critic, state, mc_sims, temp_func)
+    traj, _ = data.self_play(go_env, policy=mct_policy, max_steps=max_steps, get_symmetries=False)
     fig = state_responses(actor_critic, traj)
     return fig
 
 
 def plot_symmetries(go_env, actor_critic, outpath):
-    mct_forward = go_ai.models.make_mcts_forward(actor_critic)
-
     mem = []
     state = go_env.reset()
+    mct_policy = policies.MctPolicy(actor_critic, state, 0, lambda s: 1)
     action = (1, 2)
     action_1d = go_env.action_2d_to_1d(action)
     next_state, reward, done, info = go_env.step(action)
-    mct = mcts.MCTree(state, mct_forward)
-    mc_pi = mct.get_action_probs(max_num_searches=0, temp=1)
+    mc_pi = mct_policy(state, step=0)
     data.add_to_replay_mem(mem, state, action_1d, next_state, reward, done, 0, mc_pi)
 
     fig = state_responses(actor_critic, mem)
@@ -176,17 +175,17 @@ def reset_metrics(metrics):
         metric.reset_states()
 
 
-def evaluate(go_env, policy, opponent, max_steps, num_games, mc_sims, temp_func):
+def evaluate(go_env, my_policy, opponent_policy, max_steps, num_games):
     win_metric = tf.keras.metrics.Mean()
 
     pbar = tqdm(range(num_games), desc='Evaluation', leave=True, position=0)
     for episode in pbar:
         if episode % 2 == 0:
-            black_won = data.pit(go_env, policy, opponent, max_steps, mc_sims, temp_func)
+            black_won = data.pit(go_env, my_policy, opponent_policy, max_steps)
             win = (black_won + 1) / 2
 
         else:
-            black_won = data.pit(go_env, opponent, policy, max_steps, mc_sims, temp_func)
+            black_won = data.pit(go_env, opponent_policy, my_policy, max_steps)
             win = (-black_won + 1) / 2
 
         win_metric.update_state(win)

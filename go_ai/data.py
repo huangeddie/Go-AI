@@ -1,7 +1,5 @@
 import numpy as np
 import gym
-from go_ai import mcts
-from go_ai.models import make_mcts_forward
 
 go_env = gym.make('gym_go:go-v0', size=0)
 govars = go_env.govars
@@ -71,7 +69,7 @@ def black_winning(info):
     return black_won
 
 
-def self_play(go_env, policy, max_steps, mc_sims, temp_func, get_symmetries=True):
+def self_play(go_env, policy, max_steps, get_symmetries=True):
     """
     Plays out a game, by pitting the policy against itself,
     and adds the events to the given replay memory
@@ -86,11 +84,9 @@ def self_play(go_env, policy, max_steps, mc_sims, temp_func, get_symmetries=True
     # Basic setup
     num_steps = 0
     state = go_env.reset()
+    policy.reset()
 
     mem_cache = []
-
-    mcts_forward = make_mcts_forward(policy)
-    mct = mcts.MCTree(state, mcts_forward)
 
     done = False
     info = None
@@ -102,13 +98,12 @@ def self_play(go_env, policy, max_steps, mc_sims, temp_func, get_symmetries=True
         canonical_state = go_env.gogame.get_canonical_form(state, curr_turn)
 
         # Get action from MCT
-        temp = temp_func(num_steps)
-        mcts_action_probs = mct.get_action_probs(max_num_searches=mc_sims, temp=temp)
+        mcts_action_probs = policy(state=canonical_state, step=num_steps)
         action = gogame.random_weighted_action(mcts_action_probs)
 
         # Execute actions in environment and MCT tree
         next_state, reward, done, info = go_env.step(action)
-        mct.step(action)
+        policy.step(action)
 
         # Get canonical form of next state for memory
         canonical_next_state = go_env.gogame.get_canonical_form(next_state, curr_turn)
@@ -131,7 +126,7 @@ def self_play(go_env, policy, max_steps, mc_sims, temp_func, get_symmetries=True
     # Determine who won
     black_won = black_winning(info)
 
-    # Add the last event to memory
+    # Dump cache into replay memory
     replay_mem = []
     for turn, canonical_state, action, canonical_next_state, reward, done, mcts_action_probs in mem_cache:
         if turn == go_env.govars.BLACK:
@@ -145,34 +140,40 @@ def self_play(go_env, policy, max_steps, mc_sims, temp_func, get_symmetries=True
     return replay_mem, num_steps
 
 
-def pit(go_env, black_policy, white_policy, max_steps, mc_sims, temp_func):
+def pit(go_env, black_policy, white_policy, max_steps):
+    """
+    Pits two policies against each other
+    :param go_env:
+    :param black_policy:
+    :param white_policy:
+    :param max_steps:
+    :param mc_sims:
+    :param temp_func:
+    :return: Whether or not black won {1, 0, -1}
+    """
     num_steps = 0
     state = go_env.reset()
-
-    black_forward = make_mcts_forward(black_policy)
-    white_forward = make_mcts_forward(white_policy)
-    black_mct = mcts.MCTree(state, black_forward)
-    white_mct = mcts.MCTree(state, white_forward)
+    black_policy.reset()
+    white_policy.reset()
 
     while True:
         # Get turn
         curr_turn = go_env.turn
 
         # Get an action
-        temp = temp_func(num_steps)
         if curr_turn == go_env.govars.BLACK:
-            mcts_action_probs = black_mct.get_action_probs(max_num_searches=mc_sims, temp=temp)
+            mcts_action_probs = black_policy(state, step=num_steps)
         else:
             assert curr_turn == go_env.govars.WHITE
-            mcts_action_probs = white_mct.get_action_probs(max_num_searches=mc_sims, temp=temp)
+            mcts_action_probs = white_policy(state, step=num_steps)
         action = gogame.random_weighted_action(mcts_action_probs)
 
         # Execute actions in environment and MCT tree
         next_state, reward, done, info = go_env.step(action)
 
-        # Sync the MC Trees
-        black_mct.step(action)
-        white_mct.step(action)
+        # Sync the policies
+        black_policy.step(action)
+        white_policy.step(action)
 
         # End if we've reached max steps
         if num_steps >= max_steps:
@@ -192,20 +193,24 @@ def pit(go_env, black_policy, white_policy, max_steps, mc_sims, temp_func):
     return black_won
 
 
-def play_against(policy, go_env, mc_sims, temp):
+def play_against(mct_policy, go_env):
+    """
+    Human vs. AI policy
+    :param mct_policy:
+    :param go_env:
+    :return:
+    """
     state = go_env.reset()
-    mct_forward = make_mcts_forward(policy)
-    mct = mcts.MCTree(state, mct_forward)
 
     while not go_env.game_ended:
         go_env.render()
 
         # Model's move
-        mcts_action_probs = mct.get_action_probs(max_num_searches=mc_sims, temp=temp)
+        mcts_action_probs = mct_policy(state, 0)
         action = gogame.random_weighted_action(mcts_action_probs)
 
         go_env.step(action)
-        mct.step(action)
+        mct_policy.step(action)
 
         go_env.render()
 
@@ -233,4 +238,4 @@ def play_against(policy, go_env, mc_sims, temp):
                 print("Invalid action")
 
         go_env.step(player_action)
-        mct.step(player_action)
+        mct_policy.step(player_action)
