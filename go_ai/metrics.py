@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 import go_ai.models
-from go_ai import data, mcts, policies
+from go_ai import data, policies
 
 
 def plot_move_distr(title, move_distr, valid_moves, scalar=None):

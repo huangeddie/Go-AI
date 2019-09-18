@@ -42,20 +42,36 @@ class RandomPolicy(Policy):
         valid_moves = gogame.get_valid_moves(state)
         return valid_moves / np.sum(valid_moves)
 
-    def step(self, action):
+class HumanPolicy(Policy):
+    def __call__(self, state, step):
         """
-        Helps synchronize the policy with the outside environment
-        :param action:
-        :return:
+        :param state:
+        :param step:
+        :return: Action probabilities
         """
-        pass
+        valid_moves = gogame.get_valid_moves(state)
+        while True:
+            coords = input("Enter coordinates separated by space (`q` to quit)\n")
+            if coords == 'p':
+                player_action = None
+            else:
+                try:
+                    coords = coords.split()
+                    row = int(coords[0])
+                    col = int(coords[1])
+                    player_action = (row, col)
+                except Exception as e:
+                    print(e)
+                    continue
+            player_action = go_env.action_2d_to_1d(player_action)
+            if valid_moves[player_action]:
+                break
+            else:
+                print("Invalid action")
 
-    def reset(self):
-        """
-        Helps synchronize the policy with the outside environment
-        :return:
-        """
-        pass
+        action_probs = np.zeros(gogame.get_action_size(state))
+        action_probs[player_action] = 1
+        return action_probs
 
 class MctPolicy(Policy):
     def __init__(self, network, state, mc_sims, temp_func):

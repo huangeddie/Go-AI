@@ -58,25 +58,6 @@ def replay_mem_to_numpy(replay_mem):
     return states, actions, next_states, rewards, terminals, wins, mct_pis
 
 
-def self_play(go_env, policy, max_steps, get_symmetries=True):
-    """
-    Plays out a game, by pitting the policy against itself,
-    and adds the events to the given replay memory
-    :param go_env:
-    :param policy:
-    :param max_steps:
-    :param mc_sims:
-    :param get_symmetries:
-    :return: The trajectory of events and number of steps
-    """
-
-    black_won, replay_mem, num_steps = pit(go_env, black_policy=policy, white_policy=policy, max_steps=max_steps,
-                                           get_memory=True, get_symmetries=get_symmetries)
-
-    # Game ended
-    return replay_mem, num_steps
-
-
 def pit(go_env, black_policy, white_policy, max_steps, get_memory=False, get_symmetries=True):
     """
     Pits two policies against each other
@@ -162,49 +143,22 @@ def pit(go_env, black_policy, white_policy, max_steps, get_memory=False, get_sym
     return black_won, replay_mem, num_steps
 
 
-def play_against(mct_policy, go_env):
+def self_play(go_env, policy, max_steps, get_symmetries=True):
     """
-    Human vs. AI policy
-    :param mct_policy:
+    Plays out a game, by pitting the policy against itself,
+    and adds the events to the given replay memory
     :param go_env:
-    :return:
+    :param policy:
+    :param max_steps:
+    :param mc_sims:
+    :param get_symmetries:
+    :return: The trajectory of events and number of steps
     """
-    state = go_env.reset()
 
-    while not go_env.game_ended:
-        go_env.render()
+    black_won, replay_mem, num_steps = pit(go_env, black_policy=policy, white_policy=policy, max_steps=max_steps,
+                                           get_memory=True, get_symmetries=get_symmetries)
 
-        # Model's move
-        mcts_action_probs = mct_policy(state, 0)
-        action = gogame.random_weighted_action(mcts_action_probs)
+    # Game ended
+    return replay_mem, num_steps
 
-        go_env.step(action)
-        mct_policy.step(action)
 
-        go_env.render()
-
-        # Player's move
-        player_action = None
-        valid_moves = go_env.get_valid_moves()
-        while True:
-            coords = input("Enter coordinates separated by space (`q` to quit)\n")
-            if coords == 'q':
-                return
-            elif coords == 'p':
-                player_action = None
-            else:
-                try:
-                    coords = coords.split()
-                    row = int(coords[0])
-                    col = int(coords[1])
-                    player_action = (row, col)
-                except Exception as e:
-                    print(e)
-            player_action = go_env.action_2d_to_1d(player_action)
-            if valid_moves[player_action]:
-                break
-            else:
-                print("Invalid action")
-
-        go_env.step(player_action)
-        mct_policy.step(player_action)
