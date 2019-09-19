@@ -5,10 +5,12 @@ import numpy as np
 go_env = gym.make('gym_go:go-v0', size=0)
 gogame = go_env.gogame
 
+
 class Policy:
     """
     Interface for all types of policies
     """
+
     def __call__(self, state, step):
         """
         :param state:
@@ -32,6 +34,7 @@ class Policy:
         """
         pass
 
+
 class RandomPolicy(Policy):
     def __call__(self, state, step):
         """
@@ -41,6 +44,7 @@ class RandomPolicy(Policy):
         """
         valid_moves = gogame.get_valid_moves(state)
         return valid_moves / np.sum(valid_moves)
+
 
 class HumanPolicy(Policy):
     def __call__(self, state, step):
@@ -72,6 +76,42 @@ class HumanPolicy(Policy):
         action_probs = np.zeros(gogame.get_action_size(state))
         action_probs[player_action] = 1
         return action_probs
+
+
+class MctGreedyPolicy(Policy):
+    def __init__(self, state):
+        board_area = gogame.get_action_size(state) - 1
+
+        def forward_func(states):
+            vals = []
+            for state in states:
+                black_area, white_area = gogame.get_areas(state)
+                val = (black_area - white_area) / board_area
+                vals.append(val)
+            vals = np.array(vals)
+            return vals[:, np.newaxis]
+
+        self.tree = mcts.MCTree(state, forward_func)
+
+    def __call__(self, state, step):
+        """
+        :param state: Unused variable since we already have the state stored in the tree
+        :param step: Parameter used for getting the temperature
+        :return:
+        """
+        return self.tree.get_action_probs(max_num_searches=0, temp=0)
+
+    def step(self, action):
+        """
+        Helps synchronize the policy with the outside environment
+        :param action:
+        :return:
+        """
+        self.tree.step(action)
+
+    def reset(self):
+        self.tree.reset()
+
 
 class MctPolicy(Policy):
     def __init__(self, network, state, mc_sims, temp_func):
