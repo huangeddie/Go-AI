@@ -1,6 +1,7 @@
 from go_ai import models, mcts
 import gym
 import numpy as np
+import tensorflow as tf
 
 go_env = gym.make('gym_go:go-v0', size=0)
 gogame = go_env.gogame
@@ -55,6 +56,7 @@ class HumanPolicy(Policy):
         """
         valid_moves = gogame.get_valid_moves(state)
         while True:
+            gogame.str(state)
             coords = input("Enter coordinates separated by space (`q` to quit)\n")
             if coords == 'p':
                 player_action = None
@@ -81,15 +83,17 @@ class HumanPolicy(Policy):
 class MctGreedyPolicy(Policy):
     def __init__(self, state):
         board_area = gogame.get_action_size(state) - 1
+        board_length = int(board_area**0.5)
 
         def forward_func(states):
+            batch_size = states.shape[0]
             vals = []
             for state in states:
                 black_area, white_area = gogame.get_areas(state)
                 val = (black_area - white_area) / board_area
                 vals.append(val)
             vals = np.array(vals)
-            return vals[:, np.newaxis]
+            return tf.ones((batch_size, board_length)) / board_length, tf.convert_to_tensor(vals[:, np.newaxis])
 
         self.tree = mcts.MCTree(state, forward_func)
 
