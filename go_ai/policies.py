@@ -56,7 +56,7 @@ class HumanPolicy(Policy):
         """
         valid_moves = gogame.get_valid_moves(state)
         while True:
-            gogame.str(state)
+            print(gogame.str(state))
             coords = input("Enter coordinates separated by space (`q` to quit)\n")
             if coords == 'p':
                 player_action = None
@@ -69,7 +69,7 @@ class HumanPolicy(Policy):
                 except Exception as e:
                     print(e)
                     continue
-            player_action = go_env.action_2d_to_1d(player_action)
+            player_action = gogame.action_2d_to_1d(player_action, state)
             if valid_moves[player_action]:
                 break
             else:
