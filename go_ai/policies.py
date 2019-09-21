@@ -118,7 +118,7 @@ class MctGreedyPolicy(Policy):
 
 
 class MctPolicy(Policy):
-    def __init__(self, network, state, mc_sims, temp_func):
+    def __init__(self, network, state, mc_sims, temp_func=lambda step: (1/2) if (step < 16) else 0):
         self.forward_func = lambda states: models.forward_pass(states, network, training=False)
         self.mc_sims = mc_sims
         self.temp_func = temp_func

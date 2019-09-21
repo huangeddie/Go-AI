@@ -4,6 +4,7 @@ import numpy as np
 import os
 import multiprocessing as mp
 from go_ai import models, policies
+import math
 
 go_env = gym.make('gym_go:go-v0', size=0)
 govars = go_env.govars
@@ -62,13 +63,12 @@ def replay_mem_to_numpy(replay_mem):
     return states, actions, next_states, rewards, terminals, wins, mct_pis
 
 
-def pit(go_env, black_policy, white_policy, max_steps, get_memory=False, get_symmetries=True):
+def pit(go_env, black_policy, white_policy, get_memory=False, get_symmetries=True):
     """
     Pits two policies against each other
     :param go_env:
     :param black_policy:
     :param white_policy:
-    :param max_steps:
     :param mc_sims:
     :param temp_func:
     :return: Whether or not black won {1, 0, -1}, number of steps, replay memory (if requested None otherwise)
@@ -77,6 +77,8 @@ def pit(go_env, black_policy, white_policy, max_steps, get_memory=False, get_sym
     state = go_env.reset()
     black_policy.reset()
     white_policy.reset()
+
+    max_steps = 2 * (go_env.size**2)
 
     mem_cache = []
 
@@ -147,56 +149,79 @@ def pit(go_env, black_policy, white_policy, max_steps, get_memory=False, get_sym
     return black_won, replay_mem, num_steps
 
 
-def self_play(go_env, policy, max_steps, get_symmetries=True):
+def self_play(go_env, policy, get_symmetries=True):
     """
     Plays out a game, by pitting the policy against itself,
     and adds the events to the given replay memory
     :param go_env:
     :param policy:
-    :param max_steps:
     :param mc_sims:
     :param get_symmetries:
     :return: The trajectory of events and number of steps
     """
 
-    black_won, replay_mem, num_steps = pit(go_env, black_policy=policy, white_policy=policy, max_steps=max_steps,
+    black_won, replay_mem, num_steps = pit(go_env, black_policy=policy, white_policy=policy,
                                            get_memory=True, get_symmetries=get_symmetries)
 
     # Game ended
     return replay_mem, num_steps
 
 
-def eps_job(board_size, model_path, episodes, max_steps, out):
+def eps_job(queue, board_size, policy_args, episodes, out):
     go_env = gym.make('gym_go:go-v0', size=board_size)
     actor_critic = models.make_actor_critic(board_size, 'val_net', 'tanh')
-    actor_critic.load_weights(model_path)
+    actor_critic.load_weights(policy_args['model_path'])
 
     state = go_env.get_state()
-    my_policy = policies.MctPolicy(actor_critic, state, 0, lambda step: (1/2) if (step < 16) else 0)
+    my_policy = policies.MctPolicy(actor_critic, state, policy_args['mc_sims'])
 
-    episode_pbar = tqdm(range(episodes), desc='Episodes', leave=True, position=0)
     replay_mem = []
-    for episode in episode_pbar:
-        trajectory, num_steps = self_play(go_env, policy=my_policy, max_steps=max_steps)
+    for _ in range(episodes):
+        trajectory, num_steps = self_play(go_env, policy=my_policy)
         replay_mem.extend(trajectory)
+        queue.put('done')
 
     data = replay_mem_to_numpy(replay_mem)
     np.savez(out, *data)
 
-def make_episodes(board_size, model_path, episodes, max_steps, outdir, num_workers):
+def make_episodes(board_size, policy_args, episodes, outdir, num_workers):
     processes = []
     ctx = mp.get_context('spawn')
+    queue = ctx.Queue()
+    episodes_per_worker = int(math.ceil(episodes / num_workers))
     for i in range(num_workers):
-        print("Launching process {}".format(i))
-        args = (board_size, model_path, max(episodes // num_workers, 1), max_steps,
+        args = (queue, board_size, policy_args, episodes_per_worker,
                 os.path.join(outdir, 'worker_{}.npz'.format(i)))
-        # eps_job(*args)
         p = ctx.Process(target=eps_job, args=args)
         p.start()
         processes.append(p)
 
-    for i, p in enumerate(processes):
-        print("Waiting on process {}".format(i))
+    for _ in tqdm(range(num_workers * episodes_per_worker), desc='Episodes'):
+        queue.get()
+
+    for p in processes:
         p.join()
 
+def episodes_from_dir(episodes_dir, shuffle):
+    """
+    episode_dir ->
+        * worker_0.npz
+        * worker_1.npz
+        * ...
 
+    worker_n.npz are files arrays of [states, actions, next_states, rewards, terminals, wins, mct_pis]
+    :param episodes_dir:
+    :return: all of [states, actions, next_states, rewards, terminals, wins, mct_pis] concatenated and shuffled
+    """
+    data = []
+    for file in os.listdir(episodes_dir):
+        if file[0] == '.':
+            continue
+        data_batch = np.load(os.path.join(episodes_dir, file))
+        data.append([data_batch[file] for file in data_batch.files])
+    foo = list(zip(*data))
+    np_data = [np.concatenate(bar) for bar in foo]
+    if shuffle:
+        for data in np_data:
+            np.random.shuffle(data)
+    return np_data

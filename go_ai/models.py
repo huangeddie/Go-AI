@@ -50,7 +50,6 @@ def make_actor_critic(board_size, critic_mode, critic_activation):
     else:
         raise Exception("Unknown critic mode")
 
-    print("Created layers")
     model = tf.keras.Model(inputs=[inputs, valid_inputs, invalid_values], outputs=[actor_out, move_vals],
                            name='actor_critic')
     return model

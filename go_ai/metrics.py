@@ -110,10 +110,10 @@ def state_responses(actor_critic, replay_mem):
     return fig
 
 
-def gen_traj_fig(go_env, actor_critic, temp_func, max_steps, mc_sims):
+def gen_traj_fig(go_env, actor_critic, mc_sims):
     state = go_env.get_state()
-    mct_policy = policies.MctPolicy(actor_critic, state, mc_sims, temp_func)
-    traj, _ = data.self_play(go_env, policy=mct_policy, max_steps=max_steps, get_symmetries=False)
+    mct_policy = policies.MctPolicy(actor_critic, state, mc_sims)
+    traj, _ = data.self_play(go_env, policy=mct_policy, get_symmetries=False)
     fig = state_responses(actor_critic, traj)
     return fig
 
@@ -150,7 +150,7 @@ def figure_to_image(figure):
     return image
 
 
-def log_to_tensorboard(summary_writer, metrics, step, go_env, actor_critic, temp_func, figpath=None):
+def log_to_tensorboard(summary_writer, metrics, step, go_env, actor_critic, figpath=None):
     """
     Logs metrics to tensorboard.
     Also resets keras metrics after use
@@ -164,7 +164,7 @@ def log_to_tensorboard(summary_writer, metrics, step, go_env, actor_critic, temp
 
         # Plot samples of states and response heatmaps
         board_size = go_env.size
-        fig = gen_traj_fig(go_env, actor_critic, temp_func, 2 * board_size ** 2, 0)
+        fig = gen_traj_fig(go_env, actor_critic, 0)
         if figpath is not None:
             fig.savefig(figpath)
         tf.summary.image("Trajectory and Responses", figure_to_image(fig), step=step)
@@ -175,17 +175,17 @@ def reset_metrics(metrics):
         metric.reset_states()
 
 
-def evaluate(go_env, my_policy, opponent_policy, max_steps, num_games):
+def evaluate(go_env, my_policy, opponent_policy, num_games):
     win_metric = tf.keras.metrics.Mean()
 
     pbar = tqdm(range(num_games), desc='Evaluation', leave=True, position=0)
     for episode in pbar:
         if episode % 2 == 0:
-            black_won, _, _ = data.pit(go_env, my_policy, opponent_policy, max_steps)
+            black_won, _, _ = data.pit(go_env, my_policy, opponent_policy)
             win = (black_won + 1) / 2
 
         else:
-            black_won, _, _ = data.pit(go_env, opponent_policy, my_policy, max_steps)
+            black_won, _, _ = data.pit(go_env, opponent_policy, my_policy)
             win = (-black_won + 1) / 2
 
         win_metric.update_state(win)
