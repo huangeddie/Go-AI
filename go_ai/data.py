@@ -1,5 +1,9 @@
-import numpy as np
 import gym
+from tqdm import tqdm
+import numpy as np
+import os
+import multiprocessing as mp
+from go_ai import models, policies
 
 go_env = gym.make('gym_go:go-v0', size=0)
 govars = go_env.govars
@@ -160,3 +164,39 @@ def self_play(go_env, policy, max_steps, get_symmetries=True):
 
     # Game ended
     return replay_mem, num_steps
+
+
+def eps_job(board_size, model_path, episodes, max_steps, out):
+    go_env = gym.make('gym_go:go-v0', size=board_size)
+    actor_critic = models.make_actor_critic(board_size, 'val_net', 'tanh')
+    actor_critic.load_weights(model_path)
+
+    state = go_env.get_state()
+    my_policy = policies.MctPolicy(actor_critic, state, 0, lambda step: (1/2) if (step < 16) else 0)
+
+    episode_pbar = tqdm(range(episodes), desc='Episodes', leave=True, position=0)
+    replay_mem = []
+    for episode in episode_pbar:
+        trajectory, num_steps = self_play(go_env, policy=my_policy, max_steps=max_steps)
+        replay_mem.extend(trajectory)
+
+    data = replay_mem_to_numpy(replay_mem)
+    np.savez(out, *data)
+
+def make_episodes(board_size, model_path, episodes, max_steps, outdir, num_workers):
+    processes = []
+    ctx = mp.get_context('spawn')
+    for i in range(num_workers):
+        print("Launching process {}".format(i))
+        args = (board_size, model_path, max(episodes // num_workers, 1), max_steps,
+                os.path.join(outdir, 'worker_{}.npz'.format(i)))
+        # eps_job(*args)
+        p = ctx.Process(target=eps_job, args=args)
+        p.start()
+        processes.append(p)
+
+    for i, p in enumerate(processes):
+        print("Waiting on process {}".format(i))
+        p.join()
+
+
