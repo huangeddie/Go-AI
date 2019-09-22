@@ -153,9 +153,8 @@ class MCTree:
             if temp > 0:
                 pi = normalize([N ** (1 / temp)], norm='l1')[0]
             else:
-                bestA = np.argmax(N)
-                pi = np.zeros(len(N))
-                pi[bestA] = 1
+                best_actions = N == np.max(N)
+                pi = normalize(best_actions[np.newaxis], norm='l1')[0]
 
             return pi
 
