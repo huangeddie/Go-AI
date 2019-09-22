@@ -90,10 +90,19 @@ class MctGreedyPolicy(Policy):
             vals = []
             for state in states:
                 black_area, white_area = gogame.get_areas(state)
-                val = (black_area - white_area) / board_area
+                if gogame.get_game_ended(state):
+                    if black_area > white_area:
+                        val = 1
+                    elif black_area < white_area:
+                        val = -1
+                    else:
+                        val = 0
+                else:
+                    val = (black_area - white_area) / board_area
                 vals.append(val)
             vals = np.array(vals)
-            return tf.ones((batch_size, board_length)) / board_length, tf.convert_to_tensor(vals[:, np.newaxis])
+            action_probs = np.ones((batch_size, board_length)) / board_length
+            return action_probs, vals[:, np.newaxis]
 
         self.tree = mcts.MCTree(state, forward_func)
 
@@ -118,8 +127,11 @@ class MctGreedyPolicy(Policy):
 
 
 class MctPolicy(Policy):
-    def __init__(self, network, state, mc_sims, temp_func=lambda step: (1/2) if (step < 16) else 0):
-        self.forward_func = lambda states: models.forward_pass(states, network, training=False)
+    def __init__(self, network, state, mc_sims, temp_func=lambda step: (1/8) if (step < 16) else 0):
+        def forward_func(states):
+            action_probs, state_vals = models.forward_pass(states, network, training=False)
+            return action_probs.numpy(), state_vals.numpy()
+        self.forward_func = forward_func
         self.mc_sims = mc_sims
         self.temp_func = temp_func
         self.tree = mcts.MCTree(state, self.forward_func)

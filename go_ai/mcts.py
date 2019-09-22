@@ -50,8 +50,8 @@ class Node:
 
     def avg_Q(self, move):
         child = self.children[move]
-        avg_Q = (child.V + self.Q_sum) / (1 + self.N)
-        return -avg_Q.numpy().item()
+        avg_Q = (child.V.item() + child.Q_sum) / (1 + self.N)
+        return -avg_Q
 
     @property
     def Qs(self):
@@ -108,21 +108,20 @@ class MCTree:
             num_search (int): number of search performed
         '''
 
-        valid_moves = GoGame.get_valid_moves(self.root.state)
         if max_num_searches is None or max_num_searches <= 0:
             if not self.root.cached_children:
                 self.cache_children(self.root)
 
-            action_probs = []
-            for move in range(self.action_size):
-                if valid_moves[move]:
-                    child = self.root.children[move]
-                    action_probs.append((-child.V.numpy().item() + 1) / 2)
-                else:
-                    action_probs.append(0)
+            action_probs = list(map(lambda child: ((-child.V.item() + 1) / 2) if child is not None else 0,
+                               self.root.children))
 
-            action_probs = np.array(action_probs) + 1e-7
-            action_probs *= valid_moves
+            action_probs = np.array(action_probs)
+            assert np.sum(action_probs) >= 0
+            assert np.min(action_probs) >= 0
+
+            if np.sum(action_probs) == 0:
+                valid_moves = GoGame.get_valid_moves(self.root.state)
+                action_probs += (1e-7 * valid_moves)
 
             if temp > 0:
                 # Normalize it twice in the case that the largest value is so small, only normalizing it after raising
@@ -130,7 +129,7 @@ class MCTree:
                 action_probs = normalize(action_probs[np.newaxis], norm='l1')[0]
                 action_probs = normalize((action_probs ** (1 / temp))[np.newaxis], norm='l1')[0]
             else:
-                best_actions = action_probs == np.max(action_probs)
+                best_actions = (action_probs == np.max(action_probs))
                 action_probs = normalize(best_actions[np.newaxis], norm='l1')[0]
 
             return action_probs
@@ -153,7 +152,7 @@ class MCTree:
             if temp > 0:
                 pi = normalize([N ** (1 / temp)], norm='l1')[0]
             else:
-                best_actions = N == np.max(N)
+                best_actions = (N == np.max(N))
                 pi = normalize(best_actions[np.newaxis], norm='l1')[0]
 
             return pi
@@ -233,7 +232,7 @@ class MCTree:
 
             val = (1 - terminal) * critic_vals[idx] + (terminal) * winning
 
-            node.children[move] = Node((node, move), action_probs[idx], val, canonical_next_state)
+            Node((node, move), action_probs[idx], val, canonical_next_state)
 
         assert np.min(action_probs) >= 0, (valid_move_idcs, action_probs)
 
