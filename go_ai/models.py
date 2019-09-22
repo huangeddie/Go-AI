@@ -3,6 +3,10 @@ import tensorflow as tf
 from tensorflow.keras import layers
 import gym
 from tqdm import tqdm
+from go_ai import mcts
+from sklearn.preprocessing import normalize
+
+from go_ai.mcts import GoGame
 
 go_env = gym.make('gym_go:go-v0', size=0)
 govars = go_env.govars
@@ -159,14 +163,25 @@ def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_me
     binary_cross_entropy = tf.keras.losses.BinaryCrossentropy()
     mean_squared_error = tf.keras.losses.MeanSquaredError()
 
+    def val_func(states):
+        _, move_vals = forward_pass(states, actor_critic, training=False)
+        return move_vals.numpy().flatten()
+
     pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
-    for states, actions, next_states, rewards, terminals, wins, mcts_action_probs in pbar:
+    for states, actions, next_states, rewards, terminals, wins in pbar:
         wins = wins[:, np.newaxis]
+
+        qvals = get_qvals(states.transpose(0, 3, 1, 2), val_func)
+        assert np.min(qvals) >= -1
+        assert np.max(qvals) <= 1
+
+        target_pi = ((qvals + 1)/2) + 1e-7
+        target_pi = normalize(target_pi**8, norm='l1')
         with tf.GradientTape() as tape:
             move_prob_distrs, state_vals = forward_pass(states, actor_critic, training=True)
 
             # Actor
-            move_loss = binary_cross_entropy(mcts_action_probs, move_prob_distrs)
+            move_loss = binary_cross_entropy(target_pi, move_prob_distrs)
 
             # Critic
             assert state_vals.shape == wins.shape
@@ -189,3 +204,40 @@ def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_me
         # Metrics
         pbar.set_postfix_str('{:.1f}% {:.3f}L'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
                                                       tb_metrics['val_loss'].result().numpy()))
+
+
+def get_qvals(states, val_func):
+    """
+    :param states:
+    :param val_func:
+    :return: Q values for each state (batch_size x action_size)
+    """
+    canonical_next_states = []
+    for state in states:
+        valid_moves = GoGame.get_valid_moves(state)
+        valid_move_idcs = np.argwhere(valid_moves > 0).flatten()
+        for move in valid_move_idcs:
+            next_state = GoGame.get_next_state(state, move)
+            next_turn = GoGame.get_turn(next_state)
+            canonical_next_state = GoGame.get_canonical_form(next_state, next_turn)
+            canonical_next_states.append(canonical_next_state)
+
+    canonical_next_states = np.array(canonical_next_states)
+
+    canonical_next_vals = val_func(canonical_next_states)
+    curr_idx = 0
+    qvals = []
+    for state in states:
+        valid_moves = GoGame.get_valid_moves(state)
+        Qs = []
+        for move in range(GoGame.get_action_size(state)):
+            if valid_moves[move]:
+                Qs.append(-canonical_next_vals[curr_idx])
+                curr_idx += 1
+            else:
+                Qs.append(0)
+
+        qvals.append(Qs)
+
+    assert curr_idx == len(canonical_next_vals), (curr_idx, len(canonical_next_vals))
+    return np.array(qvals)

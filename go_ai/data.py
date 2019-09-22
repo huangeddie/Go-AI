@@ -12,8 +12,7 @@ govars = go_env.govars
 gogame = go_env.gogame
 
 
-def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, win, mcts_action_probs,
-                      add_symmetries=True):
+def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, win, add_symmetries=True):
     """
     Adds original event, plus augmented versions of those events
     States are assumed to be (6, BOARD_SIZE, BOARD_SIZE)
@@ -26,10 +25,7 @@ def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, wi
         action_2d_one_hot = np.eye(board_size ** 2)[action_1d].reshape(1, board_size, board_size)
     else:
         action_2d_one_hot = np.zeros((1, board_size, board_size))
-
-    mc_board_pi = mcts_action_probs[:-1].reshape(1, board_size, board_size)
-
-    chunk = np.concatenate([state, action_2d_one_hot, next_state, mc_board_pi], axis=0)
+    chunk = np.concatenate([state, action_2d_one_hot, next_state], axis=0)
 
     orientations = gogame.get_symmetries(chunk) if add_symmetries else [chunk]
     for oriented_chunk in orientations:
@@ -39,11 +35,9 @@ def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, wi
             a = board_size ** 2
         else:
             a = np.argmax(a)
-        ns = oriented_chunk[num_channels + 1:(num_channels + 1) + num_channels]
-        assert (num_channels + 1) + num_channels == oriented_chunk.shape[0] - 1
-        mc_pi = oriented_chunk[-1].flatten()
-        mc_pi = np.append(mc_pi, mcts_action_probs[-1])
-        replay_mem.append((s, a, ns, reward, done, win, mc_pi))
+        ns = oriented_chunk[num_channels + 1:]
+        assert ns.shape[0] == num_channels
+        replay_mem.append((s, a, ns, reward, done, win))
 
 
 def replay_mem_to_numpy(replay_mem):
@@ -59,9 +53,8 @@ def replay_mem_to_numpy(replay_mem):
     rewards = np.array(list(replay_mem[3]), dtype=np.float32).reshape((-1,))
     terminals = np.array(list(replay_mem[4]), dtype=np.uint8)
     wins = np.array(list(replay_mem[5]), dtype=np.int)
-    mct_pis = np.array(list(replay_mem[6]), dtype=np.float32)
 
-    return states, actions, next_states, rewards, terminals, wins, mct_pis
+    return states, actions, next_states, rewards, terminals, wins
 
 
 def pit(go_env, black_policy, white_policy, get_memory=False, get_symmetries=True):
@@ -94,11 +87,11 @@ def pit(go_env, black_policy, white_policy, get_memory=False, get_symmetries=Tru
 
         # Get an action
         if curr_turn == go_env.govars.BLACK:
-            mcts_action_probs = black_policy(state, step=num_steps)
+            action_probs = black_policy(state, step=num_steps)
         else:
             assert curr_turn == go_env.govars.WHITE
-            mcts_action_probs = white_policy(state, step=num_steps)
-        action = gogame.random_weighted_action(mcts_action_probs)
+            action_probs = white_policy(state, step=num_steps)
+        action = gogame.random_weighted_action(action_probs)
 
         # Execute actions in environment and MCT tree
         next_state, reward, done, info = go_env.step(action)
@@ -117,8 +110,7 @@ def pit(go_env, black_policy, white_policy, get_memory=False, get_symmetries=Tru
 
         # Add to memory cache
         if get_memory:
-            mem_cache.append((curr_turn, canonical_state, action, canonical_next_state, reward, done,
-                              mcts_action_probs))
+            mem_cache.append((curr_turn, canonical_state, action, canonical_next_state, reward, done))
 
         # Increment steps
         num_steps += 1
@@ -139,13 +131,13 @@ def pit(go_env, black_policy, white_policy, get_memory=False, get_symmetries=Tru
     # Dump cache into replay memory
     replay_mem = []
     if get_memory:
-        for turn, canonical_state, action, canonical_next_state, reward, done, mcts_action_probs in mem_cache:
+        for turn, canonical_state, action, canonical_next_state, reward, done in mem_cache:
             if turn == go_env.govars.BLACK:
                 win = black_won
             else:
                 win = -black_won
             add_to_replay_mem(replay_mem, canonical_state, action, canonical_next_state, reward, done, win,
-                              mcts_action_probs, add_symmetries=get_symmetries)
+                              add_symmetries=get_symmetries)
 
     return black_won, replay_mem, num_steps
 

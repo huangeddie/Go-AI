@@ -156,6 +156,22 @@ class MctPolicy(Policy):
     def reset(self):
         self.tree.reset()
 
+class ActorCriticPolicy(Policy):
+    def __init__(self, network):
+        def forward_func(states):
+            action_probs, state_vals = models.forward_pass(states, network, training=False)
+            return action_probs.numpy(), state_vals.numpy()
+
+        self.forward_func = forward_func
+
+    def __call__(self, state, step):
+        """
+        :param state: Unused variable since we already have the state stored in the tree
+        :param step: Parameter used for getting the temperature
+        :return:
+        """
+        action_probs, _ = self.forward_func(state[np.newaxis])
+        return action_probs[0]
 
 def make_policy(policy_args, board_size):
     state = go_env.gogame.get_init_board(board_size)
@@ -163,7 +179,7 @@ def make_policy(policy_args, board_size):
     if policy_args['mode'] == 'actor_critic':
         actor_critic = models.make_actor_critic(board_size)
         actor_critic.load_weights(policy_args['model_path'])
-        policy = MctPolicy(actor_critic, state, policy_args['mc_sims'])
+        policy = ActorCriticPolicy(actor_critic)
     elif policy_args['mode'] == 'random':
         policy = RandomPolicy()
     elif policy_args['mode'] == 'greedy':

@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 import go_ai.models
-from go_ai import data, policies
+from go_ai import data, policies, mcts
 
 
 def plot_move_distr(title, move_distr, valid_moves, scalar=None):
@@ -26,7 +26,7 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None):
     plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
 
 
-def state_responses_helper(actor_critic, states, taken_actions, next_states, rewards, terminals, wins, mcts_move_probs):
+def state_responses_helper(actor_critic, states, taken_actions, next_states, rewards, terminals, wins):
     """
     Helper function for state_responses
     :param actor_critic:
@@ -36,7 +36,6 @@ def state_responses_helper(actor_critic, states, taken_actions, next_states, rew
     :param rewards:
     :param terminals:
     :param wins:
-    :param mcts_move_probs:
     :return:
     """
 
@@ -53,6 +52,12 @@ def state_responses_helper(actor_critic, states, taken_actions, next_states, rew
     board_size = states[0].shape[0]
 
     move_probs, move_vals = go_ai.models.forward_pass(states, actor_critic, training=False)
+
+    def val_func(states):
+        _, move_vals = go_ai.models.forward_pass(states, actor_critic, training=False)
+        return move_vals.numpy().flatten()
+    qvals = go_ai.models.get_qvals(states.transpose(0, 3, 1, 2), val_func)
+
     state_vals = tf.reduce_sum(move_probs * move_vals, axis=1)
 
     valid_moves = go_ai.models.get_valid_moves(states)
@@ -70,19 +75,12 @@ def state_responses_helper(actor_critic, states, taken_actions, next_states, rew
         plt.imshow(states[i][:, :, [0, 1, 4]].astype(np.float))
         curr_col += 1
 
-        if mcts_move_probs is None:
-            plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-            plot_move_distr('Critic', move_vals[i], valid_moves[i],
-                            scalar=state_vals[i].numpy())
-        else:
-            plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-            plot_move_distr('MCTS', mcts_move_probs[i], valid_moves[i])
+        plt.subplot(num_states, num_cols, curr_col + num_cols * i)
+        plot_move_distr('Q Vals', qvals[i], valid_moves[i])
         curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-        plot_move_distr('Actor{}'.format(' Critic' if mcts_move_probs is not None else ''),
-                        move_probs[i], valid_moves[i],
-                        scalar=state_vals[i].numpy().item())
+        plot_move_distr('Actor Critic', move_probs[i], valid_moves[i], scalar=state_vals[i].numpy().item())
         curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
@@ -103,16 +101,15 @@ def state_responses(actor_critic, replay_mem):
     :return: The figure visualizing responses of the model
     on those events
     """
-    states, actions, next_states, rewards, terminals, wins, mc_pis = data.replay_mem_to_numpy(replay_mem)
+    states, actions, next_states, rewards, terminals, wins = data.replay_mem_to_numpy(replay_mem)
     assert len(states[0].shape) == 3 and states[0].shape[0] == states[0].shape[1], states[0].shape
 
-    fig = state_responses_helper(actor_critic, states, actions, next_states, rewards, terminals, wins, mc_pis)
+    fig = state_responses_helper(actor_critic, states, actions, next_states, rewards, terminals, wins)
     return fig
 
 
-def gen_traj_fig(go_env, actor_critic, mc_sims):
-    state = go_env.get_state()
-    mct_policy = policies.MctPolicy(actor_critic, state, mc_sims)
+def gen_traj_fig(go_env, actor_critic):
+    mct_policy = policies.ActorCriticPolicy(actor_critic)
     _, traj, _ = data.self_play(go_env, policy=mct_policy, get_symmetries=False)
     fig = state_responses(actor_critic, traj)
     return fig
@@ -121,12 +118,10 @@ def gen_traj_fig(go_env, actor_critic, mc_sims):
 def plot_symmetries(go_env, actor_critic, outpath):
     mem = []
     state = go_env.reset()
-    mct_policy = policies.MctPolicy(actor_critic, state, 0, lambda s: 1)
     action = (1, 2)
     action_1d = go_env.action_2d_to_1d(action)
     next_state, reward, done, info = go_env.step(action)
-    mc_pi = mct_policy(state, step=0)
-    data.add_to_replay_mem(mem, state, action_1d, next_state, reward, done, 0, mc_pi)
+    data.add_to_replay_mem(mem, state, action_1d, next_state, reward, done, 0)
 
     fig = state_responses(actor_critic, mem)
     fig.savefig(outpath)
@@ -163,8 +158,7 @@ def log_to_tensorboard(summary_writer, metrics, step, go_env, actor_critic, figp
         reset_metrics(metrics)
 
         # Plot samples of states and response heatmaps
-        board_size = go_env.size
-        fig = gen_traj_fig(go_env, actor_critic, 0)
+        fig = gen_traj_fig(go_env, actor_critic)
         if figpath is not None:
             fig.savefig(figpath)
         tf.summary.image("Trajectory and Responses", figure_to_image(fig), step=step)
