@@ -53,7 +53,6 @@ class Node:
         avg_Q = (child.V.item() + child.Q_sum) / (1 + self.N)
         return -avg_Q
 
-    @property
     def Qs(self):
         valid_moves = GoGame.get_valid_moves(self.state)
         Qs = [(self.avg_Q(move) if valid_moves[move] else 0) for move in range(GoGame.get_action_size(self.state))]
@@ -112,12 +111,14 @@ class MCTree:
             if not self.root.cached_children:
                 self.cache_children(self.root)
 
-            action_probs = list(map(lambda child: ((-child.V.item() + 1) / 2) if child is not None else 0,
-                               self.root.children))
+            valid_moves = GoGame.get_valid_moves(self.root.state)
+            action_probs = self.root.Qs()
+            action_probs = (action_probs + 1) / 2
+            action_probs *= valid_moves
 
-            action_probs = np.array(action_probs)
             assert np.sum(action_probs) >= 0
             assert np.min(action_probs) >= 0
+            assert np.max(action_probs) <= 1
 
             if np.sum(action_probs) == 0:
                 valid_moves = GoGame.get_valid_moves(self.root.state)

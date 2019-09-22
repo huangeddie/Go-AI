@@ -2,9 +2,10 @@ import gym
 from tqdm import tqdm
 import numpy as np
 import os
+import shutil
 import multiprocessing as mp
-from go_ai import models, policies
-import math
+from go_ai import policies
+import queue
 
 go_env = gym.make('gym_go:go-v0', size=0)
 govars = go_env.govars
@@ -163,6 +164,16 @@ def self_play(go_env, policy, get_symmetries=True):
 
 
 def eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args, out):
+    """
+    Continously executes episode jobs from the episode job queue until there are no more jobs
+    :param episode_queue:
+    :param first_policy_won_queue:
+    :param board_size:
+    :param first_policy_args:
+    :param second_policy_args:
+    :param out: If outpath is specified, the replay memory is store in that path
+    :return:
+    """
     go_env = gym.make('gym_go:go-v0', size=board_size)
     first_policy = policies.make_policy(first_policy_args, board_size)
     if first_policy_args == second_policy_args:
@@ -184,8 +195,8 @@ def eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args
             replay_mem.extend(trajectory)
             first_policy_won = black_won if first_policy_black else -black_won
             first_policy_won_queue.put((first_policy_won + 1) / 2)
-        except:
-            pass
+        except Exception as e:
+            print(e)
 
     if out is not None and len(replay_mem) > 0:
         np.random.shuffle(replay_mem)
@@ -193,24 +204,64 @@ def eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args
         np.savez(out, *data)
 
 def make_episodes(board_size, first_policy_args, second_policy_args, episodes, num_workers, outdir=None):
+    """
+    Multiprocessing of pitting the first policy against the second policy
+    :param board_size:
+    :param first_policy_args:
+    :param second_policy_args:
+    :param episodes:
+    :param num_workers:
+    :param outdir:
+    :return: The win rate of the first policy against the second policy
+    """
     ctx = mp.get_context('spawn')
-    episode_queue = ctx.Queue(maxsize=episodes)
+
+    # Create job queue specific to whether or not we're doing multiprocessing
+    if num_workers > 1:
+        queue_maker = ctx
+    else:
+        queue_maker = queue
+
+    episode_queue = queue_maker.Queue(maxsize=episodes)
+    first_policy_won_queue = queue_maker.Queue(maxsize=episodes)
+
+    # Set the episode jobs
     for i in range(episodes):
         # Puts whether the first or second policy should be black
         episode_queue.put(i % 2 == 0)
-    first_policy_won_queue = ctx.Queue(maxsize=episodes)
 
+    # Set the parameters for the workers
+    if outdir is not None:
+        # Remove old data if it exists
+        if os.path.exists(outdir):
+            shutil.rmtree(outdir)
+            os.makedirs(outdir)
+        worker_out = os.path.join(outdir, 'worker_0.npz')
+
+    else:
+        worker_out = None
+    default_eps_job_args = (episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args,
+                    worker_out)
+
+    # Launch the workers
     processes = []
-    for i in range(num_workers):
-        if outdir is not None:
-            worker_out = os.path.join(outdir, 'worker_{}.npz'.format(i))
-        else:
-            worker_out = None
-        args = (episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args, worker_out)
-        p = ctx.Process(target=eps_job, args=args)
-        p.start()
-        processes.append(p)
+    if num_workers > 1:
+        for i in range(num_workers):
+            # Set the parameters for the workers
+            if outdir is not None:
+                worker_out = os.path.join(outdir, 'worker_{}.npz'.format(i))
+            else:
+                worker_out = None
+            eps_job_args = (episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args,
+                            worker_out)
 
+            p = ctx.Process(target=eps_job, args=eps_job_args)
+            p.start()
+            processes.append(p)
+    else:
+        eps_job(*default_eps_job_args)
+
+    # Collect the results
     wins = []
     pbar = tqdm(range(episodes), desc='Episodes')
     for _ in pbar:
@@ -218,6 +269,7 @@ def make_episodes(board_size, first_policy_args, second_policy_args, episodes, n
         wins.append(first_policy_won)
         pbar.set_postfix_str('{:.1f}%'.format(100*np.mean(wins)))
 
+    # Cleanup the workers if necessary
     for p in processes:
         p.join()
 

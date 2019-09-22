@@ -1,7 +1,6 @@
 from go_ai import models, mcts
 import gym
 import numpy as np
-import tensorflow as tf
 
 go_env = gym.make('gym_go:go-v0', size=0)
 gogame = go_env.gogame
@@ -83,7 +82,7 @@ class HumanPolicy(Policy):
 class MctGreedyPolicy(Policy):
     def __init__(self, state):
         board_area = gogame.get_action_size(state) - 1
-        board_length = int(board_area**0.5)
+        board_length = int(board_area ** 0.5)
 
         def forward_func(states):
             batch_size = states.shape[0]
@@ -127,10 +126,11 @@ class MctGreedyPolicy(Policy):
 
 
 class MctPolicy(Policy):
-    def __init__(self, network, state, mc_sims, temp_func=lambda step: (1/8) if (step < 16) else 0):
+    def __init__(self, network, state, mc_sims, temp_func=lambda step: (1 / 8) if (step < 16) else 0):
         def forward_func(states):
             action_probs, state_vals = models.forward_pass(states, network, training=False)
             return action_probs.numpy(), state_vals.numpy()
+
         self.forward_func = forward_func
         self.mc_sims = mc_sims
         self.temp_func = temp_func
@@ -155,6 +155,7 @@ class MctPolicy(Policy):
 
     def reset(self):
         self.tree.reset()
+
 
 def make_policy(policy_args, board_size):
     state = go_env.gogame.get_init_board(board_size)
