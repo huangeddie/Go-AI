@@ -8,7 +8,7 @@ go_env = gym.make('gym_go:go-v0', size=0)
 govars = go_env.govars
 
 
-def make_actor_critic(board_size, critic_mode, critic_activation):
+def make_actor_critic(board_size, critic_mode='val_net', critic_activation='tanh'):
     action_size = board_size ** 2 + 1
 
     inputs = layers.Input(shape=(board_size, board_size, 6), name="board")

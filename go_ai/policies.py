@@ -143,3 +143,19 @@ class MctPolicy(Policy):
 
     def reset(self):
         self.tree.reset()
+
+def make_policy(policy_args, board_size):
+    state = go_env.gogame.get_init_board(board_size)
+
+    if policy_args['mode'] == 'actor_critic':
+        actor_critic = models.make_actor_critic(board_size)
+        actor_critic.load_weights(policy_args['model_path'])
+        policy = MctPolicy(actor_critic, state, policy_args['mc_sims'])
+    elif policy_args['mode'] == 'random':
+        policy = RandomPolicy()
+    elif policy_args['mode'] == 'greedy':
+        policy = MctGreedyPolicy(state)
+    else:
+        raise Exception("Unknown policy mode")
+
+    return policy

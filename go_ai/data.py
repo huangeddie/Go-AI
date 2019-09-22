@@ -159,50 +159,71 @@ def self_play(go_env, policy, get_symmetries=True):
     :param get_symmetries:
     :return: The trajectory of events and number of steps
     """
-
-    black_won, replay_mem, num_steps = pit(go_env, black_policy=policy, white_policy=policy,
-                                           get_memory=True, get_symmetries=get_symmetries)
-
-    # Game ended
-    return replay_mem, num_steps
+    return pit(go_env, black_policy=policy, white_policy=policy, get_memory=True, get_symmetries=get_symmetries)
 
 
-def eps_job(queue, board_size, policy_args, episodes, out):
+def eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args, out):
     go_env = gym.make('gym_go:go-v0', size=board_size)
-    actor_critic = models.make_actor_critic(board_size, 'val_net', 'tanh')
-    actor_critic.load_weights(policy_args['model_path'])
-
-    state = go_env.get_state()
-    my_policy = policies.MctPolicy(actor_critic, state, policy_args['mc_sims'])
+    first_policy = policies.make_policy(first_policy_args, board_size)
+    if first_policy_args == second_policy_args:
+        second_policy = first_policy
+    else:
+        second_policy = policies.make_policy(second_policy_args, board_size)
 
     replay_mem = []
-    for _ in range(episodes):
-        trajectory, num_steps = self_play(go_env, policy=my_policy)
-        replay_mem.extend(trajectory)
-        queue.put('done')
+    while not episode_queue.empty():
+        try:
+            first_policy_black = episode_queue.get()
+            if first_policy_black:
+                black_policy, white_policy = first_policy, second_policy
+            else:
+                black_policy, white_policy = second_policy, first_policy
+            black_won, trajectory, num_steps = pit(go_env, black_policy=black_policy, white_policy=white_policy,
+                                                   get_memory=out is not None)
 
-    data = replay_mem_to_numpy(replay_mem)
-    np.savez(out, *data)
+            replay_mem.extend(trajectory)
+            first_policy_won = black_won if first_policy_black else -black_won
+            first_policy_won_queue.put((first_policy_won + 1) / 2)
+        except:
+            pass
 
-def make_episodes(board_size, policy_args, episodes, outdir, num_workers):
-    processes = []
+    if out is not None and len(replay_mem) > 0:
+        np.random.shuffle(replay_mem)
+        data = replay_mem_to_numpy(replay_mem)
+        np.savez(out, *data)
+
+def make_episodes(board_size, first_policy_args, second_policy_args, episodes, num_workers, outdir=None):
     ctx = mp.get_context('spawn')
-    queue = ctx.Queue()
-    episodes_per_worker = int(math.ceil(episodes / num_workers))
+    episode_queue = ctx.Queue(maxsize=episodes)
+    for i in range(episodes):
+        # Puts whether the first or second policy should be black
+        episode_queue.put(i % 2 == 0)
+    first_policy_won_queue = ctx.Queue(maxsize=episodes)
+
+    processes = []
     for i in range(num_workers):
-        args = (queue, board_size, policy_args, episodes_per_worker,
-                os.path.join(outdir, 'worker_{}.npz'.format(i)))
+        if outdir is not None:
+            worker_out = os.path.join(outdir, 'worker_{}.npz'.format(i))
+        else:
+            worker_out = None
+        args = (episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args, worker_out)
         p = ctx.Process(target=eps_job, args=args)
         p.start()
         processes.append(p)
 
-    for _ in tqdm(range(num_workers * episodes_per_worker), desc='Episodes'):
-        queue.get()
+    wins = []
+    pbar = tqdm(range(episodes), desc='Episodes')
+    for _ in pbar:
+        first_policy_won = first_policy_won_queue.get()
+        wins.append(first_policy_won)
+        pbar.set_postfix_str('{:.1f}%'.format(100*np.mean(wins)))
 
     for p in processes:
         p.join()
 
-def episodes_from_dir(episodes_dir, shuffle):
+    return np.mean(wins)
+
+def episodes_from_dir(episodes_dir):
     """
     episode_dir ->
         * worker_0.npz
@@ -221,7 +242,4 @@ def episodes_from_dir(episodes_dir, shuffle):
         data.append([data_batch[file] for file in data_batch.files])
     foo = list(zip(*data))
     np_data = [np.concatenate(bar) for bar in foo]
-    if shuffle:
-        for data in np_data:
-            np.random.shuffle(data)
     return np_data

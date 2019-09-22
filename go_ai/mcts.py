@@ -130,9 +130,8 @@ class MCTree:
                 action_probs = normalize(action_probs[np.newaxis], norm='l1')[0]
                 action_probs = normalize((action_probs ** (1 / temp))[np.newaxis], norm='l1')[0]
             else:
-                best_action = np.argmax(action_probs)
-                action_probs = np.zeros(self.action_size)
-                action_probs[best_action] = 1
+                best_actions = action_probs == np.max(action_probs)
+                action_probs = normalize(best_actions[np.newaxis], norm='l1')[0]
 
             return action_probs
 

@@ -113,7 +113,7 @@ def state_responses(actor_critic, replay_mem):
 def gen_traj_fig(go_env, actor_critic, mc_sims):
     state = go_env.get_state()
     mct_policy = policies.MctPolicy(actor_critic, state, mc_sims)
-    traj, _ = data.self_play(go_env, policy=mct_policy, get_symmetries=False)
+    _, traj, _ = data.self_play(go_env, policy=mct_policy, get_symmetries=False)
     fig = state_responses(actor_critic, traj)
     return fig
 
