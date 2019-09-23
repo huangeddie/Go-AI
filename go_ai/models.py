@@ -103,6 +103,11 @@ def forward_pass(states, network, training):
                     valid_moves.astype(np.float32),
                     invalid_values.astype(np.float32)], training=training)
 
+def make_forward_func(network):
+    def forward_func(states):
+        action_probs, state_vals = forward_pass(states, network, training=False)
+        return action_probs.numpy(), state_vals.numpy()
+    return forward_func
 
 def optimize_actor_critic(actor_critic, mode, batched_mem, optimizer, tb_metrics):
     """
@@ -132,17 +137,17 @@ def optimize_actor_critic(actor_critic, mode, batched_mem, optimizer, tb_metrics
 
             # Critic
             assert state_vals.shape == wins.shape
-            move_loss = mean_squared_error(wins, state_vals)
-            tb_metrics['val_loss'].update_state(move_loss)
+            critic_loss = mean_squared_error(wins, state_vals)
+            tb_metrics['val_loss'].update_state(critic_loss)
             wins_01 = (np.copy(wins) + 1) / 2
             tb_metrics['pred_win_acc'].update_state(wins_01, state_vals > 0)
 
             # Actor
-            val_loss = sparse_cat_cross_entropy(best_actions, move_prob_distrs)
-            tb_metrics['move_loss'].update_state(val_loss)
+            actor_loss = sparse_cat_cross_entropy(best_actions, move_prob_distrs)
+            tb_metrics['move_loss'].update_state(actor_loss)
 
             # Overall Loss
-            overall_loss = critic_mode_indic * val_loss + (1 - critic_mode_indic) * move_loss
+            overall_loss = critic_mode_indic * critic_loss + (1 - critic_mode_indic) * actor_loss
 
         # compute and apply gradients
         gradients = tape.gradient(overall_loss, actor_critic.trainable_variables)

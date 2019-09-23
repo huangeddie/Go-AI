@@ -195,8 +195,7 @@ def exec_eps_job(episode_queue, first_policy_won_queue, board_size, first_policy
     if get_memory:
         actor_critic = models.make_actor_critic(go_env.size)
         actor_critic.load_weights(forward_func_args['weights_path'])
-        def forward_func(states):
-            return models.forward_pass(states, actor_critic, training=False)
+        forward_func = models.make_forward_func(actor_critic)
     else:
         forward_func = None
 

@@ -108,8 +108,7 @@ def gen_traj_fig(go_env, actor_critic):
     policy = policies.ActorCriticPolicy(actor_critic)
     black_won, traj = data.self_play(go_env, policy=policy, get_trajectory=True)
     replay_mem = []
-    def forward_func(states):
-        return models.forward_pass(states, actor_critic, training=False)
+    forward_func = models.make_forward_func(actor_critic)
     data.add_traj_to_replay_mem(replay_mem, black_won, traj, forward_func, add_symmetries=False)
     fig = state_responses(actor_critic, replay_mem)
     return fig
@@ -121,8 +120,7 @@ def plot_symmetries(go_env, actor_critic, outpath):
     action = (1, 2)
     action_1d = go_env.action_2d_to_1d(action)
     next_state, reward, done, info = go_env.step(action)
-    def forward_func(states):
-        return models.forward_pass(states, actor_critic, training=False)
+    forward_func = models.make_forward_func(actor_critic)
     batch_pis, batch_qvals, _ = go_ai.mcts.get_immediate_lookahead(state[np.newaxis], forward_func)
     data.add_to_replay_mem(mem, state, action_1d, next_state, reward, done, 0, batch_qvals[0])
 
