@@ -104,12 +104,20 @@ def forward_pass(states, network, training):
                     invalid_values.astype(np.float32)], training=training)
 
 
-def optimize_actor_critic(actor_critic, mode, batched_mem, optimizer, iteration, tb_metrics):
+def optimize_actor_critic(actor_critic, mode, batched_mem, optimizer, tb_metrics):
     """
-    Optimizes the actor over the batched memory
+    :param actor_critic:
+    :param mode: Dictates whether we update the actor or critic portion of the model
+    :param batched_mem:
+    :param optimizer:
+    :param iteration:
+    :param tb_metrics:
+    :return:
     """
     sparse_cat_cross_entropy = tf.keras.losses.SparseCategoricalCrossentropy()
     mean_squared_error = tf.keras.losses.MeanSquaredError()
+
+    critic_mode_indic = 1 if mode == 'critic' else 0
 
     pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
     for states, actions, next_states, rewards, terminals, wins, qvals in pbar:
@@ -122,22 +130,22 @@ def optimize_actor_critic(actor_critic, mode, batched_mem, optimizer, iteration,
         with tf.GradientTape() as tape:
             move_prob_distrs, state_vals = forward_pass(states, actor_critic, training=True)
 
-            if mode == 'critic':
-                # Critic
-                assert state_vals.shape == wins.shape
-                loss = mean_squared_error(wins, state_vals)
-                tb_metrics['val_loss'].update_state(loss)
-                wins_01 = (np.copy(wins) + 1) / 2
-                tb_metrics['pred_win_acc'].update_state(wins_01, state_vals > 0)
-            else:
-                assert mode == 'actor'
-                # Actor
-                loss = sparse_cat_cross_entropy(best_actions, move_prob_distrs)
-                tb_metrics['move_loss'].update_state(loss)
+            # Critic
+            assert state_vals.shape == wins.shape
+            move_loss = mean_squared_error(wins, state_vals)
+            tb_metrics['val_loss'].update_state(move_loss)
+            wins_01 = (np.copy(wins) + 1) / 2
+            tb_metrics['pred_win_acc'].update_state(wins_01, state_vals > 0)
 
+            # Actor
+            val_loss = sparse_cat_cross_entropy(best_actions, move_prob_distrs)
+            tb_metrics['move_loss'].update_state(val_loss)
+
+            # Overall Loss
+            overall_loss = critic_mode_indic * val_loss + (1 - critic_mode_indic) * move_loss
 
         # compute and apply gradients
-        gradients = tape.gradient(loss, actor_critic.trainable_variables)
+        gradients = tape.gradient(overall_loss, actor_critic.trainable_variables)
         optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
 
         # Metrics
