@@ -106,57 +106,28 @@ class MCTree:
             pi (1d np array): the search probabilities
             num_search (int): number of search performed
         '''
+        assert max_num_searches > 0
+        num_search = 0
+        while num_search < max_num_searches:
+            curr_node = self.root
+            # keep going down the tree with the best move
+            while curr_node.visited() and not curr_node.terminal:
+                curr_node, move = self.select_best_child(curr_node)
 
-        if max_num_searches is None or max_num_searches <= 0:
-            if not self.root.cached_children:
-                self.cache_children(self.root)
+            curr_node.back_propagate(curr_node.V)
 
-            valid_moves = GoGame.get_valid_moves(self.root.state)
-            action_probs = self.root.Qs()
-            action_probs = (action_probs + 1) / 2
-            action_probs *= valid_moves
+            # increment search counter
+            num_search += 1
 
-            assert np.sum(action_probs) >= 0
-            assert np.min(action_probs) >= 0
-            assert np.max(action_probs) <= 1
-
-            if np.sum(action_probs) == 0:
-                valid_moves = GoGame.get_valid_moves(self.root.state)
-                action_probs += (1e-7 * valid_moves)
-
-            if temp > 0:
-                # Normalize it twice in the case that the largest value is so small, only normalizing it after raising
-                # it to the 1/temp power may result in all 0's
-                action_probs = normalize(action_probs[np.newaxis], norm='l1')[0]
-                action_probs = normalize((action_probs ** (1 / temp))[np.newaxis], norm='l1')[0]
-            else:
-                best_actions = (action_probs == np.max(action_probs))
-                action_probs = normalize(best_actions[np.newaxis], norm='l1')[0]
-
-            return action_probs
-
+        N = list(map(lambda node: node.N if node is not None else 0, self.root.children))
+        N = np.array(N)
+        if temp > 0:
+            pi = normalize([N ** (1 / temp)], norm='l1')[0]
         else:
-            num_search = 0
-            while num_search < max_num_searches:
-                curr_node = self.root
-                # keep going down the tree with the best move
-                while curr_node.visited() and not curr_node.terminal:
-                    curr_node, move = self.select_best_child(curr_node)
+            best_actions = (N == np.max(N))
+            pi = normalize(best_actions[np.newaxis], norm='l1')[0]
 
-                curr_node.back_propagate(curr_node.V)
-
-                # increment search counter
-                num_search += 1
-
-            N = list(map(lambda node: node.N if node is not None else 0, self.root.children))
-            N = np.array(N)
-            if temp > 0:
-                pi = normalize([N ** (1 / temp)], norm='l1')[0]
-            else:
-                best_actions = (N == np.max(N))
-                pi = normalize(best_actions[np.newaxis], norm='l1')[0]
-
-            return pi
+        return pi
 
     def select_best_child(self, node, u_const=1):
         """
@@ -192,17 +163,6 @@ class MCTree:
 
         return node.children[best_move], best_move
 
-    def canonical_winning(self, canonical_state):
-        my_area, opp_area = GoGame.get_areas(canonical_state)
-        if my_area > opp_area:
-            winning = 1
-        elif my_area < opp_area:
-            winning = -1
-        else:
-            winning = 0
-
-        return winning
-
     def cache_children(self, node):
         """
         Caches children for analysis by the forward function.
@@ -215,27 +175,11 @@ class MCTree:
 
         valid_move_idcs = GoGame.get_valid_moves(node.state)
         valid_move_idcs = np.argwhere(valid_move_idcs > 0).flatten()
-        canonical_next_states = []
 
-        for move in valid_move_idcs:
-            next_state = GoGame.get_next_state(node.state, move)
-            next_turn = GoGame.get_turn(next_state)
-            canonical_next_state = GoGame.get_canonical_form(next_state, next_turn)
-            canonical_next_states.append(canonical_next_state)
-
-        canonical_next_states = np.array(canonical_next_states)
-        action_probs, critic_vals = self.forward_func(canonical_next_states)
-
+        batch_pis, batch_qvals, batch_canonical_children = get_immediate_lookahead(node.state[np.newaxis],
+                                                                                   self.forward_func)
         for idx, move in enumerate(valid_move_idcs):
-            canonical_next_state = canonical_next_states[idx]
-            terminal = GoGame.get_game_ended(canonical_next_state)
-            winning = self.canonical_winning(canonical_next_state)
-
-            val = (1 - terminal) * critic_vals[idx] + (terminal) * winning
-
-            Node((node, move), action_probs[idx], val, canonical_next_state)
-
-        assert np.min(action_probs) >= 0, (valid_move_idcs, action_probs)
+            Node((node, move), batch_pis[0][idx], batch_qvals[0][idx], batch_canonical_children[0][idx])
 
     def step(self, action):
         '''
@@ -273,3 +217,64 @@ class MCTree:
             str_builder += '{}\n\n'.format(curr_node)
 
         return str_builder[:-2]
+
+
+def get_immediate_lookahead(states, forward_func):
+    """
+    :param states:
+    :param forward_func:
+    :return: policies and qvals of children of every state
+    (batch size x children x pi), (batch size x children x value)
+    """
+
+    def canonical_winning(canonical_state):
+        my_area, opp_area = GoGame.get_areas(canonical_state)
+        if my_area > opp_area:
+            winning = 1
+        elif my_area < opp_area:
+            winning = -1
+        else:
+            winning = 0
+
+        return winning
+
+    # Get all children states
+    canonical_next_states = []
+    for state in states:
+        valid_moves = GoGame.get_valid_moves(state)
+        valid_move_idcs = np.argwhere(valid_moves > 0).flatten()
+        for move in valid_move_idcs:
+            next_state = GoGame.get_next_state(state, move)
+            next_turn = GoGame.get_turn(next_state)
+            canonical_next_state = GoGame.get_canonical_form(next_state, next_turn)
+            canonical_next_states.append(canonical_next_state)
+
+    # Get network responses on children
+    canonical_next_states = np.array(canonical_next_states)
+    canonical_pis, canonical_next_vals = forward_func(canonical_next_states)
+
+    curr_idx = 0
+    batch_qvals = []
+    batch_pis = []
+    for state in states:
+        valid_moves = GoGame.get_valid_moves(state)
+        Qs = []
+        children_pis = []
+        for move in range(GoGame.get_action_size(state)):
+            if valid_moves[move]:
+                canonical_next_state = canonical_next_states[curr_idx]
+                terminal = GoGame.get_game_ended(canonical_next_state)
+                winning = canonical_winning(canonical_next_state)
+                val = (1 - terminal) * canonical_next_vals[curr_idx] + (terminal) * winning
+                Qs.append(-val)
+                children_pis.append(canonical_pis[curr_idx])
+                curr_idx += 1
+            else:
+                Qs.append(0)
+
+        batch_qvals.append(Qs)
+        batch_pis.append(children_pis)
+
+    assert curr_idx == len(canonical_next_vals), (curr_idx, len(canonical_next_vals))
+    assert curr_idx == len(canonical_pis), (curr_idx, len(canonical_pis))
+    return np.array(batch_pis), np.array(batch_qvals), canonical_next_states

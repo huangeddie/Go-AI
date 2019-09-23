@@ -3,10 +3,6 @@ import tensorflow as tf
 from tensorflow.keras import layers
 import gym
 from tqdm import tqdm
-from go_ai import mcts
-from sklearn.preprocessing import normalize
-
-from go_ai.mcts import GoGame
 
 go_env = gym.make('gym_go:go-v0', size=0)
 govars = go_env.govars
@@ -108,136 +104,43 @@ def forward_pass(states, network, training):
                     invalid_values.astype(np.float32)], training=training)
 
 
-def make_val_func(actor_critic):
-    def val_func(states):
-        _, move_vals = forward_pass(states, actor_critic, training=False)
-        return move_vals.numpy().flatten()
-
-    return val_func
-
-
-def update_temporal_difference(actor_critic, batched_mem, optimizer, iteration, tb_metrics):
+def optimize_actor_critic(actor_critic, mode, batched_mem, optimizer, iteration, tb_metrics):
     """
     Optimizes the actor over the batched memory
     """
-    binary_cross_entropy = tf.keras.losses.BinaryCrossentropy()
-    mean_squared_error = tf.keras.losses.MeanSquaredError()
-    gamma = 9 / 10
-
-    pbar = tqdm(batched_mem, desc='Optimization', leave=True, position=0)
-    for states, actions, next_states, rewards, terminals, wins, mcts_action_probs in pbar:
-        wins = wins[:, np.newaxis]
-        terminals = terminals[:, np.newaxis]
-        assert terminals.shape == wins.shape
-        _, next_state_vals = forward_pass(next_states, actor_critic, training=True)
-        assert next_state_vals.shape == wins.shape
-
-        targets = (wins * terminals) + (1 - terminals) * gamma * next_state_vals
-
-        with tf.GradientTape() as tape:
-            move_prob_distrs, state_vals = forward_pass(states, actor_critic, training=True)
-
-            # Actor
-            move_loss = binary_cross_entropy(mcts_action_probs, move_prob_distrs)
-
-            # Critic
-            assert targets.shape == wins.shape
-            val_loss = mean_squared_error(targets, state_vals)
-
-            overall_loss = val_loss + move_loss
-
-        tb_metrics['move_loss'].update_state(move_loss)
-        tb_metrics['val_loss'].update_state(val_loss)
-
-        tb_metrics['overall_loss'].update_state(overall_loss)
-
-        wins_01 = np.copy(wins)
-        wins_01[wins_01 < 0] = 0
-        tb_metrics['pred_win_acc'].update_state(wins_01, state_vals > 0)
-
-        # compute and apply gradients
-        gradients = tape.gradient(overall_loss, actor_critic.trainable_variables)
-        optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
-
-        # Metrics
-        pbar.set_postfix_str('{:.1f}% {:.3f}L'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
-                                                      tb_metrics['val_loss'].result().numpy()))
-
-
-def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_metrics):
-    """
-    Optimizes the actor over the batched memory
-    """
-    binary_cross_entropy = tf.keras.losses.BinaryCrossentropy()
+    sparse_cat_cross_entropy = tf.keras.losses.SparseCategoricalCrossentropy()
     mean_squared_error = tf.keras.losses.MeanSquaredError()
 
     pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
     for states, actions, next_states, rewards, terminals, wins, qvals in pbar:
         wins = wins[:, np.newaxis]
 
-        max_qvals = np.max(qvals, axis=1, keepdims=True)
-        target_pis = normalize(qvals == max_qvals, norm='l1')
+        invalid_values = get_invalid_values(states)
+        qvals += invalid_values
+        best_actions = np.argmax(qvals, axis=1)
+
         with tf.GradientTape() as tape:
             move_prob_distrs, state_vals = forward_pass(states, actor_critic, training=True)
 
-            # Actor
-            move_loss = binary_cross_entropy(target_pis, move_prob_distrs)
+            if mode == 'critic':
+                # Critic
+                assert state_vals.shape == wins.shape
+                loss = mean_squared_error(wins, state_vals)
+                tb_metrics['val_loss'].update_state(loss)
+                wins_01 = (np.copy(wins) + 1) / 2
+                tb_metrics['pred_win_acc'].update_state(wins_01, state_vals > 0)
+            else:
+                assert mode == 'actor'
+                # Actor
+                loss = sparse_cat_cross_entropy(best_actions, move_prob_distrs)
+                tb_metrics['move_loss'].update_state(loss)
 
-            # Critic
-            assert state_vals.shape == wins.shape
-            val_loss = mean_squared_error(wins, state_vals)
-
-            overall_loss = val_loss + move_loss
-
-        tb_metrics['move_loss'].update_state(move_loss)
-        tb_metrics['val_loss'].update_state(val_loss)
-
-        tb_metrics['overall_loss'].update_state(overall_loss)
-
-        wins_01 = (np.copy(wins) + 1) / 2
-        tb_metrics['pred_win_acc'].update_state(wins_01, state_vals > 0)
 
         # compute and apply gradients
-        gradients = tape.gradient(overall_loss, actor_critic.trainable_variables)
+        gradients = tape.gradient(loss, actor_critic.trainable_variables)
         optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
 
         # Metrics
-        pbar.set_postfix_str('{:.1f}% {:.3f}ML'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
-                                                       tb_metrics['move_loss'].result().numpy()))
-
-
-def get_qvals(states, val_func):
-    """
-    :param states:
-    :param val_func:
-    :return: Q values for each state (batch_size x action_size)
-    """
-    canonical_next_states = []
-    for state in states:
-        valid_moves = GoGame.get_valid_moves(state)
-        valid_move_idcs = np.argwhere(valid_moves > 0).flatten()
-        for move in valid_move_idcs:
-            next_state = GoGame.get_next_state(state, move)
-            next_turn = GoGame.get_turn(next_state)
-            canonical_next_state = GoGame.get_canonical_form(next_state, next_turn)
-            canonical_next_states.append(canonical_next_state)
-
-    canonical_next_states = np.array(canonical_next_states)
-
-    canonical_next_vals = val_func(canonical_next_states)
-    curr_idx = 0
-    qvals = []
-    for state in states:
-        valid_moves = GoGame.get_valid_moves(state)
-        Qs = []
-        for move in range(GoGame.get_action_size(state)):
-            if valid_moves[move]:
-                Qs.append(-canonical_next_vals[curr_idx])
-                curr_idx += 1
-            else:
-                Qs.append(np.finfo(np.float32).min)
-
-        qvals.append(Qs)
-
-    assert curr_idx == len(canonical_next_vals), (curr_idx, len(canonical_next_vals))
-    return np.array(qvals)
+        pbar.set_postfix_str('{:.1f}% {:.3f}VL {:.3f}ML'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
+                                                                tb_metrics['val_loss'].result().numpy(),
+                                                                tb_metrics['move_loss'].result().numpy()))

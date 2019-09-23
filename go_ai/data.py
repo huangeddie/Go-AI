@@ -4,6 +4,8 @@ import numpy as np
 import os
 import shutil
 import multiprocessing as mp
+
+import go_ai.mcts
 from go_ai import policies, models
 import queue
 
@@ -40,19 +42,20 @@ def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, wi
             a = np.argmax(a)
         ns = oriented_chunk[num_channels + 1: 2 * num_channels + 1]
         assert ns.shape[0] == num_channels
-        assert 2*num_channels+1 == oriented_chunk.shape[0]-1
+        assert 2 * num_channels + 1 == oriented_chunk.shape[0] - 1
         qvals = oriented_chunk[-1]
         qvals = np.concatenate([qvals.flatten(), pass_val])
         replay_mem.append((s, a, ns, reward, done, win, qvals))
 
-def add_traj_to_replay_mem(replay_mem, black_won, trajectory, val_func, add_symmetries):
+
+def add_traj_to_replay_mem(replay_mem, black_won, trajectory, forward_func, add_symmetries):
     for turn, canonical_state, action, canonical_next_state, reward, done in trajectory:
         if turn == go_env.govars.BLACK:
             win = black_won
         else:
             win = -black_won
-        qvals = models.get_qvals(canonical_state[np.newaxis], val_func)[0]
-        add_to_replay_mem(replay_mem, canonical_state, action, canonical_next_state, reward, done, win, qvals,
+        batch_pis, batch_qvals, _ = go_ai.mcts.get_immediate_lookahead(canonical_state[np.newaxis], forward_func)
+        add_to_replay_mem(replay_mem, canonical_state, action, canonical_next_state, reward, done, win, batch_qvals[0],
                           add_symmetries)
 
 
@@ -74,7 +77,7 @@ def replay_mem_to_numpy(replay_mem):
     return states, actions, next_states, rewards, terminals, wins, qvals
 
 
-def pit(go_env, black_policy, white_policy, get_memory=False):
+def pit(go_env, black_policy, white_policy, get_trajectory=False):
     """
     Pits two policies against each other and returns the results
     :param go_env:
@@ -128,7 +131,7 @@ def pit(go_env, black_policy, white_policy, get_memory=False):
             done = True
 
         # Add to memory cache
-        if get_memory:
+        if get_trajectory:
             mem_cache.append((curr_turn, canonical_state, action, canonical_next_state, reward, done))
 
         # Increment steps
@@ -150,7 +153,7 @@ def pit(go_env, black_policy, white_policy, get_memory=False):
     return black_won, mem_cache
 
 
-def self_play(go_env, policy, get_memory=False):
+def self_play(go_env, policy, get_trajectory=False):
     """
     Plays out a game, by pitting the policy against itself,
     and adds the events to the given replay memory
@@ -160,10 +163,10 @@ def self_play(go_env, policy, get_memory=False):
     :param get_symmetries:
     :return: The trajectory of events and number of steps
     """
-    return pit(go_env, black_policy=policy, white_policy=policy, get_memory=get_memory)
+    return pit(go_env, black_policy=policy, white_policy=policy, get_trajectory=get_trajectory)
 
 
-def eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args, val_func_args,
+def eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args, forward_func_args,
             out):
     """
     Continously executes episode jobs from the episode job queue until there are no more jobs
@@ -182,9 +185,15 @@ def eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args
     else:
         second_policy = policies.make_policy(second_policy_args, board_size)
 
-    actor_critic = models.make_actor_critic(go_env.size)
-    actor_critic.load_weights(val_func_args['weights_path'])
-    val_func = models.make_val_func(actor_critic)
+    get_memory = out is not None
+
+    if get_memory:
+        actor_critic = models.make_actor_critic(go_env.size)
+        actor_critic.load_weights(forward_func_args['weights_path'])
+        def forward_func(states):
+            return models.forward_pass(states, actor_critic, training=False)
+    else:
+        forward_func = None
 
     replay_mem = []
     while not episode_queue.empty():
@@ -195,23 +204,24 @@ def eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args
             else:
                 black_policy, white_policy = second_policy, first_policy
             black_won, trajectory = pit(go_env, black_policy=black_policy, white_policy=white_policy,
-                                                   get_memory=out is not None)
+                                        get_trajectory=get_memory)
 
             # Add trajectory to replay memory
-            add_traj_to_replay_mem(replay_mem, black_won, trajectory, val_func, add_symmetries=True)
+            if get_memory:
+                add_traj_to_replay_mem(replay_mem, black_won, trajectory, forward_func, add_symmetries=True)
 
             first_policy_won = black_won if first_policy_black else -black_won
             first_policy_won_queue.put((first_policy_won + 1) / 2)
         except Exception as e:
             print(e)
 
-    if out is not None and len(replay_mem) > 0:
+    if get_memory and len(replay_mem) > 0:
         np.random.shuffle(replay_mem)
         data = replay_mem_to_numpy(replay_mem)
         np.savez(out, *data)
 
 
-def make_episodes(board_size, first_policy_args, second_policy_args, val_func_args, episodes, num_workers, outdir=None):
+def make_episodes(board_size, first_policy_args, second_policy_args, forward_func_args, episodes, num_workers, outdir=None):
     """
     Multiprocessing of pitting the first policy against the second policy
     :param board_size:
@@ -249,7 +259,7 @@ def make_episodes(board_size, first_policy_args, second_policy_args, val_func_ar
     else:
         worker_out = None
     default_eps_job_args = (episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args,
-                            val_func_args, worker_out)
+                            forward_func_args, worker_out)
 
     # Launch the workers
     processes = []
@@ -261,7 +271,7 @@ def make_episodes(board_size, first_policy_args, second_policy_args, val_func_ar
             else:
                 worker_out = None
             eps_job_args = (episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args,
-                            val_func_args, worker_out)
+                            forward_func_args, worker_out)
 
             p = ctx.Process(target=eps_job, args=eps_job_args)
             p.start()

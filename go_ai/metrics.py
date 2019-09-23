@@ -4,6 +4,7 @@ import tensorflow as tf
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
+import go_ai.mcts
 import go_ai.models
 from go_ai import data, policies, models
 
@@ -104,12 +105,12 @@ def state_responses(actor_critic, replay_mem):
 
 
 def gen_traj_fig(go_env, actor_critic):
-    mct_policy = policies.ActorCriticPolicy(actor_critic)
-    black_won, traj = data.self_play(go_env, policy=mct_policy, get_memory=True)
+    policy = policies.ActorCriticPolicy(actor_critic)
+    black_won, traj = data.self_play(go_env, policy=policy, get_trajectory=True)
     replay_mem = []
-    actor_critic = models.make_actor_critic(go_env.size)
-    val_func = models.make_val_func(actor_critic)
-    data.add_traj_to_replay_mem(replay_mem, black_won, traj, val_func, add_symmetries=False)
+    def forward_func(states):
+        return models.forward_pass(states, actor_critic, training=False)
+    data.add_traj_to_replay_mem(replay_mem, black_won, traj, forward_func, add_symmetries=False)
     fig = state_responses(actor_critic, replay_mem)
     return fig
 
@@ -120,9 +121,10 @@ def plot_symmetries(go_env, actor_critic, outpath):
     action = (1, 2)
     action_1d = go_env.action_2d_to_1d(action)
     next_state, reward, done, info = go_env.step(action)
-    val_func = models.make_val_func(actor_critic)
-    qvals = models.get_qvals(state[np.newaxis], val_func)[0]
-    data.add_to_replay_mem(mem, state, action_1d, next_state, reward, done, 0, qvals)
+    def forward_func(states):
+        return models.forward_pass(states, actor_critic, training=False)
+    batch_pis, batch_qvals, _ = go_ai.mcts.get_immediate_lookahead(state[np.newaxis], forward_func)
+    data.add_to_replay_mem(mem, state, action_1d, next_state, reward, done, 0, batch_qvals[0])
 
     fig = state_responses(actor_critic, mem)
     fig.savefig(outpath)
