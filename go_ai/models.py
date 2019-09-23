@@ -108,6 +108,14 @@ def forward_pass(states, network, training):
                     invalid_values.astype(np.float32)], training=training)
 
 
+def make_val_func(actor_critic):
+    def val_func(states):
+        _, move_vals = forward_pass(states, actor_critic, training=False)
+        return move_vals.numpy().flatten()
+
+    return val_func
+
+
 def update_temporal_difference(actor_critic, batched_mem, optimizer, iteration, tb_metrics):
     """
     Optimizes the actor over the batched memory
@@ -163,25 +171,17 @@ def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_me
     binary_cross_entropy = tf.keras.losses.BinaryCrossentropy()
     mean_squared_error = tf.keras.losses.MeanSquaredError()
 
-    def val_func(states):
-        _, move_vals = forward_pass(states, actor_critic, training=False)
-        return move_vals.numpy().flatten()
-
     pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
-    for states, actions, next_states, rewards, terminals, wins in pbar:
+    for states, actions, next_states, rewards, terminals, wins, qvals in pbar:
         wins = wins[:, np.newaxis]
 
-        qvals = get_qvals(states.transpose(0, 3, 1, 2), val_func)
-        assert np.min(qvals) >= -1
-        assert np.max(qvals) <= 1
-
-        target_pi = ((qvals + 1)/2) + 1e-7
-        target_pi = normalize(target_pi**8, norm='l1')
+        max_qvals = np.max(qvals, axis=1, keepdims=True)
+        target_pis = normalize(qvals == max_qvals, norm='l1')
         with tf.GradientTape() as tape:
             move_prob_distrs, state_vals = forward_pass(states, actor_critic, training=True)
 
             # Actor
-            move_loss = binary_cross_entropy(target_pi, move_prob_distrs)
+            move_loss = binary_cross_entropy(target_pis, move_prob_distrs)
 
             # Critic
             assert state_vals.shape == wins.shape
@@ -202,8 +202,8 @@ def update_win_prediction(actor_critic, batched_mem, optimizer, iteration, tb_me
         optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
 
         # Metrics
-        pbar.set_postfix_str('{:.1f}% {:.3f}L'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
-                                                      tb_metrics['val_loss'].result().numpy()))
+        pbar.set_postfix_str('{:.1f}% {:.3f}ML'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
+                                                       tb_metrics['move_loss'].result().numpy()))
 
 
 def get_qvals(states, val_func):
@@ -235,7 +235,7 @@ def get_qvals(states, val_func):
                 Qs.append(-canonical_next_vals[curr_idx])
                 curr_idx += 1
             else:
-                Qs.append(0)
+                Qs.append(np.finfo(np.float32).min)
 
         qvals.append(Qs)
 
