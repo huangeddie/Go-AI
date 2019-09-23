@@ -49,13 +49,18 @@ def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, wi
 
 
 def add_traj_to_replay_mem(replay_mem, black_won, trajectory, forward_func, add_symmetries):
-    for turn, canonical_state, action, canonical_next_state, reward, done in trajectory:
+    canonical_states = list(map(lambda event: event[1], trajectory))
+    batch_pis, batch_qvals, _ = go_ai.mcts.get_immediate_lookahead(canonical_states, forward_func)
+
+    for idx, (turn, canonical_state, action, canonical_next_state, reward, done) in enumerate(trajectory):
         if turn == go_env.govars.BLACK:
             win = black_won
         else:
             win = -black_won
-        batch_pis, batch_qvals, _ = go_ai.mcts.get_immediate_lookahead(canonical_state[np.newaxis], forward_func)
-        add_to_replay_mem(replay_mem, canonical_state, action, canonical_next_state, reward, done, win, batch_qvals[0],
+
+        qvals = batch_qvals[idx]
+
+        add_to_replay_mem(replay_mem, canonical_state, action, canonical_next_state, reward, done, win, qvals,
                           add_symmetries)
 
 
@@ -166,8 +171,8 @@ def self_play(go_env, policy, get_trajectory=False):
     return pit(go_env, black_policy=policy, white_policy=policy, get_trajectory=get_trajectory)
 
 
-def eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args, forward_func_args,
-            out):
+def exec_eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args, forward_func_args,
+                 out):
     """
     Continously executes episode jobs from the episode job queue until there are no more jobs
     :param episode_queue:
@@ -273,11 +278,11 @@ def make_episodes(board_size, first_policy_args, second_policy_args, forward_fun
             eps_job_args = (episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args,
                             forward_func_args, worker_out)
 
-            p = ctx.Process(target=eps_job, args=eps_job_args)
+            p = ctx.Process(target=exec_eps_job, args=eps_job_args)
             p.start()
             processes.append(p)
     else:
-        eps_job(*default_eps_job_args)
+        exec_eps_job(*default_eps_job_args)
 
     # Collect the results
     wins = []

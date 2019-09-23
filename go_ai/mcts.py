@@ -224,7 +224,7 @@ def get_immediate_lookahead(states, forward_func):
     :param states:
     :param forward_func:
     :return: policies and qvals of children of every state
-    (batch size x children x pi), (batch size x children x value)
+    (batch size x children x pi), (batch size x children state vals)
     """
 
     def canonical_winning(canonical_state):
@@ -265,7 +265,7 @@ def get_immediate_lookahead(states, forward_func):
                 canonical_next_state = canonical_next_states[curr_idx]
                 terminal = GoGame.get_game_ended(canonical_next_state)
                 winning = canonical_winning(canonical_next_state)
-                val = (1 - terminal) * canonical_next_vals[curr_idx] + (terminal) * winning
+                val = (1 - terminal) * canonical_next_vals[curr_idx].numpy().item() + (terminal) * winning
                 Qs.append(-val)
                 children_pis.append(canonical_pis[curr_idx])
                 curr_idx += 1
