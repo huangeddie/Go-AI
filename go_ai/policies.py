@@ -114,6 +114,10 @@ class GreedyPolicy(Policy):
         """
         _, batch_qvals, _ = mcts.get_immediate_lookahead(state[np.newaxis], self.forward_func)
         qvals = batch_qvals[0]
+        invalid_qs = models.get_invalid_values(state[np.newaxis])
+        assert invalid_qs[0].shape == qvals.shape
+        qvals += invalid_qs[0]
+
         max_qs = np.max(qvals)
         target_pis = (qvals == max_qs).astype(np.int)
         target_pis = normalize(target_pis[np.newaxis], norm='l1')[0]

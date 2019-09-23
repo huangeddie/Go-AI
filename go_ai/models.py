@@ -61,6 +61,8 @@ def get_invalid_moves(states):
     Assumes shape to be [BATCH SIZE, BOARD SIZE, BOARD SIZE, 6]
     """
     assert len(states.shape) == 4
+    if states.shape[1] != states.shape[2]:
+        states = states.transpose(0, 2, 3, 1)
     batch_size = states.shape[0]
     board_size = states.shape[1]
     invalid_moves = states[:, :, :, govars.INVD_CHNL].reshape((batch_size, -1))
@@ -103,11 +105,14 @@ def forward_pass(states, network, training):
                     valid_moves.astype(np.float32),
                     invalid_values.astype(np.float32)], training=training)
 
+
 def make_forward_func(network):
     def forward_func(states):
         action_probs, state_vals = forward_pass(states, network, training=False)
         return action_probs.numpy(), state_vals.numpy()
+
     return forward_func
+
 
 def optimize_actor_critic(actor_critic, mode, batched_mem, optimizer, tb_metrics):
     """

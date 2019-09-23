@@ -171,7 +171,8 @@ def self_play(go_env, policy, get_trajectory=False):
     return pit(go_env, black_policy=policy, white_policy=policy, get_trajectory=get_trajectory)
 
 
-def exec_eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args, forward_func_args,
+def exec_eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args,
+                 forward_func_args,
                  out):
     """
     Continously executes episode jobs from the episode job queue until there are no more jobs
@@ -207,6 +208,7 @@ def exec_eps_job(episode_queue, first_policy_won_queue, board_size, first_policy
                 black_policy, white_policy = first_policy, second_policy
             else:
                 black_policy, white_policy = second_policy, first_policy
+
             black_won, trajectory = pit(go_env, black_policy=black_policy, white_policy=white_policy,
                                         get_trajectory=get_memory)
 
@@ -225,7 +227,8 @@ def exec_eps_job(episode_queue, first_policy_won_queue, board_size, first_policy
         np.savez(out, *data)
 
 
-def make_episodes(board_size, first_policy_args, second_policy_args, forward_func_args, episodes, num_workers, outdir=None):
+def make_episodes(board_size, first_policy_args, second_policy_args, forward_func_args, episodes, num_workers,
+                  outdir=None):
     """
     Multiprocessing of pitting the first policy against the second policy
     :param board_size:
