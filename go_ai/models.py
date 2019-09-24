@@ -1,11 +1,8 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
-import gym
 from tqdm import tqdm
-
-go_env = gym.make('gym_go:go-v0', size=0)
-govars = go_env.govars
+from go_ai import data, mcts
 
 
 def make_actor_critic(board_size, critic_mode='val_net', critic_activation='tanh'):
@@ -55,57 +52,30 @@ def make_actor_critic(board_size, critic_mode='val_net', critic_activation='tanh
     return model
 
 
-def get_invalid_moves(states):
-    """
-    Returns 1's where moves are invalid and 0's where moves are valid
-    """
-    assert len(states.shape) == 4
-    if states.shape[1] != states.shape[2]:
-        states = states.transpose(0, 2, 3, 1)
-    batch_size = states.shape[0]
-    board_size = states.shape[1]
-    invalid_moves = states[:, :, :, govars.INVD_CHNL].reshape((batch_size, -1))
-    invalid_moves = np.insert(invalid_moves, board_size ** 2, 0, axis=1)
-    return invalid_moves
-
-
-def get_valid_moves(states):
-    return 1 - get_invalid_moves(states)
-
-
-def get_invalid_values(states):
-    """
-    Returns the action values of the states where invalid moves have -infinity value (minimum value of float32)
-    and valid moves have 0 value
-    """
-    invalid_moves = get_invalid_moves(states)
-    invalid_values = np.finfo(np.float32).min * invalid_moves
-    return invalid_values
-
-
 def forward_pass(states, network, training):
     """
     Since the neural nets take in more than one parameter,
     this functions serves as a wrapper to forward pass the data through the networks.
-
-    Automatically moves the channel to the last dimension if necessary
-
     :param states:
     :param network:
     :param training: Boolean parameter for layers like BatchNorm
     :return: action probs and state vals
     """
-    if states.shape[1] != states.shape[2]:
-        states = states.transpose(0, 2, 3, 1)
-    invalid_moves = get_invalid_moves(states)
-    invalid_values = get_invalid_values(states)
+    invalid_moves = data.get_invalid_moves(states)
+    invalid_values = data.get_invalid_values(states)
     valid_moves = 1 - invalid_moves
-    return network([states.astype(np.float32),
+    return network([states.transpose(0, 2, 3, 1).astype(np.float32),
                     valid_moves.astype(np.float32),
                     invalid_values.astype(np.float32)], training=training)
 
 
 def make_forward_func(network):
+    """
+    :param network:
+    :return: A more simplified forward pass function that just takes in states and outputs the action probs and
+    state values in numpy form
+    """
+
     def forward_func(states):
         action_probs, state_vals = forward_pass(states, network, training=False)
         return action_probs.numpy(), state_vals.numpy()
@@ -115,6 +85,7 @@ def make_forward_func(network):
 
 def optimize_actor_critic(weights_path, board_size, batched_mem, optimizer, tb_metrics):
     """
+    Loads in parameters from disk and updates them from the batched memory (saves the new parameters back to disk)
     :param actor_critic:
     :param just_critic: Dictates whether we update just the critic portion
     :param batched_mem:
@@ -126,6 +97,7 @@ def optimize_actor_critic(weights_path, board_size, batched_mem, optimizer, tb_m
     # Load model from disk
     actor_critic = make_actor_critic(board_size)
     actor_critic.load_weights(weights_path)
+    forward_func = make_forward_func(actor_critic)
 
     # Define criterion
     sparse_cat_cross_entropy = tf.keras.losses.SparseCategoricalCrossentropy()
@@ -133,11 +105,18 @@ def optimize_actor_critic(weights_path, board_size, batched_mem, optimizer, tb_m
 
     # Iterate through data
     pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
-    for states, actions, next_states, rewards, terminals, wins, qvals in pbar:
+    for states, actions, next_states, rewards, terminals, wins in pbar:
         wins = wins[:, np.newaxis]
 
-        invalid_values = get_invalid_values(states)
+        # Augment states
+        states = data.random_symmetries(states)
+
+        # Get Q values of current critic
+        _, qvals, _ = mcts.get_immediate_lookahead(states, forward_func)
+        invalid_values = data.get_invalid_values(states)
         qvals += invalid_values
+
+        # Use Q values for policy iteration
         best_actions = np.argmax(qvals, axis=1)
 
         with tf.GradientTape() as tape:

@@ -1,3 +1,4 @@
+import go_ai.data
 from go_ai import models, mcts
 import gym
 import numpy as np
@@ -100,7 +101,7 @@ class GreedyPolicy(Policy):
                 else:
                     val = (black_area - white_area) / board_area
                 vals.append(val)
-            vals = np.array(vals)
+            vals = np.array(vals, dtype=np.float)
             action_probs = np.ones((batch_size, board_length)) / board_length
             return action_probs, vals[:, np.newaxis]
 
@@ -114,7 +115,7 @@ class GreedyPolicy(Policy):
         """
         _, batch_qvals, _ = mcts.get_immediate_lookahead(state[np.newaxis], self.forward_func)
         qvals = batch_qvals[0]
-        invalid_qs = models.get_invalid_values(state[np.newaxis])
+        invalid_qs = go_ai.data.get_invalid_values(state[np.newaxis])
         assert invalid_qs[0].shape == qvals.shape
         qvals += invalid_qs[0]
 

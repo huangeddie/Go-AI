@@ -3,10 +3,21 @@ import numpy as np
 import tensorflow as tf
 from matplotlib import pyplot as plt
 from tqdm import tqdm
+import gym
 
-import go_ai.mcts
-import go_ai.models
-from go_ai import data, policies, models
+from go_ai import data, policies, models, mcts
+
+go_env = gym.make('gym_go:go-v0', size=0)
+gogame = go_env.gogame
+
+def matplot_format(state):
+    """
+    :param state:
+    :return: A formatted state for matplot imshow.
+    Only uses the piece and pass channels of the original state
+    """
+    assert len(state.shape) == 3
+    return state.transpose(1, 2, 0)[:, :, [0, 1, 4]].astype(np.float)
 
 
 def plot_move_distr(title, move_distr, valid_moves, scalar=None):
@@ -27,7 +38,7 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None):
     plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
 
 
-def state_responses_helper(actor_critic, states, taken_actions, next_states, rewards, terminals, wins, qvals):
+def state_responses_helper(actor_critic, states, taken_actions, next_states, rewards, terminals, wins):
     """
     Helper function for state_responses
     :param actor_critic:
@@ -50,13 +61,15 @@ def state_responses_helper(actor_critic, states, taken_actions, next_states, rew
             action = (action_1d // board_width, action_1d % board_width)
         return action
 
-    board_size = states[0].shape[0]
+    board_size = states[0].shape[1]
 
-    move_probs, move_vals = go_ai.models.forward_pass(states, actor_critic, training=False)
+    forward_func = models.make_forward_func(actor_critic)
+    move_probs, move_vals = forward_func(states)
 
     state_vals = tf.reduce_sum(move_probs * move_vals, axis=1)
+    _, qvals, _ = mcts.get_immediate_lookahead(states, forward_func=forward_func)
 
-    valid_moves = go_ai.models.get_valid_moves(states)
+    valid_moves = data.get_valid_moves(states)
 
     num_states = states.shape[0]
     num_cols = 4
@@ -68,7 +81,7 @@ def state_responses_helper(actor_critic, states, taken_actions, next_states, rew
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
         plt.axis('off')
         plt.title('Board')
-        plt.imshow(states[i][:, :, [0, 1, 4]].astype(np.float))
+        plt.imshow(matplot_format(states[i]))
         curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
@@ -83,7 +96,7 @@ def state_responses_helper(actor_critic, states, taken_actions, next_states, rew
         plt.axis('off')
         plt.title('Taken Action: {}\n{:.0f}R {}T, {}W'
                   .format(action_1d_to_2d(taken_actions[i], board_size), rewards[i], terminals[i], wins[i]))
-        plt.imshow(next_states[i][:, :, [0, 1, 4]].astype(np.float))
+        plt.imshow(matplot_format(next_states[i]))
         curr_col += 1
 
     plt.tight_layout()
@@ -97,10 +110,10 @@ def state_responses(actor_critic, replay_mem):
     :return: The figure visualizing responses of the model
     on those events
     """
-    states, actions, next_states, rewards, terminals, wins, qvals = data.replay_mem_to_numpy(replay_mem)
-    assert len(states[0].shape) == 3 and states[0].shape[0] == states[0].shape[1], states[0].shape
+    states, actions, next_states, rewards, terminals, wins = data.replay_mem_to_numpy(replay_mem)
+    assert len(states[0].shape) == 3 and states[0].shape[1] == states[0].shape[2], states[0].shape
 
-    fig = state_responses_helper(actor_critic, states, actions, next_states, rewards, terminals, wins, qvals)
+    fig = state_responses_helper(actor_critic, states, actions, next_states, rewards, terminals, wins)
     return fig
 
 
@@ -110,24 +123,22 @@ def gen_traj_fig(go_env, weights_path):
     policy = policies.ActorCriticPolicy(actor_critic)
     black_won, traj = data.self_play(go_env, policy=policy, get_trajectory=True)
     replay_mem = []
-    forward_func = models.make_forward_func(actor_critic)
-    data.add_traj_to_replay_mem(replay_mem, black_won, traj, forward_func, add_symmetries=False)
+    data.add_traj_to_replay_mem(replay_mem, black_won, traj)
     fig = state_responses(actor_critic, replay_mem)
     return fig
 
 
-def plot_symmetries(go_env, actor_critic, outpath):
-    mem = []
-    state = go_env.reset()
-    action = (1, 2)
-    action_1d = go_env.action_2d_to_1d(action)
-    next_state, reward, done, info = go_env.step(action)
-    forward_func = models.make_forward_func(actor_critic)
-    batch_pis, batch_qvals, _ = go_ai.mcts.get_immediate_lookahead(state[np.newaxis], forward_func)
-    data.add_to_replay_mem(mem, state, action_1d, next_state, reward, done, 0, batch_qvals[0])
+def plot_symmetries(next_state, outpath):
+    symmetrical_next_states = gogame.get_symmetries(next_state)
 
-    fig = state_responses(actor_critic, mem)
-    fig.savefig(outpath)
+    cols = len(symmetrical_next_states)
+    plt.figure(figsize=(3 * cols, 3))
+    for i, state in enumerate(symmetrical_next_states):
+        plt.subplot(1, cols, i + 1)
+        plt.imshow(matplot_format(state))
+        plt.axis('off')
+
+    plt.savefig(outpath)
     plt.close()
 
 
@@ -146,25 +157,6 @@ def figure_to_image(figure):
     # Add the batch dimension
     image = tf.expand_dims(image, 0)
     return image
-
-
-def log_to_tensorboard(summary_writer, metrics, step, go_env, weights_path, figpath=None):
-    """
-    Logs metrics to tensorboard.
-    Also resets keras metrics after use
-    """
-    with summary_writer.as_default():
-        # Keras metrics
-        for key, metric in metrics.items():
-            tf.summary.scalar(key, metric.result(), step=step)
-
-        reset_metrics(metrics)
-
-        # Plot samples of states and response heatmaps
-        fig = gen_traj_fig(go_env, weights_path)
-        if figpath is not None:
-            fig.savefig(figpath)
-        tf.summary.image("Trajectory and Responses", figure_to_image(fig), step=step)
 
 
 def reset_metrics(metrics):
