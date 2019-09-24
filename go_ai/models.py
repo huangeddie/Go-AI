@@ -141,8 +141,8 @@ def optimize_actor_critic(weights_path, board_size, batched_mem, optimizer, tb_m
         optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
 
         # Metrics
-        pbar.set_postfix_str('{:.1f}% {:.3f}VL {:.3f}ML'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
-                                                                tb_metrics['val_loss'].result().numpy(),
-                                                                tb_metrics['move_loss'].result().numpy()))
+        pbar.set_postfix_str('{:.1f}% ACC, {:.3f}VL, {:.3f}ML'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
+                                                                      tb_metrics['val_loss'].result().numpy(),
+                                                                      tb_metrics['move_loss'].result().numpy()))
     # Update the weights on disk
     actor_critic.save_weights(weights_path)

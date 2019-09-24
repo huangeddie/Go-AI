@@ -308,7 +308,7 @@ def make_episodes(board_size, first_policy_args, second_policy_args, episodes, n
     for _ in pbar:
         first_policy_won = first_policy_won_queue.get()
         wins.append(first_policy_won)
-        pbar.set_postfix_str('{:.1f}%'.format(100 * np.mean(wins)))
+        pbar.set_postfix_str('{:.1f}% WIN'.format(100 * np.mean(wins)))
 
     # Cleanup the workers if necessary
     for p in processes:
