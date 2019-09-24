@@ -202,24 +202,23 @@ def exec_eps_job(episode_queue, first_policy_won_queue, board_size, first_policy
 
     replay_mem = []
     while not episode_queue.empty():
-        try:
-            first_policy_black = episode_queue.get()
-            if first_policy_black:
-                black_policy, white_policy = first_policy, second_policy
-            else:
-                black_policy, white_policy = second_policy, first_policy
+        first_policy_black = episode_queue.get()
 
-            black_won, trajectory = pit(go_env, black_policy=black_policy, white_policy=white_policy,
-                                        get_trajectory=get_memory)
+        if first_policy_black:
+            black_policy, white_policy = first_policy, second_policy
+        else:
+            black_policy, white_policy = second_policy, first_policy
 
-            # Add trajectory to replay memory
-            if get_memory:
-                add_traj_to_replay_mem(replay_mem, black_won, trajectory, forward_func, add_symmetries=True)
+        black_won, trajectory = pit(go_env, black_policy=black_policy, white_policy=white_policy,
+                                    get_trajectory=get_memory)
 
-            first_policy_won = black_won if first_policy_black else -black_won
-            first_policy_won_queue.put((first_policy_won + 1) / 2)
-        except Exception as e:
-            print(e)
+        # Add trajectory to replay memory
+        if get_memory:
+            add_traj_to_replay_mem(replay_mem, black_won, trajectory, forward_func, add_symmetries=True)
+
+        first_policy_won = black_won if first_policy_black else -black_won
+        first_policy_won_queue.put((first_policy_won + 1) / 2)
+
 
     if get_memory and len(replay_mem) > 0:
         np.random.shuffle(replay_mem)

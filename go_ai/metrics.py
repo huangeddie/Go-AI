@@ -104,7 +104,9 @@ def state_responses(actor_critic, replay_mem):
     return fig
 
 
-def gen_traj_fig(go_env, actor_critic):
+def gen_traj_fig(go_env, weights_path):
+    actor_critic = models.make_actor_critic(go_env.size)
+    actor_critic.load_weights(weights_path)
     policy = policies.ActorCriticPolicy(actor_critic)
     black_won, traj = data.self_play(go_env, policy=policy, get_trajectory=True)
     replay_mem = []
@@ -146,7 +148,7 @@ def figure_to_image(figure):
     return image
 
 
-def log_to_tensorboard(summary_writer, metrics, step, go_env, actor_critic, figpath=None):
+def log_to_tensorboard(summary_writer, metrics, step, go_env, weights_path, figpath=None):
     """
     Logs metrics to tensorboard.
     Also resets keras metrics after use
@@ -159,7 +161,7 @@ def log_to_tensorboard(summary_writer, metrics, step, go_env, actor_critic, figp
         reset_metrics(metrics)
 
         # Plot samples of states and response heatmaps
-        fig = gen_traj_fig(go_env, actor_critic)
+        fig = gen_traj_fig(go_env, weights_path)
         if figpath is not None:
             fig.savefig(figpath)
         tf.summary.image("Trajectory and Responses", figure_to_image(fig), step=step)

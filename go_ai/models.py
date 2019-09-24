@@ -58,7 +58,6 @@ def make_actor_critic(board_size, critic_mode='val_net', critic_activation='tanh
 def get_invalid_moves(states):
     """
     Returns 1's where moves are invalid and 0's where moves are valid
-    Assumes shape to be [BATCH SIZE, BOARD SIZE, BOARD SIZE, 6]
     """
     assert len(states.shape) == 4
     if states.shape[1] != states.shape[2]:
@@ -114,21 +113,25 @@ def make_forward_func(network):
     return forward_func
 
 
-def optimize_actor_critic(actor_critic, mode, batched_mem, optimizer, tb_metrics):
+def optimize_actor_critic(weights_path, board_size, batched_mem, optimizer, tb_metrics):
     """
     :param actor_critic:
-    :param mode: Dictates whether we update the actor or critic portion of the model
+    :param just_critic: Dictates whether we update just the critic portion
     :param batched_mem:
     :param optimizer:
     :param iteration:
     :param tb_metrics:
     :return:
     """
+    # Load model from disk
+    actor_critic = make_actor_critic(board_size)
+    actor_critic.load_weights(weights_path)
+
+    # Define criterion
     sparse_cat_cross_entropy = tf.keras.losses.SparseCategoricalCrossentropy()
     mean_squared_error = tf.keras.losses.MeanSquaredError()
 
-    critic_mode_indic = 1 if mode == 'critic' else 0
-
+    # Iterate through data
     pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
     for states, actions, next_states, rewards, terminals, wins, qvals in pbar:
         wins = wins[:, np.newaxis]
@@ -152,7 +155,7 @@ def optimize_actor_critic(actor_critic, mode, batched_mem, optimizer, tb_metrics
             tb_metrics['move_loss'].update_state(actor_loss)
 
             # Overall Loss
-            overall_loss = critic_mode_indic * critic_loss + (1 - critic_mode_indic) * actor_loss
+            overall_loss = critic_loss + actor_loss
 
         # compute and apply gradients
         gradients = tape.gradient(overall_loss, actor_critic.trainable_variables)
@@ -162,3 +165,5 @@ def optimize_actor_critic(actor_critic, mode, batched_mem, optimizer, tb_metrics
         pbar.set_postfix_str('{:.1f}% {:.3f}VL {:.3f}ML'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
                                                                 tb_metrics['val_loss'].result().numpy(),
                                                                 tb_metrics['move_loss'].result().numpy()))
+    # Update the weights on disk
+    actor_critic.save_weights(weights_path)

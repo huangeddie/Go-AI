@@ -108,8 +108,8 @@ class GreedyPolicy(Policy):
 
     def __call__(self, state, step):
         """
-        :param state: Unused variable since we already have the state stored in the tree
-        :param step: Parameter used for getting the temperature
+        :param state:
+        :param step:
         :return:
         """
         _, batch_qvals, _ = mcts.get_immediate_lookahead(state[np.newaxis], self.forward_func)
