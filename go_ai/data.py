@@ -4,6 +4,7 @@ import numpy as np
 import os
 import shutil
 import multiprocessing as mp
+import logging
 
 from go_ai import policies
 import queue
@@ -38,41 +39,13 @@ def get_invalid_values(states):
     invalid_values = np.finfo(np.float32).min * invalid_moves
     return invalid_values
 
+
 def random_symmetries(states):
     assert len(states.shape) == 4
     processed_states = []
     for state in states:
         processed_states.append(gogame.random_symmetry(state))
     return np.array(processed_states)
-
-
-def add_to_replay_mem(replay_mem, state, action_1d, next_state, reward, done, win):
-    """
-    Adds original event, plus augmented versions of those events
-    States are assumed to be (6, BOARD_SIZE, BOARD_SIZE)
-    """
-    assert len(state.shape) == 3 and state.shape[1] == state.shape[2]
-    board_size = state.shape[1]
-    num_channels = state.shape[0]
-
-    if action_1d < board_size ** 2:
-        action_2d_one_hot = np.eye(board_size ** 2)[action_1d].reshape(1, board_size, board_size)
-    else:
-        action_2d_one_hot = np.zeros((1, board_size, board_size))
-
-    chunk = np.concatenate([state, action_2d_one_hot, next_state], axis=0)
-
-    orientations = [chunk]
-    for oriented_chunk in orientations:
-        s = oriented_chunk[:num_channels]
-        a = oriented_chunk[num_channels]
-        if np.count_nonzero(a) == 0:
-            a = board_size ** 2
-        else:
-            a = np.argmax(a)
-        ns = oriented_chunk[num_channels + 1:]
-        assert ns.shape[0] == num_channels
-        replay_mem.append((s, a, ns, reward, done, win))
 
 
 def add_traj_to_replay_mem(replay_mem, black_won, trajectory):
@@ -90,7 +63,7 @@ def add_traj_to_replay_mem(replay_mem, black_won, trajectory):
         else:
             win = -black_won
 
-        add_to_replay_mem(replay_mem, canonical_state, action, canonical_next_state, reward, done, win)
+        replay_mem.append((canonical_state, action, canonical_next_state, reward, done, win))
 
 
 def replay_mem_to_numpy(replay_mem):
@@ -199,44 +172,56 @@ def self_play(go_env, policy, get_trajectory=False):
     return pit(go_env, black_policy=policy, white_policy=policy, get_trajectory=get_trajectory)
 
 
-def exec_eps_job(episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args, out):
+def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args, second_policy_args, out):
     """
     Continously executes episode jobs from the episode job queue until there are no more jobs
     :param episode_queue:
     :param first_policy_won_queue:
-    :param board_size:
     :param first_policy_args:
     :param second_policy_args:
     :param out: If outpath is specified, the replay memory is store in that path
     :return:
     """
+    assert first_policy_args['board_size'] == second_policy_args['board_size']
+    board_size = first_policy_args['board_size']
     go_env = gym.make('gym_go:go-v0', size=board_size)
-    first_policy = policies.make_policy(first_policy_args, board_size)
+    first_policy = policies.make_policy(first_policy_args)
     if first_policy_args == second_policy_args:
         second_policy = first_policy
     else:
-        second_policy = policies.make_policy(second_policy_args, board_size)
+        second_policy = policies.make_policy(second_policy_args)
 
     get_memory = out is not None
 
     replay_mem = []
     pbar = tqdm(desc='Episode worker', leave=True, position=0)
     while not episode_queue.empty():
-        first_policy_black = episode_queue.get()
+        try:
+            first_policy_black = episode_queue.get(timeout=1)
+        except Exception as e:
+            print(e)
+            continue
 
         if first_policy_black:
             black_policy, white_policy = first_policy, second_policy
         else:
             black_policy, white_policy = second_policy, first_policy
 
-        black_won, trajectory = pit(go_env, black_policy=black_policy, white_policy=white_policy,
-                                    get_trajectory=get_memory)
+        try:
+            black_won, trajectory = pit(go_env, black_policy=black_policy, white_policy=white_policy,
+                                        get_trajectory=get_memory)
 
-        # Add trajectory to replay memory
-        if get_memory:
-            add_traj_to_replay_mem(replay_mem, black_won, trajectory)
+            # Add trajectory to replay memory
+            if get_memory:
+                add_traj_to_replay_mem(replay_mem, black_won, trajectory)
 
-        first_policy_won = black_won if first_policy_black else -black_won
+            first_policy_won = black_won if first_policy_black else -black_won
+        except Exception as e:
+            # Failed to create an episode, so we put the job back
+            print(e)
+            episode_queue.put(first_policy_black)
+            raise e
+
         first_policy_won_queue.put((first_policy_won + 1) / 2)
 
         pbar.update(1)
@@ -244,16 +229,14 @@ def exec_eps_job(episode_queue, first_policy_won_queue, board_size, first_policy
     pbar.close()
 
     if get_memory and len(replay_mem) > 0:
-        np.random.shuffle(replay_mem)
         data = replay_mem_to_numpy(replay_mem)
         np.savez(out, *data)
 
 
-def make_episodes(board_size, first_policy_args, second_policy_args, episodes, num_workers,
+def make_episodes(first_policy_args, second_policy_args, episodes, num_workers,
                   outdir=None):
     """
     Multiprocessing of pitting the first policy against the second policy
-    :param board_size:
     :param first_policy_args:
     :param second_policy_args:
     :param episodes:
@@ -262,6 +245,7 @@ def make_episodes(board_size, first_policy_args, second_policy_args, episodes, n
     :return: The win rate of the first policy against the second policy
     """
     ctx = mp.get_context('spawn')
+    assert first_policy_args['board_size'] == second_policy_args['board_size']
 
     # Create job queue specific to whether or not we're doing multiprocessing
     if num_workers > 1:
@@ -285,7 +269,7 @@ def make_episodes(board_size, first_policy_args, second_policy_args, episodes, n
             shutil.rmtree(outdir)
             os.makedirs(outdir)
         worker_out = os.path.join(outdir, 'worker_0.npz')
-    base_eps_job_args = [episode_queue, first_policy_won_queue, board_size, first_policy_args, second_policy_args]
+    base_eps_job_args = [episode_queue, first_policy_won_queue, first_policy_args, second_policy_args]
 
     # Launch the workers
     processes = []
@@ -304,7 +288,7 @@ def make_episodes(board_size, first_policy_args, second_policy_args, episodes, n
 
     # Collect the results
     wins = []
-    pbar = tqdm(range(episodes), desc='Episodes')
+    pbar = tqdm(range(episodes), desc=f"{first_policy_args['mode']} vs. {second_policy_args['mode']}")
     for _ in pbar:
         first_policy_won = first_policy_won_queue.get()
         wins.append(first_policy_won)
@@ -324,16 +308,33 @@ def episodes_from_dir(episodes_dir):
         * worker_1.npz
         * ...
 
-    worker_n.npz are files arrays of [states, actions, next_states, rewards, terminals, wins, mct_pis]
+    worker_n.npz are files in the format [states, actions, next_states, rewards, terminals, wins]
     :param episodes_dir:
-    :return: all of [states, actions, next_states, rewards, terminals, wins] concatenated and shuffled
+    :return: all of [states, actions, next_states, rewards, terminals, wins] concatenated shuffled
     """
-    data = []
+    worker_data = []
     for file in os.listdir(episodes_dir):
         if file[0] == '.':
             continue
         data_batch = np.load(os.path.join(episodes_dir, file))
-        data.append([data_batch[file] for file in data_batch.files])
-    foo = list(zip(*data))
-    np_data = [np.concatenate(bar) for bar in foo]
-    return np_data
+        worker_data.append([data_batch[file] for file in data_batch.files])
+
+    # Worker data is a list.
+    # Each element of the list is in the form
+    # [states, actions, next_states, rewards, terminals, wins]
+    batched_data = list(zip(*worker_data))
+    # Batched data is in the form
+    # [[[batch of states],...,[batch of states]], [[batch of actions],...],...]
+
+    combined_data = []
+    for batches in batched_data:
+        combined_data.append(np.concatenate(batches))
+
+    # Shuffle
+    data_len = len(combined_data[0])
+    perm = np.random.permutation(data_len)
+    for i in range(len(combined_data)):
+        assert len(combined_data[i]) == data_len
+        combined_data[i] = combined_data[i][perm]
+
+    return combined_data

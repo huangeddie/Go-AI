@@ -5,7 +5,8 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 import gym
 
-from go_ai import data, policies, models, mcts
+from go_ai import data, policies, mcts
+from go_ai.models import actor_critic, value_model
 
 go_env = gym.make('gym_go:go-v0', size=0)
 gogame = go_env.gogame
@@ -38,10 +39,10 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None):
     plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
 
 
-def state_responses_helper(actor_critic, states, taken_actions, next_states, rewards, terminals, wins):
+def state_responses_helper(policy_args, states, taken_actions, next_states, rewards, terminals, wins):
     """
     Helper function for state_responses
-    :param actor_critic:
+    :param policy_args:
     :param states:
     :param taken_actions:
     :param next_states:
@@ -63,11 +64,27 @@ def state_responses_helper(actor_critic, states, taken_actions, next_states, rew
 
     board_size = states[0].shape[1]
 
-    forward_func = models.make_forward_func(actor_critic)
-    move_probs, move_vals = forward_func(states)
+    if policy_args['mode'] == 'actor_critic':
+        model = actor_critic.make_actor_critic(board_size)
+        model.load_weights(policy_args['model_path'])
+        forward_func = actor_critic.make_forward_func(model)
+        move_probs, move_vals = forward_func(states)
 
-    state_vals = tf.reduce_sum(move_probs * move_vals, axis=1)
-    _, qvals, _ = mcts.get_immediate_lookahead(states, forward_func=forward_func)
+        state_vals = tf.reduce_sum(move_probs * move_vals, axis=1)
+        _, qvals, _ = mcts.pi_qval_from_actor_critic(states, forward_func=forward_func)
+    elif policy_args['mode'] == 'values':
+        model = value_model.make_val_net(board_size)
+        model.load_weights(policy_args['model_path'])
+        forward_func = value_model.make_forward_func(model)
+        policy = policies.GreedyPolicy(forward_func)
+        move_probs = []
+        for state in states:
+            move_probs.append(policy(state))
+        state_vals = forward_func(states)
+        qvals = mcts.qval_from_stateval(states, forward_func)
+
+    else:
+        raise Exception("Unknown policy mode")
 
     valid_moves = data.get_valid_moves(states)
 
@@ -89,7 +106,7 @@ def state_responses_helper(actor_critic, states, taken_actions, next_states, rew
         curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-        plot_move_distr('Actor Critic', move_probs[i], valid_moves[i], scalar=state_vals[i].numpy().item())
+        plot_move_distr('Model', move_probs[i], valid_moves[i], scalar=state_vals[i].item())
         curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
@@ -103,9 +120,9 @@ def state_responses_helper(actor_critic, states, taken_actions, next_states, rew
     return fig
 
 
-def state_responses(actor_critic, replay_mem):
+def state_responses(policy_args, replay_mem):
     """
-    :param actor_critic: The model
+    :param policy_args: The model
     :param replay_mem: List of events
     :return: The figure visualizing responses of the model
     on those events
@@ -113,18 +130,30 @@ def state_responses(actor_critic, replay_mem):
     states, actions, next_states, rewards, terminals, wins = data.replay_mem_to_numpy(replay_mem)
     assert len(states[0].shape) == 3 and states[0].shape[1] == states[0].shape[2], states[0].shape
 
-    fig = state_responses_helper(actor_critic, states, actions, next_states, rewards, terminals, wins)
+    fig = state_responses_helper(policy_args, states, actions, next_states, rewards, terminals, wins)
     return fig
 
 
-def gen_traj_fig(go_env, weights_path):
-    actor_critic = models.make_actor_critic(go_env.size)
-    actor_critic.load_weights(weights_path)
-    policy = policies.ActorCriticPolicy(actor_critic)
+def gen_traj_fig(go_env, policy_args):
+    board_size = policy_args['board_size']
+    weight_path = policy_args['model_path']
+
+    if policy_args['mode'] == 'actor_critic':
+        model = actor_critic.make_actor_critic(board_size)
+        model.load_weights(weight_path)
+        policy = policies.ActorCriticPolicy(actor_critic)
+    elif policy_args['mode'] == 'values':
+        model = value_model.make_val_net(board_size)
+        model.load_weights(weight_path)
+        forward_func = value_model.make_forward_func(model)
+        policy = policies.GreedyPolicy(forward_func)
+    else:
+        raise Exception("Unknown policy mode")
+
     black_won, traj = data.self_play(go_env, policy=policy, get_trajectory=True)
     replay_mem = []
     data.add_traj_to_replay_mem(replay_mem, black_won, traj)
-    fig = state_responses(actor_critic, replay_mem)
+    fig = state_responses(policy_args, replay_mem)
     return fig
 
 

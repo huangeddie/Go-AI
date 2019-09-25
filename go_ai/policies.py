@@ -1,5 +1,5 @@
-import go_ai.data
-from go_ai import models, mcts
+from go_ai import mcts, data
+from go_ai.models import actor_critic, value_model
 import gym
 import numpy as np
 from sklearn.preprocessing import normalize
@@ -82,40 +82,18 @@ class HumanPolicy(Policy):
 
 
 class GreedyPolicy(Policy):
-    def __init__(self, state):
-        board_area = gogame.get_action_size(state) - 1
-        board_length = int(board_area ** 0.5)
-
-        def forward_func(states):
-            batch_size = states.shape[0]
-            vals = []
-            for state in states:
-                black_area, white_area = gogame.get_areas(state)
-                if gogame.get_game_ended(state):
-                    if black_area > white_area:
-                        val = 1
-                    elif black_area < white_area:
-                        val = -1
-                    else:
-                        val = 0
-                else:
-                    val = (black_area - white_area) / board_area
-                vals.append(val)
-            vals = np.array(vals, dtype=np.float)
-            action_probs = np.ones((batch_size, board_length)) / board_length
-            return action_probs, vals[:, np.newaxis]
-
+    def __init__(self, forward_func):
         self.forward_func = forward_func
 
-    def __call__(self, state, step):
+    def __call__(self, state, step=0):
         """
         :param state:
         :param step:
         :return:
         """
-        _, batch_qvals, _ = mcts.get_immediate_lookahead(state[np.newaxis], self.forward_func)
+        batch_qvals = mcts.qval_from_stateval(state[np.newaxis], self.forward_func)
         qvals = batch_qvals[0]
-        invalid_qs = go_ai.data.get_invalid_values(state[np.newaxis])
+        invalid_qs = data.get_invalid_values(state[np.newaxis])
         assert invalid_qs[0].shape == qvals.shape
         qvals += invalid_qs[0]
 
@@ -127,7 +105,7 @@ class GreedyPolicy(Policy):
 
 class MctPolicy(Policy):
     def __init__(self, network, state, mc_sims, temp_func=lambda step: (1 / 8) if (step < 16) else 0):
-        forward_func = models.make_forward_func(network)
+        forward_func = actor_critic.make_forward_func(network)
 
         self.forward_func = forward_func
         self.mc_sims = mc_sims
@@ -154,10 +132,9 @@ class MctPolicy(Policy):
     def reset(self):
         self.tree.reset()
 
-
 class ActorCriticPolicy(Policy):
     def __init__(self, network):
-        forward_func = models.make_forward_func(network)
+        forward_func = actor_critic.make_forward_func(network)
 
         self.forward_func = forward_func
 
@@ -171,17 +148,26 @@ class ActorCriticPolicy(Policy):
         return action_probs[0]
 
 
-def make_policy(policy_args, board_size):
-    state = go_env.gogame.get_init_board(board_size)
+def make_policy(policy_args):
+    board_size = policy_args['board_size']
 
-    if policy_args['mode'] == 'actor_critic':
-        actor_critic = models.make_actor_critic(board_size)
-        actor_critic.load_weights(policy_args['model_path'])
+    if policy_args['mode'] == 'values':
+        model = value_model.make_val_net(board_size)
+        model.load_weights(policy_args['model_path'])
+        forward_func = value_model.make_forward_func(model)
+        policy = GreedyPolicy(forward_func)
+
+    elif policy_args['mode'] == 'actor_critic':
+        model = actor_critic.make_actor_critic(board_size)
+        model.load_weights(policy_args['model_path'])
         policy = ActorCriticPolicy(actor_critic)
+
     elif policy_args['mode'] == 'random':
         policy = RandomPolicy()
+
     elif policy_args['mode'] == 'greedy':
-        policy = GreedyPolicy(state)
+        policy = GreedyPolicy(value_model.greedy_vals)
+
     else:
         raise Exception("Unknown policy mode")
 

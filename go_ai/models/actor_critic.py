@@ -3,6 +3,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 from tqdm import tqdm
 from go_ai import data, mcts
+from sklearn.preprocessing import normalize
 
 
 def make_actor_critic(board_size, critic_mode='val_net', critic_activation='tanh'):
@@ -83,7 +84,7 @@ def make_forward_func(network):
     return forward_func
 
 
-def optimize_actor_critic(weights_path, board_size, batched_mem, optimizer, tb_metrics):
+def optimize_actor_critic(policy_args, batched_mem, learning_rate, tb_metrics):
     """
     Loads in parameters from disk and updates them from the batched memory (saves the new parameters back to disk)
     :param actor_critic:
@@ -95,29 +96,35 @@ def optimize_actor_critic(weights_path, board_size, batched_mem, optimizer, tb_m
     :return:
     """
     # Load model from disk
-    actor_critic = make_actor_critic(board_size)
-    actor_critic.load_weights(weights_path)
+    actor_critic = make_actor_critic(policy_args['board_size'])
+    actor_critic.load_weights(policy_args['model_path'])
     forward_func = make_forward_func(actor_critic)
 
+    # Define optimizer
+    optimizer = tf.keras.optimizers.Adam(learning_rate)
+
     # Define criterion
-    sparse_cat_cross_entropy = tf.keras.losses.SparseCategoricalCrossentropy()
+    cat_cross_entropy = tf.keras.losses.CategoricalCrossentropy()
     mean_squared_error = tf.keras.losses.MeanSquaredError()
 
     # Iterate through data
     pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
     for states, actions, next_states, rewards, terminals, wins in pbar:
+        batch_size = states.shape[0]
         wins = wins[:, np.newaxis]
 
         # Augment states
         states = data.random_symmetries(states)
 
         # Get Q values of current critic
-        _, qvals, _ = mcts.get_immediate_lookahead(states, forward_func)
-        invalid_values = data.get_invalid_values(states)
-        qvals += invalid_values
+        _, qvals, _ = mcts.pi_qval_from_actor_critic(states, forward_func)
+        valid_moves = data.get_valid_moves(states)
+        min_qvals = np.min(qvals, axis=1, keepdims=True)
+        qvals += min_qvals
+        qvals += 1e-7 * valid_moves
+        qvals *= valid_moves
 
-        # Use Q values for policy iteration
-        best_actions = np.argmax(qvals, axis=1)
+        target_pis = normalize(qvals ** 2, norm='l1')
 
         with tf.GradientTape() as tape:
             move_prob_distrs, state_vals = forward_pass(states, actor_critic, training=True)
@@ -130,11 +137,11 @@ def optimize_actor_critic(weights_path, board_size, batched_mem, optimizer, tb_m
             tb_metrics['pred_win_acc'].update_state(wins_01, state_vals > 0)
 
             # Actor
-            actor_loss = sparse_cat_cross_entropy(best_actions, move_prob_distrs)
+            actor_loss = cat_cross_entropy(target_pis, move_prob_distrs)
             tb_metrics['move_loss'].update_state(actor_loss)
 
             # Overall Loss
-            overall_loss = critic_loss + actor_loss
+            overall_loss = critic_loss + 0 * actor_loss
 
         # compute and apply gradients
         gradients = tape.gradient(overall_loss, actor_critic.trainable_variables)
@@ -145,4 +152,4 @@ def optimize_actor_critic(weights_path, board_size, batched_mem, optimizer, tb_m
                                                                       tb_metrics['val_loss'].result().numpy(),
                                                                       tb_metrics['move_loss'].result().numpy()))
     # Update the weights on disk
-    actor_critic.save_weights(weights_path)
+    actor_critic.save_weights(policy_args['model_path'])
