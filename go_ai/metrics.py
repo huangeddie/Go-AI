@@ -102,11 +102,11 @@ def state_responses_helper(policy_args, states, taken_actions, next_states, rewa
         curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-        plot_move_distr('Q Vals', qvals[i], valid_moves[i])
+        plot_move_distr('Q Vals', qvals[i], valid_moves[i], scalar=state_vals[i].item())
         curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-        plot_move_distr('Model', move_probs[i], valid_moves[i], scalar=state_vals[i].item())
+        plot_move_distr('Model', move_probs[i], valid_moves[i])
         curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)

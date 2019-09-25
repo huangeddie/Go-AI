@@ -177,7 +177,8 @@ def make_policy(policy_args):
 
     elif policy_args['mode'] == 'greedy':
         policy = GreedyPolicy(value_model.greedy_vals)
-
+    elif policy_args['mode'] == 'human':
+        policy = HumanPolicy()
     else:
         raise Exception("Unknown policy mode")
 
