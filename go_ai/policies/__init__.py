@@ -1,6 +1,5 @@
 import go_ai.montecarlo
 from go_ai.montecarlo import tree
-from go_ai.models import actor_critic, value_model
 import gym
 import numpy as np
 from sklearn.preprocessing import normalize
@@ -58,6 +57,7 @@ class HumanPolicy(Policy):
         :return: Action probabilities
         """
         valid_moves = GoGame.get_valid_moves(state)
+        player_action = None
         while True:
             print(GoGame.str(state))
             coords = input("Enter coordinates separated by space (`q` to quit)\n")
@@ -105,7 +105,7 @@ class GreedyPolicy(Policy):
         qvals += 1e-7
         qvals = qvals * valid_moves
 
-        if step < 4:
+        if step < 8:
             # Temperated
             target_pis = normalize(qvals[np.newaxis], norm='l1')[0]
         else:
@@ -119,9 +119,7 @@ class GreedyPolicy(Policy):
 
 
 class MctPolicy(Policy):
-    def __init__(self, network, state, mc_sims, temp_func=lambda step: (1 / 8) if (step < 16) else 0):
-        forward_func = actor_critic.make_forward_func(network)
-
+    def __init__(self, forward_func, state, mc_sims, temp_func=lambda step: (1 / 8) if (step < 16) else 0):
         self.forward_func = forward_func
         self.mc_sims = mc_sims
         self.temp_func = temp_func
@@ -148,48 +146,9 @@ class MctPolicy(Policy):
         self.tree.reset()
 
 
-class ActorCriticPolicy(Policy):
-    def __init__(self, network):
-        forward_func = actor_critic.make_forward_func(network)
-
-        self.forward_func = forward_func
-
-    def __call__(self, state, step):
-        """
-        :param state: Unused variable since we already have the state stored in the tree
-        :param step: Parameter used for getting the temperature
-        :return:
-        """
-        action_probs, _ = self.forward_func(state[np.newaxis])
-        return action_probs[0]
-
-
-def make_policy(policy_args):
-    """
-    :param policy_args: A dictionary of policy arguments
-    :return: A policy
-    """
-    board_size = policy_args['board_size']
-
-    if policy_args['mode'] == 'values':
-        model = value_model.make_val_net(board_size)
-        model.load_weights(policy_args['model_path'])
-        val_func = value_model.make_val_func(model)
-        policy = GreedyPolicy(val_func)
-
-    elif policy_args['mode'] == 'actor_critic':
-        model = actor_critic.make_actor_critic(board_size)
-        model.load_weights(policy_args['model_path'])
-        policy = ActorCriticPolicy(actor_critic)
-
-    elif policy_args['mode'] == 'random':
-        policy = RandomPolicy()
-
-    elif policy_args['mode'] == 'greedy':
-        policy = GreedyPolicy(value_model.greedy_val_func)
-    elif policy_args['mode'] == 'human':
-        policy = HumanPolicy()
-    else:
-        raise Exception("Unknown policy mode")
-
-    return policy
+class PolicyArgs:
+    def __init__(self, mode, board_size, weight_path=None, name=None):
+        self.mode = mode
+        self.board_size = board_size
+        self.weight_path = weight_path
+        self.name = name if name is not None else mode

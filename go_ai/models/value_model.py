@@ -2,6 +2,8 @@ import gym
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
+
+from go_ai import policies
 from go_ai import data
 from tqdm import tqdm
 
@@ -47,9 +49,10 @@ def make_val_func(val_net):
     return forward_func
 
 
-def optimize_val_net(value_model_args, batched_mem, learning_rate):
+def optimize_val_net(value_model_args: policies.PolicyArgs, batched_mem, learning_rate):
     """
     Loads in parameters from disk and updates them from the batched memory (saves the new parameters back to disk)
+    :param value_model_args:
     :param actor_critic:
     :param just_critic: Dictates whether we update just the critic portion
     :param batched_mem:
@@ -59,8 +62,8 @@ def optimize_val_net(value_model_args, batched_mem, learning_rate):
     :return:
     """
     # Load model from disk
-    val_net = make_val_net(value_model_args['board_size'])
-    val_net.load_weights(value_model_args['model_path'])
+    val_net = make_val_net(value_model_args.board_size)
+    val_net.load_weights(value_model_args.weight_path)
 
     # Define optimizer
     optimizer = tf.keras.optimizers.Adam(learning_rate)
@@ -98,7 +101,7 @@ def optimize_val_net(value_model_args, batched_mem, learning_rate):
         pbar.set_postfix_str('{:.1f}% ACC, {:.3f}VL'.format(100 * pred_metric.result().numpy(),
                                                             loss_metric.result().numpy()))
     # Update the weights on disk
-    val_net.save_weights(value_model_args['model_path'])
+    val_net.save_weights(value_model_args.weight_path)
 
 
 def greedy_val_func(states):

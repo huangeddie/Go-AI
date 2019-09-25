@@ -1,7 +1,7 @@
 from sklearn.preprocessing import normalize
 import numpy as np
 
-from go_ai.montecarlo import GoGame, pi_qval_from_actor_critic
+from go_ai.montecarlo import GoGame, piqval_from_actorcritic
 from go_ai.montecarlo.node import Node
 
 
@@ -108,8 +108,8 @@ class MCTree:
         valid_move_idcs = GoGame.get_valid_moves(node.state)
         valid_move_idcs = np.argwhere(valid_move_idcs > 0).flatten()
 
-        batch_pis, batch_qvals, batch_canonical_children = pi_qval_from_actor_critic(node.state[np.newaxis],
-                                                                                     self.forward_func)
+        batch_pis, batch_qvals, batch_canonical_children = piqval_from_actorcritic(node.state[np.newaxis],
+                                                                                   self.forward_func)
         for idx, move in enumerate(valid_move_idcs):
             Node((node, move), batch_pis[0][idx], batch_qvals[0][idx], batch_canonical_children[0][idx])
 

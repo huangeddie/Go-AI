@@ -4,9 +4,10 @@ import numpy as np
 import os
 import shutil
 import multiprocessing as mp
-
-from go_ai import policies
 import queue
+
+import go_ai.policies
+from go_ai.policies import pmaker
 
 go_env = gym.make('gym_go:go-v0', size=0)
 GoVars = go_env.govars
@@ -164,7 +165,8 @@ def self_play(go_env, policy, get_trajectory=False):
     return pit(go_env, black_policy=policy, white_policy=policy, get_trajectory=get_trajectory)
 
 
-def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args, second_policy_args, out):
+def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: go_ai.policies.PolicyArgs,
+                 second_policy_args: go_ai.policies.PolicyArgs, out):
     """
     Continously executes episode jobs from the episode job queue until there are no more jobs
     :param episode_queue:
@@ -174,14 +176,14 @@ def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args, secon
     :param out: If outpath is specified, the replay memory is store in that path
     :return:
     """
-    assert first_policy_args['board_size'] == second_policy_args['board_size']
-    board_size = first_policy_args['board_size']
+    assert first_policy_args.board_size == second_policy_args.board_size
+    board_size = first_policy_args.board_size
     go_env = gym.make('gym_go:go-v0', size=board_size)
-    first_policy = policies.make_policy(first_policy_args)
+    first_policy = pmaker.make_policy(first_policy_args)
     if first_policy_args == second_policy_args:
         second_policy = first_policy
     else:
-        second_policy = policies.make_policy(second_policy_args)
+        second_policy = pmaker.make_policy(second_policy_args)
 
     get_memory = out is not None
 
@@ -225,8 +227,8 @@ def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args, secon
         np.savez(out, *data)
 
 
-def make_episodes(first_policy_args, second_policy_args, episodes, num_workers,
-                  outdir=None):
+def make_episodes(first_policy_args: go_ai.policies.PolicyArgs, second_policy_args: go_ai.policies.PolicyArgs, episodes,
+                  num_workers, outdir=None):
     """
     Multiprocessing of pitting the first policy against the second policy
     :param first_policy_args:
@@ -237,7 +239,7 @@ def make_episodes(first_policy_args, second_policy_args, episodes, num_workers,
     :return: The win rate of the first policy against the second policy
     """
     ctx = mp.get_context('spawn')
-    assert first_policy_args['board_size'] == second_policy_args['board_size']
+    assert first_policy_args.board_size == second_policy_args.board_size
 
     # Create job queue specific to whether or not we're doing multiprocessing
     if num_workers > 1:
@@ -280,7 +282,7 @@ def make_episodes(first_policy_args, second_policy_args, episodes, num_workers,
 
     # Collect the results
     wins = []
-    pbar = tqdm(range(episodes), desc=f"{first_policy_args['name']} vs. {second_policy_args['name']}")
+    pbar = tqdm(range(episodes), desc=f"{first_policy_args.name} vs. {second_policy_args.name}")
     for _ in pbar:
         first_policy_won = first_policy_won_queue.get()
         wins.append(first_policy_won)

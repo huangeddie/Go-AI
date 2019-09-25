@@ -4,9 +4,10 @@ import tensorflow as tf
 from matplotlib import pyplot as plt
 import gym
 
-import go_ai.montecarlo
-from go_ai import data, policies
+import go_ai.policies
+from go_ai import data, policies, montecarlo
 from go_ai.models import actor_critic, value_model
+from go_ai.policies import pmaker
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -63,7 +64,8 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None):
     plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
 
 
-def state_responses_helper(policy_args, states, taken_actions, next_states, rewards, terminals, wins):
+def state_responses_helper(policy_args: go_ai.policies.PolicyArgs, states, taken_actions, next_states, rewards, terminals,
+                           wins):
     """
     Helper function for state_responses
     :param policy_args:
@@ -88,24 +90,24 @@ def state_responses_helper(policy_args, states, taken_actions, next_states, rewa
 
     board_size = states[0].shape[1]
 
-    if policy_args['mode'] == 'actor_critic':
+    if policy_args.mode == 'actor_critic':
         model = actor_critic.make_actor_critic(board_size)
-        model.load_weights(policy_args['model_path'])
+        model.load_weights(policy_args.weight_path)
         forward_func = actor_critic.make_forward_func(model)
         move_probs, move_vals = forward_func(states)
 
         state_vals = tf.reduce_sum(move_probs * move_vals, axis=1)
-        _, qvals, _ = go_ai.montecarlo.pi_qval_from_actor_critic(states, forward_func=forward_func)
-    elif policy_args['mode'] == 'values':
+        _, qvals, _ = montecarlo.piqval_from_actorcritic(states, forward_func=forward_func)
+    elif policy_args.mode == 'values':
         model = value_model.make_val_net(board_size)
-        model.load_weights(policy_args['model_path'])
+        model.load_weights(policy_args.weight_path)
         forward_func = value_model.make_val_func(model)
         policy = policies.GreedyPolicy(forward_func)
         move_probs = []
         for i, state in enumerate(states):
             move_probs.append(policy(state, i))
         state_vals = forward_func(states)
-        qvals = go_ai.montecarlo.qval_from_stateval(states, forward_func)
+        qvals = montecarlo.qval_from_stateval(states, forward_func)
 
     else:
         raise Exception("Unknown policy mode")
@@ -165,7 +167,7 @@ def gen_traj_fig(go_env, policy_args):
     :param policy_args:
     :return: A plot of the game including the policy's responses to each state
     """
-    policy = policies.make_policy(policy_args)
+    policy = pmaker.make_policy(policy_args)
 
     _, traj = data.self_play(go_env, policy=policy, get_trajectory=True)
     fig = state_responses(policy_args, traj)

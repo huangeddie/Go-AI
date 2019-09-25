@@ -3,9 +3,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 from tqdm import tqdm
 
-import go_ai.montecarlo
-from go_ai import data
-from go_ai.montecarlo import tree
+from go_ai import data, policies, montecarlo
 from sklearn.preprocessing import normalize
 
 
@@ -87,7 +85,7 @@ def make_forward_func(network):
     return forward_func
 
 
-def optimize_actor_critic(policy_args, batched_mem, learning_rate):
+def optimize_actor_critic(policy_args: policies.PolicyArgs, batched_mem, learning_rate):
     """
     Loads in parameters from disk and updates them from the batched memory (saves the new parameters back to disk)
     :param actor_critic:
@@ -99,8 +97,8 @@ def optimize_actor_critic(policy_args, batched_mem, learning_rate):
     :return:
     """
     # Load model from disk
-    actor_critic = make_actor_critic(policy_args['board_size'])
-    actor_critic.load_weights(policy_args['model_path'])
+    actor_critic = make_actor_critic(policy_args.board_size)
+    actor_critic.load_weights(policy_args.weight_path)
     forward_func = make_forward_func(actor_critic)
 
     # Define optimizer
@@ -125,7 +123,7 @@ def optimize_actor_critic(policy_args, batched_mem, learning_rate):
         states = data.batch_random_symmetries(states)
 
         # Get Q values of current critic
-        _, qvals, _ = go_ai.montecarlo.pi_qval_from_actor_critic(states, forward_func)
+        _, qvals, _ = montecarlo.piqval_from_actorcritic(states, forward_func)
         valid_moves = data.batch_valid_moves(states)
         min_qvals = np.min(qvals, axis=1, keepdims=True)
         qvals -= min_qvals
@@ -160,4 +158,4 @@ def optimize_actor_critic(policy_args, batched_mem, learning_rate):
                                                                       val_loss_metric.result().numpy(),
                                                                       move_loss_metric.result().numpy()))
     # Update the weights on disk
-    actor_critic.save_weights(policy_args['model_path'])
+    actor_critic.save_weights(policy_args.weight_path)

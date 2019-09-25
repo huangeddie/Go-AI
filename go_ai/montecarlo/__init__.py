@@ -64,7 +64,7 @@ def qval_from_stateval(states, val_func):
     return np.array(batch_qvals)
 
 
-def pi_qval_from_actor_critic(states, forward_func):
+def piqval_from_actorcritic(states, forward_func):
     """
     :param states:
     :param forward_func:
