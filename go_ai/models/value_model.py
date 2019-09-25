@@ -26,6 +26,10 @@ def make_val_net(board_size):
         layers.BatchNormalization(),
         layers.ReLU(),
 
+        layers.Conv2D(8, kernel_size=3, padding="same"),
+        layers.BatchNormalization(),
+        layers.ReLU(),
+
         layers.Flatten(),
 
         layers.Dense(256),
