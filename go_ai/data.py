@@ -280,7 +280,7 @@ def make_episodes(first_policy_args, second_policy_args, episodes, num_workers,
 
     # Collect the results
     wins = []
-    pbar = tqdm(range(episodes), desc=f"{first_policy_args['mode']} vs. {second_policy_args['mode']}")
+    pbar = tqdm(range(episodes), desc=f"{first_policy_args['name']} vs. {second_policy_args['name']}")
     for _ in pbar:
         first_policy_won = first_policy_won_queue.get()
         wins.append(first_policy_won)
