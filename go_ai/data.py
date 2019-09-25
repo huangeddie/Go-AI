@@ -4,66 +4,47 @@ import numpy as np
 import os
 import shutil
 import multiprocessing as mp
-import logging
 
 from go_ai import policies
 import queue
 
 go_env = gym.make('gym_go:go-v0', size=0)
-govars = go_env.govars
-gogame = go_env.gogame
+GoVars = go_env.govars
+GoGame = go_env.gogame
 
 
-def get_invalid_moves(states):
+def batch_invalid_moves(states):
     """
     Returns 1's where moves are invalid and 0's where moves are valid
     """
     assert len(states.shape) == 4
     batch_size = states.shape[0]
     board_size = states.shape[2]
-    invalid_moves = states[:, govars.INVD_CHNL].reshape((batch_size, -1))
+    invalid_moves = states[:, GoVars.INVD_CHNL].reshape((batch_size, -1))
     invalid_moves = np.insert(invalid_moves, board_size ** 2, 0, axis=1)
     return invalid_moves
 
 
-def get_valid_moves(states):
-    return 1 - get_invalid_moves(states)
+def batch_valid_moves(states):
+    return 1 - batch_invalid_moves(states)
 
 
-def get_invalid_values(states):
+def batch_invalid_values(states):
     """
     Returns the action values of the states where invalid moves have -infinity value (minimum value of float32)
     and valid moves have 0 value
     """
-    invalid_moves = get_invalid_moves(states)
+    invalid_moves = batch_invalid_moves(states)
     invalid_values = np.finfo(np.float32).min * invalid_moves
     return invalid_values
 
 
-def random_symmetries(states):
+def batch_random_symmetries(states):
     assert len(states.shape) == 4
     processed_states = []
     for state in states:
-        processed_states.append(gogame.random_symmetry(state))
+        processed_states.append(GoGame.random_symmetry(state))
     return np.array(processed_states)
-
-
-def add_traj_to_replay_mem(replay_mem, black_won, trajectory):
-    """
-    Adds a whole trajectory into the replay memory
-    :param replay_mem:
-    :param black_won:
-    :param trajectory:
-    :param forward_func:
-    :return:
-    """
-    for idx, (turn, canonical_state, action, canonical_next_state, reward, terminal) in enumerate(trajectory):
-        if turn == go_env.govars.BLACK:
-            win = black_won
-        else:
-            win = -black_won
-
-        replay_mem.append((canonical_state, action, canonical_next_state, reward, terminal, win))
 
 
 def replay_mem_to_numpy(replay_mem):
@@ -87,14 +68,15 @@ def replay_mem_to_numpy(replay_mem):
 def pit(go_env, black_policy, white_policy, get_trajectory=False):
     """
     Pits two policies against each other and returns the results
+    :param get_trajectory: Whether to store trajectory in memory
     :param go_env:
     :param black_policy:
     :param white_policy:
-    :param mc_sims:
-    :param temp_func:
     :return: Whether or not black won {1, 0, -1}, trajectory
         trajectory is a list of events where each event is of the form
-        (curr_turn, canonical_state, action, canonical_next_state, reward, done)
+        (canonical_state, action, canonical_next_state, reward, terminal, win)
+
+        Trajectory is empty list if get_trajectory is None
     """
     num_steps = 0
     state = go_env.reset()
@@ -112,21 +94,21 @@ def pit(go_env, black_policy, white_policy, get_trajectory=False):
         curr_turn = go_env.turn
 
         # Get canonical state for policy and memory
-        canonical_state = go_env.gogame.get_canonical_form(state, curr_turn)
+        canonical_state = GoGame.get_canonical_form(state, curr_turn)
 
         # Get an action
-        if curr_turn == go_env.govars.BLACK:
+        if curr_turn == GoVars.BLACK:
             action_probs = black_policy(state, step=num_steps)
         else:
-            assert curr_turn == go_env.govars.WHITE
+            assert curr_turn == GoVars.WHITE
             action_probs = white_policy(state, step=num_steps)
-        action = gogame.random_weighted_action(action_probs)
+        action = GoGame.random_weighted_action(action_probs)
 
         # Execute actions in environment and MCT tree
         next_state, reward, done, info = go_env.step(action)
 
         # Get canonical form of next state for memory
-        canonical_next_state = go_env.gogame.get_canonical_form(next_state, curr_turn)
+        canonical_next_state = GoGame.get_canonical_form(next_state, curr_turn)
 
         # Sync the policies
         black_policy.step(action)
@@ -157,7 +139,16 @@ def pit(go_env, black_policy, white_policy, get_trajectory=False):
     else:
         black_won = 0
 
-    return black_won, mem_cache
+    replay_mem = []
+    for turn, canonical_state, action, canonical_next_state, reward, terminal in mem_cache:
+        if turn == GoVars.BLACK:
+            win = black_won
+        else:
+            win = -black_won
+
+        replay_mem.append((canonical_state, action, canonical_next_state, reward, terminal, win))
+
+    return black_won, replay_mem
 
 
 def self_play(go_env, policy, get_trajectory=False):
@@ -214,7 +205,7 @@ def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args, secon
 
             # Add trajectory to replay memory
             if get_memory:
-                add_traj_to_replay_mem(replay_mem, black_won, trajectory)
+                replay_mem.extend(trajectory)
 
             first_policy_won = black_won if first_policy_black else -black_won
         except Exception as e:
@@ -304,6 +295,7 @@ def make_episodes(first_policy_args, second_policy_args, episodes, num_workers,
 
 def episodes_from_dir(episodes_dir):
     """
+    Loades episode data from a given directory
     episode_dir ->
         * worker_0.npz
         * worker_1.npz

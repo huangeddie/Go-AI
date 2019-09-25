@@ -2,14 +2,14 @@ import io
 import numpy as np
 import tensorflow as tf
 from matplotlib import pyplot as plt
-from tqdm import tqdm
 import gym
 
-from go_ai import data, policies, mcts
+import go_ai.montecarlo
+from go_ai import data, policies
 from go_ai.models import actor_critic, value_model
 
-go_env = gym.make('gym_go:go-v0', size=0)
-gogame = go_env.gogame
+GoGame = gym.make('gym_go:go-v0', size=0).gogame
+
 
 def matplot_format(state):
     """
@@ -21,10 +21,34 @@ def matplot_format(state):
     return state.transpose(1, 2, 0)[:, :, [0, 1, 4]].astype(np.float)
 
 
+def figure_to_image(figure):
+    """Converts the matplotlib plot specified by 'figure' to a PNG image and
+    returns it. The supplied figure is closed and inaccessible after this call."""
+    # Save the plot to a PNG in memory.
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    # Closing the figure prevents it from being displayed directly inside
+    # the notebook.
+    plt.close(figure)
+    buf.seek(0)
+    # Convert PNG buffer to TF image
+    image = tf.image.decode_png(buf.getvalue(), channels=4)
+    # Add the batch dimension
+    image = tf.expand_dims(image, 0)
+    return image
+
+
 def plot_move_distr(title, move_distr, valid_moves, scalar=None):
     """
-    Takes in a 1d array of move values and plots its heatmap
+
+    :param title:
+    :param move_distr:
+    :param valid_moves:
+    :param scalar:
+    :return: A heat map of the move distribution including text displaying the range of the move values as well as an
+    optional arbitrary scalar value of the whole move distribution
     """
+
     board_size = int((len(move_distr) - 1) ** 0.5)
     plt.axis('off')
     valid_values = np.extract(valid_moves[:-1] == 1, move_distr[:-1])
@@ -71,22 +95,22 @@ def state_responses_helper(policy_args, states, taken_actions, next_states, rewa
         move_probs, move_vals = forward_func(states)
 
         state_vals = tf.reduce_sum(move_probs * move_vals, axis=1)
-        _, qvals, _ = mcts.pi_qval_from_actor_critic(states, forward_func=forward_func)
+        _, qvals, _ = go_ai.montecarlo.pi_qval_from_actor_critic(states, forward_func=forward_func)
     elif policy_args['mode'] == 'values':
         model = value_model.make_val_net(board_size)
         model.load_weights(policy_args['model_path'])
-        forward_func = value_model.make_forward_func(model)
+        forward_func = value_model.make_val_func(model)
         policy = policies.GreedyPolicy(forward_func)
         move_probs = []
         for i, state in enumerate(states):
             move_probs.append(policy(state, i))
         state_vals = forward_func(states)
-        qvals = mcts.qval_from_stateval(states, forward_func)
+        qvals = go_ai.montecarlo.qval_from_stateval(states, forward_func)
 
     else:
         raise Exception("Unknown policy mode")
 
-    valid_moves = data.get_valid_moves(states)
+    valid_moves = data.batch_valid_moves(states)
 
     num_states = states.shape[0]
     num_cols = 4
@@ -135,30 +159,21 @@ def state_responses(policy_args, replay_mem):
 
 
 def gen_traj_fig(go_env, policy_args):
-    board_size = policy_args['board_size']
-    weight_path = policy_args['model_path']
+    """
+    Plays out a self-play game
+    :param go_env:
+    :param policy_args:
+    :return: A plot of the game including the policy's responses to each state
+    """
+    policy = policies.make_policy(policy_args)
 
-    if policy_args['mode'] == 'actor_critic':
-        model = actor_critic.make_actor_critic(board_size)
-        model.load_weights(weight_path)
-        policy = policies.ActorCriticPolicy(actor_critic)
-    elif policy_args['mode'] == 'values':
-        model = value_model.make_val_net(board_size)
-        model.load_weights(weight_path)
-        forward_func = value_model.make_forward_func(model)
-        policy = policies.GreedyPolicy(forward_func)
-    else:
-        raise Exception("Unknown policy mode")
-
-    black_won, traj = data.self_play(go_env, policy=policy, get_trajectory=True)
-    replay_mem = []
-    data.add_traj_to_replay_mem(replay_mem, black_won, traj)
-    fig = state_responses(policy_args, replay_mem)
+    _, traj = data.self_play(go_env, policy=policy, get_trajectory=True)
+    fig = state_responses(policy_args, traj)
     return fig
 
 
 def plot_symmetries(next_state, outpath):
-    symmetrical_next_states = gogame.get_symmetries(next_state)
+    symmetrical_next_states = GoGame.get_symmetries(next_state)
 
     cols = len(symmetrical_next_states)
     plt.figure(figsize=(3 * cols, 3))
@@ -171,42 +186,11 @@ def plot_symmetries(next_state, outpath):
     plt.close()
 
 
-def figure_to_image(figure):
-    """Converts the matplotlib plot specified by 'figure' to a PNG image and
-    returns it. The supplied figure is closed and inaccessible after this call."""
-    # Save the plot to a PNG in memory.
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png')
-    # Closing the figure prevents it from being displayed directly inside
-    # the notebook.
-    plt.close(figure)
-    buf.seek(0)
-    # Convert PNG buffer to TF image
-    image = tf.image.decode_png(buf.getvalue(), channels=4)
-    # Add the batch dimension
-    image = tf.expand_dims(image, 0)
-    return image
-
-
 def reset_metrics(metrics):
+    """
+    Resets tensorflow.keras metrics
+    :param metrics: A dictionary of TF metrics
+    :return:
+    """
     for key, metric in metrics.items():
         metric.reset_states()
-
-
-def evaluate(go_env, my_policy, opponent_policy, num_games):
-    win_metric = tf.keras.metrics.Mean()
-
-    pbar = tqdm(range(num_games), desc='Evaluation', leave=True, position=0)
-    for episode in pbar:
-        if episode % 2 == 0:
-            black_won, _ = data.pit(go_env, my_policy, opponent_policy)
-            win = (black_won + 1) / 2
-
-        else:
-            black_won, _ = data.pit(go_env, opponent_policy, my_policy)
-            win = (-black_won + 1) / 2
-
-        win_metric.update_state(win)
-        pbar.set_postfix_str('{} {:.1f}%'.format(win, 100 * win_metric.result().numpy()))
-
-    return win_metric.result().numpy()

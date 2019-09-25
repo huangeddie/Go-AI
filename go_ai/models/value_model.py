@@ -5,9 +5,7 @@ from tensorflow.keras import layers
 from go_ai import data
 from tqdm import tqdm
 
-go_env = gym.make('gym_go:go-v0', size=0)
-govars = go_env.govars
-gogame = go_env.gogame
+GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
 def make_val_net(board_size):
@@ -42,7 +40,7 @@ def make_val_net(board_size):
     return model
 
 
-def make_forward_func(val_net):
+def make_val_func(val_net):
     def forward_func(states):
         return val_net(states.transpose(0, 2, 3, 1).astype(np.float32), training=False).numpy()
 
@@ -63,7 +61,6 @@ def optimize_val_net(value_model_args, batched_mem, learning_rate, tb_metrics):
     # Load model from disk
     val_net = make_val_net(value_model_args['board_size'])
     val_net.load_weights(value_model_args['model_path'])
-    forward_func = make_forward_func(val_net)
 
     # Define optimizer
     optimizer = tf.keras.optimizers.Adam(learning_rate)
@@ -74,11 +71,10 @@ def optimize_val_net(value_model_args, batched_mem, learning_rate, tb_metrics):
     # Iterate through data
     pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
     for states, actions, next_states, rewards, terminals, wins in pbar:
-        batch_size = states.shape[0]
         wins = wins[:, np.newaxis]
 
         # Augment states
-        states = data.random_symmetries(states)
+        states = data.batch_random_symmetries(states)
 
         with tf.GradientTape() as tape:
             state_vals = val_net(states.transpose(0, 2, 3, 1).astype(np.float32), training=True)
@@ -101,13 +97,13 @@ def optimize_val_net(value_model_args, batched_mem, learning_rate, tb_metrics):
     val_net.save_weights(value_model_args['model_path'])
 
 
-def greedy_vals(states):
-    board_area = gogame.get_action_size(states[0]) - 1
+def greedy_val_func(states):
+    board_area = GoGame.get_action_size(states[0]) - 1
 
     vals = []
     for state in states:
-        black_area, white_area = gogame.get_areas(state)
-        if gogame.get_game_ended(state):
+        black_area, white_area = GoGame.get_areas(state)
+        if GoGame.get_game_ended(state):
             if black_area > white_area:
                 val = 1
             elif black_area < white_area:

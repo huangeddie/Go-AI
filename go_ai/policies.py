@@ -1,11 +1,11 @@
-from go_ai import mcts, data
+import go_ai.montecarlo
+from go_ai.montecarlo import tree
 from go_ai.models import actor_critic, value_model
 import gym
 import numpy as np
 from sklearn.preprocessing import normalize
 
-go_env = gym.make('gym_go:go-v0', size=0)
-gogame = go_env.gogame
+GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
 class Policy:
@@ -15,15 +15,16 @@ class Policy:
 
     def __call__(self, state, step):
         """
-        :param state:
-        :param step:
+        :param state: Go board
+        :param step: the number of steps taken in the game so far
         :return: Action probabilities
         """
         pass
 
     def step(self, action):
         """
-        Helps synchronize the policy with the outside environment
+        Helps synchronize the policy with the outside environment.
+        Most policies don't need to implement this function
         :param action:
         :return:
         """
@@ -31,7 +32,8 @@ class Policy:
 
     def reset(self):
         """
-        Helps synchronize the policy with the outside environment
+        Helps synchronize the policy with the outside environment.
+        Most policies don't need to implement this function
         :return:
         """
         pass
@@ -44,7 +46,7 @@ class RandomPolicy(Policy):
         :param step:
         :return: Action probabilities
         """
-        valid_moves = gogame.get_valid_moves(state)
+        valid_moves = GoGame.get_valid_moves(state)
         return valid_moves / np.sum(valid_moves)
 
 
@@ -55,9 +57,9 @@ class HumanPolicy(Policy):
         :param step:
         :return: Action probabilities
         """
-        valid_moves = gogame.get_valid_moves(state)
+        valid_moves = GoGame.get_valid_moves(state)
         while True:
-            print(gogame.str(state))
+            print(GoGame.str(state))
             coords = input("Enter coordinates separated by space (`q` to quit)\n")
             if coords == 'p':
                 player_action = None
@@ -70,20 +72,23 @@ class HumanPolicy(Policy):
                 except Exception as e:
                     print(e)
                     continue
-            player_action = gogame.action_2d_to_1d(player_action, state)
+            player_action = GoGame.action_2d_to_1d(player_action, state)
             if valid_moves[player_action]:
                 break
             else:
                 print("Invalid action")
 
-        action_probs = np.zeros(gogame.get_action_size(state))
+        action_probs = np.zeros(GoGame.get_action_size(state))
         action_probs[player_action] = 1
         return action_probs
 
 
 class GreedyPolicy(Policy):
-    def __init__(self, forward_func):
-        self.forward_func = forward_func
+    def __init__(self, val_func):
+        """
+        :param val_func: A function that takes in states and outputs corresponding values
+        """
+        self.val_func = val_func
 
     def __call__(self, state, step):
         """
@@ -91,10 +96,10 @@ class GreedyPolicy(Policy):
         :param step:
         :return:
         """
-        valid_moves = gogame.get_valid_moves(state)
+        valid_moves = GoGame.get_valid_moves(state)
         invalid_moves = 1 - valid_moves
 
-        batch_qvals = mcts.qval_from_stateval(state[np.newaxis], self.forward_func)
+        batch_qvals = go_ai.montecarlo.qval_from_stateval(state[np.newaxis], self.val_func)
         qvals = batch_qvals[0]
         qvals -= np.min(qvals)
         qvals += 1e-7
@@ -120,7 +125,7 @@ class MctPolicy(Policy):
         self.forward_func = forward_func
         self.mc_sims = mc_sims
         self.temp_func = temp_func
-        self.tree = mcts.MCTree(state, self.forward_func)
+        self.tree = tree.MCTree(state, self.forward_func)
 
     def __call__(self, state, step):
         """
@@ -142,6 +147,7 @@ class MctPolicy(Policy):
     def reset(self):
         self.tree.reset()
 
+
 class ActorCriticPolicy(Policy):
     def __init__(self, network):
         forward_func = actor_critic.make_forward_func(network)
@@ -159,13 +165,17 @@ class ActorCriticPolicy(Policy):
 
 
 def make_policy(policy_args):
+    """
+    :param policy_args: A dictionary of policy arguments
+    :return: A policy
+    """
     board_size = policy_args['board_size']
 
     if policy_args['mode'] == 'values':
         model = value_model.make_val_net(board_size)
         model.load_weights(policy_args['model_path'])
-        forward_func = value_model.make_forward_func(model)
-        policy = GreedyPolicy(forward_func)
+        val_func = value_model.make_val_func(model)
+        policy = GreedyPolicy(val_func)
 
     elif policy_args['mode'] == 'actor_critic':
         model = actor_critic.make_actor_critic(board_size)
@@ -176,7 +186,7 @@ def make_policy(policy_args):
         policy = RandomPolicy()
 
     elif policy_args['mode'] == 'greedy':
-        policy = GreedyPolicy(value_model.greedy_vals)
+        policy = GreedyPolicy(value_model.greedy_val_func)
     elif policy_args['mode'] == 'human':
         policy = HumanPolicy()
     else:

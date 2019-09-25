@@ -1,7 +1,7 @@
 import unittest
 import gym
 import numpy as np
-from go_ai import mcts
+from go_ai.montecarlo import tree
 import tensorflow as tf
 
 class TestMCTS(unittest.TestCase):
@@ -9,8 +9,8 @@ class TestMCTS(unittest.TestCase):
     def setUp(self) -> None:
         self.env = gym.make('gym_go:go-v0', size=3, reward_method='real')
         self.action_length = self.env.size**2 + 1
-        mcts.U_CONST = 1
-        mcts.TEMP_CONST = 1
+        tree.U_CONST = 1
+        tree.TEMP_CONST = 1
 
     def tearDown(self) -> None:
         self.env.close()
@@ -23,7 +23,7 @@ class TestMCTS(unittest.TestCase):
             batch_size = states.shape[0]
             return tf.zeros((batch_size,self.env.action_space)), tf.zeros((batch_size,1))
 
-        mct = mcts.MCTree(next_state, mock_forward_func)
+        mct = tree.MCTree(next_state, mock_forward_func)
         action_probs = mct.get_action_probs(max_num_searches=0, temp=0)
         self.assertEqual(np.count_nonzero(action_probs[:-1]), 0, action_probs)
         self.assertEqual(action_probs[-1], 1, action_probs)
@@ -37,7 +37,7 @@ class TestMCTS(unittest.TestCase):
             batch_size = states.shape[0]
             return tf.zeros((batch_size, self.env.action_space)), tf.zeros((batch_size, 1))
 
-        mct = mcts.MCTree(next_state, mock_forward_func)
+        mct = tree.MCTree(next_state, mock_forward_func)
         action_probs = mct.get_action_probs(max_num_searches=0, temp=0)
         self.assertEqual(np.count_nonzero(action_probs[:-1]), 0, action_probs)
         self.assertEqual(action_probs[-1], 1, action_probs)

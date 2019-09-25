@@ -2,7 +2,10 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
 from tqdm import tqdm
-from go_ai import data, mcts
+
+import go_ai.montecarlo
+from go_ai import data
+from go_ai.montecarlo import tree
 from sklearn.preprocessing import normalize
 
 
@@ -62,8 +65,8 @@ def forward_pass(states, network, training):
     :param training: Boolean parameter for layers like BatchNorm
     :return: action probs and state vals
     """
-    invalid_moves = data.get_invalid_moves(states)
-    invalid_values = data.get_invalid_values(states)
+    invalid_moves = data.batch_invalid_moves(states)
+    invalid_values = data.batch_invalid_values(states)
     valid_moves = 1 - invalid_moves
     return network([states.transpose(0, 2, 3, 1).astype(np.float32),
                     valid_moves.astype(np.float32),
@@ -114,11 +117,11 @@ def optimize_actor_critic(policy_args, batched_mem, learning_rate, tb_metrics):
         wins = wins[:, np.newaxis]
 
         # Augment states
-        states = data.random_symmetries(states)
+        states = data.batch_random_symmetries(states)
 
         # Get Q values of current critic
-        _, qvals, _ = mcts.pi_qval_from_actor_critic(states, forward_func)
-        valid_moves = data.get_valid_moves(states)
+        _, qvals, _ = go_ai.montecarlo.pi_qval_from_actor_critic(states, forward_func)
+        valid_moves = data.batch_valid_moves(states)
         min_qvals = np.min(qvals, axis=1, keepdims=True)
         qvals -= min_qvals
         qvals += 1e-7 * valid_moves
