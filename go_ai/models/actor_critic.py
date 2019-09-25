@@ -87,7 +87,7 @@ def make_forward_func(network):
     return forward_func
 
 
-def optimize_actor_critic(policy_args, batched_mem, learning_rate, tb_metrics):
+def optimize_actor_critic(policy_args, batched_mem, learning_rate):
     """
     Loads in parameters from disk and updates them from the batched memory (saves the new parameters back to disk)
     :param actor_critic:
@@ -109,6 +109,11 @@ def optimize_actor_critic(policy_args, batched_mem, learning_rate, tb_metrics):
     # Define criterion
     cat_cross_entropy = tf.keras.losses.CategoricalCrossentropy()
     mean_squared_error = tf.keras.losses.MeanSquaredError()
+
+    # Metrics
+    move_loss_metric = tf.keras.metrics.Mean()
+    val_loss_metric = tf.keras.metrics.Mean()
+    pred_metric = tf.keras.metrics.Accuracy()
 
     # Iterate through data
     pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
@@ -135,13 +140,13 @@ def optimize_actor_critic(policy_args, batched_mem, learning_rate, tb_metrics):
             # Critic
             assert state_vals.shape == wins.shape
             critic_loss = mean_squared_error(wins, state_vals)
-            tb_metrics['val_loss'].update_state(critic_loss)
+            val_loss_metric.update_state(critic_loss)
             wins_01 = (np.copy(wins) + 1) / 2
-            tb_metrics['pred_win_acc'].update_state(wins_01, state_vals > 0)
+            pred_metric.update_state(wins_01, state_vals > 0)
 
             # Actor
             actor_loss = cat_cross_entropy(target_pis, move_prob_distrs)
-            tb_metrics['move_loss'].update_state(actor_loss)
+            move_loss_metric.update_state(actor_loss)
 
             # Overall Loss
             overall_loss = critic_loss + 0 * actor_loss
@@ -151,8 +156,8 @@ def optimize_actor_critic(policy_args, batched_mem, learning_rate, tb_metrics):
         optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
 
         # Metrics
-        pbar.set_postfix_str('{:.1f}% ACC, {:.3f}VL, {:.3f}ML'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
-                                                                      tb_metrics['val_loss'].result().numpy(),
-                                                                      tb_metrics['move_loss'].result().numpy()))
+        pbar.set_postfix_str('{:.1f}% ACC, {:.3f}VL, {:.3f}ML'.format(100 * pred_metric.result().numpy(),
+                                                                      val_loss_metric.result().numpy(),
+                                                                      move_loss_metric.result().numpy()))
     # Update the weights on disk
     actor_critic.save_weights(policy_args['model_path'])

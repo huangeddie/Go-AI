@@ -184,13 +184,3 @@ def plot_symmetries(next_state, outpath):
 
     plt.savefig(outpath)
     plt.close()
-
-
-def reset_metrics(metrics):
-    """
-    Resets tensorflow.keras metrics
-    :param metrics: A dictionary of TF metrics
-    :return:
-    """
-    for key, metric in metrics.items():
-        metric.reset_states()

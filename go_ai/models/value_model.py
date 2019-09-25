@@ -47,7 +47,7 @@ def make_val_func(val_net):
     return forward_func
 
 
-def optimize_val_net(value_model_args, batched_mem, learning_rate, tb_metrics):
+def optimize_val_net(value_model_args, batched_mem, learning_rate):
     """
     Loads in parameters from disk and updates them from the batched memory (saves the new parameters back to disk)
     :param actor_critic:
@@ -68,6 +68,10 @@ def optimize_val_net(value_model_args, batched_mem, learning_rate, tb_metrics):
     # Define criterion
     mean_squared_error = tf.keras.losses.MeanSquaredError()
 
+    # Metrics
+    loss_metric = tf.keras.metrics.Mean()
+    pred_metric = tf.keras.metrics.Accuracy()
+
     # Iterate through data
     pbar = tqdm(batched_mem, desc='Updating', leave=True, position=0)
     for states, actions, next_states, rewards, terminals, wins in pbar:
@@ -82,17 +86,17 @@ def optimize_val_net(value_model_args, batched_mem, learning_rate, tb_metrics):
             # Critic
             assert state_vals.shape == wins.shape
             val_loss = mean_squared_error(wins, state_vals)
-            tb_metrics['val_loss'].update_state(val_loss)
+            loss_metric.update_state(val_loss)
             wins_01 = (np.copy(wins) + 1) / 2
-            tb_metrics['pred_win_acc'].update_state(wins_01, state_vals > 0)
+            pred_metric.update_state(wins_01, state_vals > 0)
 
         # compute and apply gradients
         gradients = tape.gradient(val_loss, val_net.trainable_variables)
         optimizer.apply_gradients(zip(gradients, val_net.trainable_variables))
 
         # Metrics
-        pbar.set_postfix_str('{:.1f}% ACC, {:.3f}VL'.format(100 * tb_metrics['pred_win_acc'].result().numpy(),
-                                                            tb_metrics['val_loss'].result().numpy()))
+        pbar.set_postfix_str('{:.1f}% ACC, {:.3f}VL'.format(100 * pred_metric.result().numpy(),
+                                                            loss_metric.result().numpy()))
     # Update the weights on disk
     val_net.save_weights(value_model_args['model_path'])
 
