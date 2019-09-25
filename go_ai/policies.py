@@ -85,21 +85,31 @@ class GreedyPolicy(Policy):
     def __init__(self, forward_func):
         self.forward_func = forward_func
 
-    def __call__(self, state, step=0):
+    def __call__(self, state, step):
         """
         :param state:
         :param step:
         :return:
         """
+        valid_moves = gogame.get_valid_moves(state)
+        invalid_moves = 1 - valid_moves
+
         batch_qvals = mcts.qval_from_stateval(state[np.newaxis], self.forward_func)
         qvals = batch_qvals[0]
-        invalid_qs = data.get_invalid_values(state[np.newaxis])
-        assert invalid_qs[0].shape == qvals.shape
-        qvals += invalid_qs[0]
+        qvals -= np.min(qvals)
+        qvals += 1e-7
+        qvals = qvals * valid_moves
 
-        max_qs = np.max(qvals)
-        target_pis = (qvals == max_qs).astype(np.int)
-        target_pis = normalize(target_pis[np.newaxis], norm='l1')[0]
+        if step < 4:
+            # Temperated
+            target_pis = normalize(qvals[np.newaxis], norm='l1')[0]
+        else:
+            # Max Q
+            max_qs = np.max(qvals)
+            target_pis = (qvals == max_qs).astype(np.int)
+            target_pis = normalize(target_pis[np.newaxis], norm='l1')[0]
+
+        assert (target_pis[invalid_moves > 0] == 0).all(), target_pis
         return target_pis
 
 

@@ -78,8 +78,8 @@ def state_responses_helper(policy_args, states, taken_actions, next_states, rewa
         forward_func = value_model.make_forward_func(model)
         policy = policies.GreedyPolicy(forward_func)
         move_probs = []
-        for state in states:
-            move_probs.append(policy(state))
+        for i, state in enumerate(states):
+            move_probs.append(policy(state, i))
         state_vals = forward_func(states)
         qvals = mcts.qval_from_stateval(states, forward_func)
 

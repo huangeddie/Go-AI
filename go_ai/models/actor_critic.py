@@ -120,7 +120,7 @@ def optimize_actor_critic(policy_args, batched_mem, learning_rate, tb_metrics):
         _, qvals, _ = mcts.pi_qval_from_actor_critic(states, forward_func)
         valid_moves = data.get_valid_moves(states)
         min_qvals = np.min(qvals, axis=1, keepdims=True)
-        qvals += min_qvals
+        qvals -= min_qvals
         qvals += 1e-7 * valid_moves
         qvals *= valid_moves
 

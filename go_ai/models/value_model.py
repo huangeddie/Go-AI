@@ -40,7 +40,7 @@ def make_val_net(board_size):
 
 def make_forward_func(val_net):
     def forward_func(states):
-        return val_net(states.transpose(0, 2, 3, 1).astype(np.float32)).numpy()
+        return val_net(states.transpose(0, 2, 3, 1).astype(np.float32), training=False).numpy()
 
     return forward_func
 

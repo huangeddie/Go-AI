@@ -57,13 +57,13 @@ def add_traj_to_replay_mem(replay_mem, black_won, trajectory):
     :param forward_func:
     :return:
     """
-    for idx, (turn, canonical_state, action, canonical_next_state, reward, done) in enumerate(trajectory):
+    for idx, (turn, canonical_state, action, canonical_next_state, reward, terminal) in enumerate(trajectory):
         if turn == go_env.govars.BLACK:
             win = black_won
         else:
             win = -black_won
 
-        replay_mem.append((canonical_state, action, canonical_next_state, reward, done, win))
+        replay_mem.append((canonical_state, action, canonical_next_state, reward, terminal, win))
 
 
 def replay_mem_to_numpy(replay_mem):
@@ -73,6 +73,7 @@ def replay_mem_to_numpy(replay_mem):
     :return:
     """
     replay_mem = list(zip(*replay_mem))
+
     states = np.array(list(replay_mem[0]), dtype=np.float32)
     actions = np.array(list(replay_mem[1]), dtype=np.int)
     next_states = np.array(list(replay_mem[2]), dtype=np.float32)
