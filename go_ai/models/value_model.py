@@ -46,32 +46,55 @@ def add_head(input):
     return x
 
 
-def make_val_net(board_size):
-    # input = layers.Input(shape=(board_size, board_size, 6), name="board")
-    # x = layers.Conv2D(64, kernel_size=3, padding="same")(input)
-    #
-    # dense_block = add_dense_block(x, num_layers=8, growth_rate=12)
-    #
-    # out = add_head(dense_block)
-    #
-    # model = tf.keras.Model(input, out, name='dense_valnet')
+def make_val_net(board_size, mode='FC'):
+    if mode == 'FC':
+        model = tf.keras.Sequential([
+            layers.Input(shape=(board_size, board_size, 6), name="board"),
+            layers.Flatten(),
+            layers.Dense(512),
+            layers.BatchNormalization(),
+            layers.ReLU(),
+            layers.Dense(512),
+            layers.BatchNormalization(),
+            layers.ReLU(),
+            layers.Dense(512),
+            layers.BatchNormalization(),
+            layers.ReLU(),
+            layers.Dense(256),
+            layers.ReLU(),
+            layers.Dense(1, activation='tanh'),
+        ])
+    elif mode == 'DCNN':
+        input = layers.Input(shape=(board_size, board_size, 6), name="board")
+        x = layers.Conv2D(64, kernel_size=3, padding="same")(input)
 
-    model = tf.keras.Sequential([
-        layers.Input(shape=(board_size, board_size, 6), name="board"),
-        layers.Flatten(),
-        layers.Dense(512),
-        layers.BatchNormalization(),
-        layers.ReLU(),
-        layers.Dense(512),
-        layers.BatchNormalization(),
-        layers.ReLU(),
-        layers.Dense(512),
-        layers.BatchNormalization(),
-        layers.ReLU(),
-        layers.Dense(256),
-        layers.ReLU(),
-        layers.Dense(1, activation='tanh'),
-    ])
+        dense_block = add_dense_block(x, num_layers=8, growth_rate=12)
+
+        out = add_head(dense_block)
+
+        model = tf.keras.Model(input, out, name='dense_valnet')
+    elif mode == 'CNN':
+        model = tf.keras.Sequential([
+            layers.Input(shape=(board_size, board_size, 6), name="board"),
+            layers.Conv2D(256, kernel_size=3, padding="same"),
+            layers.BatchNormalization(),
+            layers.ReLU(),
+            layers.Conv2D(256, kernel_size=3, padding="same"),
+            layers.BatchNormalization(),
+            layers.ReLU(),
+            layers.Conv2D(256, kernel_size=3, padding="same"),
+            layers.BatchNormalization(),
+            layers.ReLU(),
+            layers.Conv2D(1, kernel_size=3, padding="same"),
+            layers.BatchNormalization(),
+            layers.ReLU(),
+            layers.Flatten(),
+            layers.Dense(256),
+            layers.ReLU(),
+            layers.Dense(1, activation='tanh'),
+        ])
+    else:
+        raise Exception(f"Unknown neural network specification: '{mode}'")
 
     model.compile(optimizer='adam', loss='mse')
 
