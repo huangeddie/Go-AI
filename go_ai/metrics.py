@@ -91,16 +91,14 @@ def state_responses_helper(policy_args: go_ai.policies.PolicyArgs, states, taken
     board_size = states[0].shape[1]
 
     if policy_args.mode == 'actor_critic':
-        model = actor_critic.make_actor_critic(board_size)
-        model.load_weights(policy_args.weight_path)
+        model = tf.keras.models.load_model(policy_args.model_path)
         forward_func = actor_critic.make_forward_func(model)
         move_probs, move_vals = forward_func(states)
 
         state_vals = tf.reduce_sum(move_probs * move_vals, axis=1)
         _, qvals, _ = montecarlo.piqval_from_actorcritic(states, forward_func=forward_func)
     elif policy_args.mode == 'values':
-        model = value_model.make_val_net(board_size)
-        model.load_weights(policy_args.weight_path)
+        model = tf.keras.models.load_model(policy_args.model_path)
         forward_func = value_model.make_val_func(model)
         policy = policies.GreedyPolicy(forward_func)
         move_probs = []

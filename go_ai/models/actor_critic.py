@@ -97,9 +97,8 @@ def optimize_actor_critic(policy_args: policies.PolicyArgs, batched_mem, learnin
     :return:
     """
     # Load model from disk
-    actor_critic = make_actor_critic(policy_args.board_size)
-    actor_critic.load_weights(policy_args.weight_path)
-    forward_func = make_forward_func(actor_critic)
+    model = tf.keras.models.load_model(policy_args.model_path)
+    forward_func = make_forward_func(model)
 
     # Define optimizer
     optimizer = tf.keras.optimizers.Adam(learning_rate)
@@ -133,7 +132,7 @@ def optimize_actor_critic(policy_args: policies.PolicyArgs, batched_mem, learnin
         target_pis = normalize(qvals ** 2, norm='l1')
 
         with tf.GradientTape() as tape:
-            move_prob_distrs, state_vals = forward_pass(states, actor_critic, training=True)
+            move_prob_distrs, state_vals = forward_pass(states, model, training=True)
 
             # Critic
             assert state_vals.shape == wins.shape
@@ -150,12 +149,12 @@ def optimize_actor_critic(policy_args: policies.PolicyArgs, batched_mem, learnin
             overall_loss = critic_loss + 0 * actor_loss
 
         # compute and apply gradients
-        gradients = tape.gradient(overall_loss, actor_critic.trainable_variables)
-        optimizer.apply_gradients(zip(gradients, actor_critic.trainable_variables))
+        gradients = tape.gradient(overall_loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
         # Metrics
         pbar.set_postfix_str('{:.1f}% ACC, {:.3f}VL, {:.3f}ML'.format(100 * pred_metric.result().numpy(),
                                                                       val_loss_metric.result().numpy(),
                                                                       move_loss_metric.result().numpy()))
     # Update the weights on disk
-    actor_critic.save_weights(policy_args.weight_path)
+    model.save_weights(policy_args.model_path)

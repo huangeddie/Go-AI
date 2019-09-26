@@ -9,35 +9,49 @@ from tqdm import tqdm
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
+def add_dense_layer(input, growth_rate):
+    x = layers.BatchNormalization()(input)
+    x = layers.ReLU()(x)
+    x = layers.Conv2D(4 * growth_rate, kernel_size=1)(x)
+
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    x = layers.Conv2D(growth_rate, kernel_size=3, padding='same')(x)
+
+    return x
+
+def add_dense_block(input, num_layers, growth_rate):
+    x = input
+
+    for l in range(num_layers):
+        y = add_dense_layer(x, growth_rate)
+        x = layers.Concatenate()([y, x])
+
+    return x
+
+def add_head(input):
+    x = layers.Conv2D(1, kernel_size=1)(input)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+
+    x = layers.Flatten()(x)
+
+    x = layers.Dense(256)(x)
+    x = layers.ReLU()(x)
+
+    x = layers.Dense(1, activation='tanh')(x)
+    return x
+
 
 def make_val_net(board_size):
-    model = tf.keras.Sequential([
-        layers.Input(shape=(board_size, board_size, 6), name="board"),
+    input = layers.Input(shape=(board_size, board_size, 6), name="board")
+    x = layers.Conv2D(64, kernel_size=3, padding="same")(input)
 
-        layers.Conv2D(128, kernel_size=3, padding='same'),
-        layers.BatchNormalization(),
-        layers.ReLU(),
+    dense_block = add_dense_block(x, num_layers=8, growth_rate=12)
 
-        layers.Conv2D(128, kernel_size=3, padding='same'),
-        layers.BatchNormalization(),
-        layers.ReLU(),
+    out = add_head(dense_block)
 
-        layers.Conv2D(64, kernel_size=3, padding="same"),
-        layers.BatchNormalization(),
-        layers.ReLU(),
-
-        layers.Conv2D(8, kernel_size=3, padding="same"),
-        layers.BatchNormalization(),
-        layers.ReLU(),
-
-        layers.Flatten(),
-
-        layers.Dense(256),
-        layers.BatchNormalization(),
-        layers.ReLU(),
-
-        layers.Dense(1, activation='tanh', name="value")
-    ])
+    model = tf.keras.Model(input, out, name='dense val net')
 
     return model
 
@@ -62,8 +76,7 @@ def optimize_val_net(value_model_args: policies.PolicyArgs, batched_mem, learnin
     :return:
     """
     # Load model from disk
-    val_net = make_val_net(value_model_args.board_size)
-    val_net.load_weights(value_model_args.weight_path)
+    model = tf.keras.models.load_model(value_model_args.model_path)
 
     # Define optimizer
     optimizer = tf.keras.optimizers.Adam(learning_rate)
@@ -84,7 +97,7 @@ def optimize_val_net(value_model_args: policies.PolicyArgs, batched_mem, learnin
         states = data.batch_random_symmetries(states)
 
         with tf.GradientTape() as tape:
-            state_vals = val_net(states.transpose(0, 2, 3, 1).astype(np.float32), training=True)
+            state_vals = model(states.transpose(0, 2, 3, 1).astype(np.float32), training=True)
 
             # Critic
             assert state_vals.shape == wins.shape
@@ -94,14 +107,14 @@ def optimize_val_net(value_model_args: policies.PolicyArgs, batched_mem, learnin
             pred_metric.update_state(wins_01, state_vals > 0)
 
         # compute and apply gradients
-        gradients = tape.gradient(val_loss, val_net.trainable_variables)
-        optimizer.apply_gradients(zip(gradients, val_net.trainable_variables))
+        gradients = tape.gradient(val_loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
         # Metrics
         pbar.set_postfix_str('{:.1f}% ACC, {:.3f}VL'.format(100 * pred_metric.result().numpy(),
                                                             loss_metric.result().numpy()))
     # Update the weights on disk
-    val_net.save_weights(value_model_args.weight_path)
+    model.save_weights(value_model_args.model_path)
 
 
 def greedy_val_func(states):

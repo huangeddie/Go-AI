@@ -150,5 +150,5 @@ class PolicyArgs:
     def __init__(self, mode, board_size, weight_path=None, name=None):
         self.mode = mode
         self.board_size = board_size
-        self.weight_path = weight_path
+        self.model_path = weight_path
         self.name = name if name is not None else mode
