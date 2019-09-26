@@ -6,7 +6,7 @@ import shutil
 import multiprocessing as mp
 import queue
 
-import go_ai.policies
+from go_ai import policies
 from go_ai.policies import pmaker
 
 go_env = gym.make('gym_go:go-v0', size=0)
@@ -165,8 +165,8 @@ def self_play(go_env, policy, get_trajectory=False):
     return pit(go_env, black_policy=policy, white_policy=policy, get_trajectory=get_trajectory)
 
 
-def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: go_ai.policies.PolicyArgs,
-                 second_policy_args: go_ai.policies.PolicyArgs, out):
+def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: policies.PolicyArgs,
+                 second_policy_args: policies.PolicyArgs, out):
     """
     Continously executes episode jobs from the episode job queue until there are no more jobs
     :param episode_queue:
@@ -227,7 +227,7 @@ def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: go_ai
         np.savez(out, *data)
 
 
-def make_episodes(first_policy_args: go_ai.policies.PolicyArgs, second_policy_args: go_ai.policies.PolicyArgs, episodes,
+def make_episodes(first_policy_args: policies.PolicyArgs, second_policy_args: policies.PolicyArgs, episodes,
                   num_workers, outdir=None):
     """
     Multiprocessing of pitting the first policy against the second policy
