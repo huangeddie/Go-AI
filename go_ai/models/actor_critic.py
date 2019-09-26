@@ -157,4 +157,4 @@ def optimize_actor_critic(policy_args: policies.PolicyArgs, batched_mem, learnin
                                                                       val_loss_metric.result().numpy(),
                                                                       move_loss_metric.result().numpy()))
     # Update the weights on disk
-    model.save_weights(policy_args.model_path)
+    model.save(policy_args.model_path)
