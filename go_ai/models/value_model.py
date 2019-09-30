@@ -4,8 +4,6 @@ import tensorflow as tf
 from tensorflow.keras import layers
 
 from go_ai import policies
-from go_ai import data
-from tqdm import tqdm
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -27,6 +25,7 @@ def add_dense_block(input, num_layers, growth_rate):
 
     for l in range(num_layers):
         y = add_dense_layer(x, growth_rate)
+        y = layers.Dropout(0.2)(y)
         x = layers.Concatenate()([y, x])
 
     return x
@@ -46,7 +45,7 @@ def add_head(input):
     return x
 
 
-def make_val_net(board_size, mode='FC'):
+def make_val_net(board_size, mode='DCNN'):
     if mode == 'FC':
         model = tf.keras.Sequential([
             layers.Input(shape=(board_size, board_size, 6), name="board"),
@@ -54,15 +53,12 @@ def make_val_net(board_size, mode='FC'):
             layers.Dense(512),
             layers.BatchNormalization(),
             layers.ReLU(),
-            layers.Dropout(0.2),
             layers.Dense(512),
             layers.BatchNormalization(),
             layers.ReLU(),
-            layers.Dropout(0.2),
             layers.Dense(512),
             layers.BatchNormalization(),
             layers.ReLU(),
-            layers.Dropout(0.2),
             layers.Dense(256),
             layers.ReLU(),
             layers.Dense(1, activation='tanh'),
@@ -71,7 +67,7 @@ def make_val_net(board_size, mode='FC'):
         input = layers.Input(shape=(board_size, board_size, 6), name="board")
         x = layers.Conv2D(64, kernel_size=3, padding="same")(input)
 
-        dense_block = add_dense_block(x, num_layers=8, growth_rate=12)
+        dense_block = add_dense_block(x, num_layers=6, growth_rate=12)
 
         out = add_head(dense_block)
 
@@ -79,15 +75,19 @@ def make_val_net(board_size, mode='FC'):
     elif mode == 'CNN':
         model = tf.keras.Sequential([
             layers.Input(shape=(board_size, board_size, 6), name="board"),
+
             layers.Conv2D(256, kernel_size=3, padding="same"),
             layers.BatchNormalization(),
             layers.ReLU(),
+
             layers.Conv2D(256, kernel_size=3, padding="same"),
             layers.BatchNormalization(),
             layers.ReLU(),
+
             layers.Conv2D(256, kernel_size=3, padding="same"),
             layers.BatchNormalization(),
             layers.ReLU(),
+
             layers.Conv2D(1, kernel_size=3, padding="same"),
             layers.BatchNormalization(),
             layers.ReLU(),

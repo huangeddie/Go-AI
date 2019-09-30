@@ -105,9 +105,9 @@ class GreedyPolicy(Policy):
         qvals += 1e-7
         qvals = qvals * valid_moves
 
-        if step < 8:
+        if step < 4:
             # Temperated
-            target_pis = normalize(qvals[np.newaxis], norm='l1')[0]
+            target_pis = normalize(valid_moves[np.newaxis], norm='l1')[0]
         else:
             # Max Q
             max_qs = np.max(qvals)
