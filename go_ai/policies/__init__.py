@@ -89,7 +89,6 @@ class QTempPolicy(Policy):
         :param step:
         :return:
         """
-        max_steps = 2 * GoGame.get_action_size(state)
         valid_moves = GoGame.get_valid_moves(state)
         invalid_moves = 1 - valid_moves
 
@@ -98,15 +97,13 @@ class QTempPolicy(Policy):
         if np.count_nonzero(qvals) == 0:
             qvals += valid_moves
 
-        augment = ((step + 1) / max_steps) * (1 / self.temp) if self.temp > 0 else np.PINF
-        aug_qs = qvals[np.newaxis] ** augment
-
-        if self.temp <= 0 or np.count_nonzero(aug_qs) == 0:
+        if self.temp <= 0:
             # Max Q
             max_qs = np.max(qvals)
             pi = (qvals == max_qs).astype(np.int)
             pi = normalize(pi[np.newaxis], norm='l1')[0]
         else:
+            aug_qs = qvals[np.newaxis] ** (1 / self.temp)
             pi = normalize(aug_qs, norm='l1')[0]
 
         assert (pi[invalid_moves > 0] == 0).all(), pi

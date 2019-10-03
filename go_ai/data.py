@@ -5,6 +5,7 @@ import os
 import shutil
 import multiprocessing as mp
 import queue
+import random
 
 from go_ai import policies
 from go_ai.policies import pmaker
@@ -155,8 +156,9 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
 
     return black_won, replay_mem
 
+
 def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: policies.PolicyArgs,
-                 second_policy_args: policies.PolicyArgs, random_beginning, out):
+                 second_policy_args: policies.PolicyArgs, rand_start_range, out):
     """
     Continously executes episode jobs from the episode job queue until there are no more jobs
     :param episode_queue:
@@ -196,11 +198,13 @@ def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: polic
             go_env.reset()
 
             # Random beginning?
-            if random_beginning is not None:
-                for _ in range(random_beginning):
+            if rand_start_range is not None:
+                random_moves = random.randint(0, rand_start_range)
+                for _ in range(random_moves):
                     valid_moves = go_env.get_valid_moves()
-                    # Remove passing from random actions
-                    valid_moves[-1] = 0
+                    # Remove passing from random actions if no other moves
+                    if np.count_nonzero(valid_moves) > 1:
+                        valid_moves[-1] = 0
                     action = GoGame.random_weighted_action(valid_moves)
                     go_env.step(action)
             black_won, trajectory = pit(go_env, black_policy=black_policy, white_policy=white_policy,
@@ -229,10 +233,10 @@ def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: polic
 
 
 def make_episodes(first_policy_args: policies.PolicyArgs, second_policy_args: policies.PolicyArgs, episodes,
-                  num_workers=1, outdir=None, random_beginning=None):
+                  num_workers=1, outdir=None, rand_start_range=None):
     """
     Multiprocessing of pitting the first policy against the second policy
-    :param random_beginning:
+    :param rand_start_range:
     :param first_policy_args:
     :param second_policy_args:
     :param episodes:
@@ -265,7 +269,7 @@ def make_episodes(first_policy_args: policies.PolicyArgs, second_policy_args: po
             shutil.rmtree(outdir)
             os.makedirs(outdir)
         worker_out = os.path.join(outdir, 'worker_0.npz')
-    base_eps_job_args = [episode_queue, first_policy_won_queue, first_policy_args, second_policy_args, random_beginning]
+    base_eps_job_args = [episode_queue, first_policy_won_queue, first_policy_args, second_policy_args, rand_start_range]
 
     # Launch the workers
     processes = []

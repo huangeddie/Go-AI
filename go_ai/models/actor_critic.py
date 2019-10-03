@@ -1,10 +1,8 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
-from tqdm import tqdm
 
 from go_ai import data, policies, montecarlo
-from sklearn.preprocessing import normalize
 
 
 def make_model(board_size):
