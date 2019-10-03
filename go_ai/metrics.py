@@ -90,17 +90,17 @@ def state_responses_helper(policy_args: go_ai.policies.PolicyArgs, states, taken
 
     board_size = states[0].shape[1]
 
-    if policy_args.mode == 'actor_critic':
+    if policy_args.mode == 'monte_carlo':
         model = tf.keras.models.load_model(policy_args.model_path)
         forward_func = actor_critic.make_forward_func(model)
         move_probs, move_vals = forward_func(states)
 
-        state_vals = tf.reduce_sum(move_probs * move_vals, axis=1)
+        state_vals = np.sum(move_probs * move_vals, axis=1)
         _, qvals, _ = montecarlo.piqval_from_actorcritic(states, forward_func=forward_func)
-    elif policy_args.mode == 'values':
+    elif policy_args.mode == 'qtemp':
         model = tf.keras.models.load_model(policy_args.model_path)
         forward_func = value_model.make_val_func(model)
-        policy = policies.GreedyPolicy(forward_func)
+        policy = policies.QTempPolicy(forward_func, temp=policy_args.temperature)
         move_probs = []
         for i, state in enumerate(states):
             move_probs.append(policy(state, i))
@@ -166,8 +166,8 @@ def gen_traj_fig(go_env, policy_args):
     :return: A plot of the game including the policy's responses to each state
     """
     policy = pmaker.make_policy(policy_args)
-
-    _, traj = data.self_play(go_env, policy=policy, get_trajectory=True)
+    go_env.reset()
+    _, traj = data.pit(go_env, black_policy=policy, white_policy=policy, get_trajectory=True)
     fig = state_responses(policy_args, traj)
     return fig
 

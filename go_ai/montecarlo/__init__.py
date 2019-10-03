@@ -9,9 +9,9 @@ def canonical_winning(canonical_state):
     if my_area > opp_area:
         winning = 1
     elif my_area < opp_area:
-        winning = -1
-    else:
         winning = 0
+    else:
+        winning = 0.5
 
     return winning
 
@@ -53,7 +53,7 @@ def qval_from_stateval(states, val_func):
                 terminal = GoGame.get_game_ended(canonical_next_state)
                 winning = canonical_winning(canonical_next_state)
                 val = (1 - terminal) * canonical_next_vals[curr_idx].item() + (terminal) * winning
-                Qs.append(-val)
+                Qs.append(1 - val)
                 curr_idx += 1
             else:
                 Qs.append(0)
@@ -89,7 +89,7 @@ def piqval_from_actorcritic(states, forward_func):
                 terminal = GoGame.get_game_ended(canonical_next_state)
                 winning = canonical_winning(canonical_next_state)
                 val = (1 - terminal) * canonical_next_vals[curr_idx].item() + (terminal) * winning
-                Qs.append(-val)
+                Qs.append(1 - val)
                 children_pis.append(canonical_pis[curr_idx])
                 curr_idx += 1
             else:

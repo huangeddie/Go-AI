@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from go_ai import policies
+from go_ai import policies, data
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -41,27 +41,27 @@ def add_head(input):
     x = layers.Dense(256)(x)
     x = layers.ReLU()(x)
 
-    x = layers.Dense(1, activation='tanh')(x)
+    x = layers.Dense(1, activation='sigmoid')(x)
     return x
 
 
-def make_val_net(board_size, mode='DCNN'):
+def make_model(board_size, mode='FC'):
     if mode == 'FC':
         model = tf.keras.Sequential([
             layers.Input(shape=(board_size, board_size, 6), name="board"),
             layers.Flatten(),
-            layers.Dense(512),
-            layers.BatchNormalization(),
-            layers.ReLU(),
-            layers.Dense(512),
+            layers.Dense(256),
             layers.BatchNormalization(),
             layers.ReLU(),
             layers.Dense(512),
             layers.BatchNormalization(),
             layers.ReLU(),
             layers.Dense(256),
+            layers.BatchNormalization(),
             layers.ReLU(),
-            layers.Dense(1, activation='tanh'),
+            layers.Dense(128),
+            layers.ReLU(),
+            layers.Dense(1, activation='sigmoid'),
         ])
     elif mode == 'DCNN':
         input = layers.Input(shape=(board_size, board_size, 6), name="board")
@@ -94,12 +94,12 @@ def make_val_net(board_size, mode='DCNN'):
             layers.Flatten(),
             layers.Dense(256),
             layers.ReLU(),
-            layers.Dense(1, activation='tanh'),
+            layers.Dense(1, activation='sigmoid'),
         ])
     else:
         raise Exception(f"Unknown neural network specification: '{mode}'")
 
-    model.compile(optimizer='adam', loss='mse')
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['binary_accuracy'])
 
     return model
 
@@ -111,7 +111,7 @@ def make_val_func(val_net):
     return forward_func
 
 
-def optimize_val_net(value_model_args: policies.PolicyArgs, replay_data, batch_size):
+def optimize(value_model_args: policies.PolicyArgs, replay_data, batch_size):
     """
     Loads in parameters from disk and updates them from the batched memory (saves the new parameters back to disk)
     :param value_model_args:
@@ -126,8 +126,13 @@ def optimize_val_net(value_model_args: policies.PolicyArgs, replay_data, batch_s
     # Load model from disk
     model = tf.keras.models.load_model(value_model_args.model_path)
 
+    states = replay_data[0]
+    augmented_states = data.batch_random_symmetries(states)
+
+    wins = (replay_data[5] + 1) / 2
+
     # Iterate through data
-    model.fit(replay_data[0].transpose(0, 2, 3, 1), replay_data[5], epochs=1, batch_size=batch_size)
+    model.fit(augmented_states.transpose(0, 2, 3, 1), wins, epochs=1, batch_size=batch_size)
 
     # Update the weights on disk
     model.save(value_model_args.model_path)
@@ -143,11 +148,11 @@ def greedy_val_func(states):
             if black_area > white_area:
                 val = 1
             elif black_area < white_area:
-                val = -1
+                val = 0
             else:
                 val = 0
         else:
-            val = (black_area - white_area) / board_area
+            val = (black_area - white_area + board_area) / (2 * board_area)
         vals.append(val)
     vals = np.array(vals, dtype=np.float)
     return vals[:, np.newaxis]
