@@ -98,7 +98,7 @@ class QTempPolicy(Policy):
         if np.count_nonzero(qvals) == 0:
             qvals += valid_moves
 
-        augment = int(((step + 1) / max_steps) * (1 / self.temp)) if self.temp > 0 else np.PINF
+        augment = ((step + 1) / max_steps) * (1 / self.temp) if self.temp > 0 else np.PINF
         aug_qs = qvals[np.newaxis] ** augment
 
         if self.temp <= 0 or np.count_nonzero(aug_qs) == 0:
