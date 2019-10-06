@@ -158,7 +158,7 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
 
 
 def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: policies.PolicyArgs,
-                 second_policy_args: policies.PolicyArgs, rand_start_range, out):
+                 second_policy_args: policies.PolicyArgs, out):
     """
     Continously executes episode jobs from the episode job queue until there are no more jobs
     :param episode_queue:
@@ -197,16 +197,6 @@ def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: polic
             # Reset the go environment
             go_env.reset()
 
-            # Random beginning?
-            if rand_start_range is not None:
-                random_moves = random.randint(0, rand_start_range)
-                for _ in range(random_moves):
-                    valid_moves = go_env.get_valid_moves()
-                    # Remove passing from random actions if no other moves
-                    if np.count_nonzero(valid_moves) > 1:
-                        valid_moves[-1] = 0
-                    action = GoGame.random_weighted_action(valid_moves)
-                    go_env.step(action)
             black_won, trajectory = pit(go_env, black_policy=black_policy, white_policy=white_policy,
                                         get_trajectory=get_memory)
 
@@ -233,10 +223,9 @@ def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: polic
 
 
 def make_episodes(first_policy_args: policies.PolicyArgs, second_policy_args: policies.PolicyArgs, episodes,
-                  num_workers=1, outdir=None, rand_start_range=None):
+                  num_workers=1, outdir=None):
     """
     Multiprocessing of pitting the first policy against the second policy
-    :param rand_start_range:
     :param first_policy_args:
     :param second_policy_args:
     :param episodes:
@@ -269,7 +258,7 @@ def make_episodes(first_policy_args: policies.PolicyArgs, second_policy_args: po
             shutil.rmtree(outdir)
             os.makedirs(outdir)
         worker_out = os.path.join(outdir, 'worker_0.npz')
-    base_eps_job_args = [episode_queue, first_policy_won_queue, first_policy_args, second_policy_args, rand_start_range]
+    base_eps_job_args = [episode_queue, first_policy_won_queue, first_policy_args, second_policy_args]
 
     # Launch the workers
     processes = []

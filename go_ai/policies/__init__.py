@@ -7,6 +7,13 @@ from sklearn.preprocessing import normalize
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
+def greedy_pi(qvals):
+    max_qs = np.max(qvals)
+    pi = (qvals == max_qs).astype(np.int)
+    pi = normalize(pi[np.newaxis], norm='l1')[0]
+    return pi
+
+
 class Policy:
     """
     Interface for all types of policies
@@ -60,7 +67,6 @@ class HumanPolicy(Policy):
 
         # Human interface
         size = state.shape[1]
-        action_size = GoGame.get_action_size(state)
         go_env = gym.make('gym_go:go-v0', size=size, state=state)
         while True:
             player_action = go_env.render('human')
@@ -77,7 +83,7 @@ class HumanPolicy(Policy):
 class QTempPolicy(Policy):
     def __init__(self, val_func, temp):
         """
-        Pi is proportional to the qvals raised to the 1/temp power
+        Pi is proportional to the exp(qvals) raised to the 1/temp power
         :param val_func: A function that takes in states and outputs corresponding values
         """
         self.val_func = val_func
@@ -98,13 +104,20 @@ class QTempPolicy(Policy):
             qvals += valid_moves
 
         if self.temp <= 0:
-            # Max Q
-            max_qs = np.max(qvals)
-            pi = (qvals == max_qs).astype(np.int)
-            pi = normalize(pi[np.newaxis], norm='l1')[0]
+            # Max Qs
+            pi = greedy_pi(qvals)
         else:
-            aug_qs = qvals[np.newaxis] ** (1 / self.temp)
-            pi = normalize(aug_qs, norm='l1')[0]
+            expq = np.exp(qvals)
+            expq *= valid_moves
+            amp_qs = expq[np.newaxis] ** (1 / self.temp)
+            if np.isnan(amp_qs).any():
+                pi = greedy_pi(qvals)
+            else:
+                pi = normalize(amp_qs, norm='l1')[0]
+                if np.count_nonzero(pi) == 0:
+                    # Incase we amplify so much, everything is zero due to floating point error
+                    # Max Qs
+                    pi = greedy_pi(qvals)
 
         assert (pi[invalid_moves > 0] == 0).all(), pi
         return pi
