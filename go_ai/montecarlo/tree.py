@@ -118,7 +118,7 @@ class MCTree:
         batch_pis, batch_qvals, batch_canonical_children = piqval_from_actorcritic(node.state[np.newaxis],
                                                                                    self.forward_func)
         for idx, move in enumerate(valid_move_idcs):
-            Node((node, move), batch_pis[0][idx], batch_qvals[0][idx], batch_canonical_children[0][idx])
+            Node((node, move), batch_pis[0][idx], batch_qvals[0][idx], batch_canonical_children[idx])
 
     def step(self, action):
         '''
