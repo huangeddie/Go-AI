@@ -6,13 +6,14 @@ from go_ai.montecarlo.node import Node
 
 
 class MCTree:
-    # Environment ot call the stateless go logic APIs
+    # Environment to call the stateless go logic APIs
 
-    def __init__(self, forward_func, state):
+    def __init__(self, forward_func, state, save_orig_root=False):
         """
         :param state: Starting state
         :param forward_func: Takes in a batch of states and returns action
         probs and state values
+        :param save_orig_root: Save the original root Node for debugging
         """
         self.forward_func = forward_func
 
@@ -26,6 +27,10 @@ class MCTree:
         assert state.shape[1] == state.shape[2]
         self.board_size = state.shape[1]
         self.action_size = GoGame.get_action_size(self.root.state)
+
+        self.save_orig_root = save_orig_root
+        if save_orig_root:
+            self.orig_root = self.root
 
     def get_action_probs(self, max_num_searches, temp):
         '''
@@ -144,7 +149,11 @@ class MCTree:
     def reset(self, state=None):
         if state is None:
             state = GoGame.get_init_board(self.board_size)
-        self.__init__(self.forward_func, state)
+        self.__init__(self.forward_func, state, self.save_orig_root)
+
+    def save_root(self):
+        self.save_orig_root = True
+        self.orig_root = self.root
 
     def __str__(self):
         queue = [self.root]

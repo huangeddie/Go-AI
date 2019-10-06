@@ -184,3 +184,63 @@ def plot_symmetries(next_state, outpath):
 
     plt.savefig(outpath)
     plt.close()
+
+
+def plot_mct(root_node, max_layers, max_branch=None):
+    """
+    :param root_node: The Node to start plotting from
+    :param max_layers: The number of layers to plot (1st layer is the root)
+    :param max_branch: The max number of children show per node
+    :return: A plot with each layer of the MCT states in a row
+    """
+    # Traverse tree to flatten nodes into rows
+    layers = [[root_node]]
+    for l in range(1, max_layers):
+        layers.append([])
+        parents = layers[l - 1]
+        for p in parents:
+            if p.is_leaf():
+                continue
+            children = list(filter(
+                lambda child: child is not None and child.visited(), p.children))
+            children = sorted(children, key=lambda c: c.N, reverse=True)
+            if max_branch:
+                children = children[:max_branch]
+            layers[l].extend(children)
+        # If no children were added, stop
+        if not layers[l]:
+            layers = layers[:l]
+            break
+
+    num_rows = len(layers)
+    # Number of columns is max width of layers
+    num_cols = max(map(len, layers))
+
+    fig = plt.figure(figsize=(num_cols * 2.5, num_rows * 2))
+    for i in range(len(layers)):
+        for j in range(len(layers[i])):
+            plt.subplot(num_rows, num_cols, num_cols * i + j + 1)
+            plt.axis('off')
+            plt.imshow(matplot_format(layers[i][j].state))
+            # TODO add title
+    plt.tight_layout()
+    return fig
+
+
+def gen_mct_plot(go_env, policy_args, max_layers, max_branch=None):
+    """
+    Displays a MCT after a self-play game
+    :param go_env:
+    :param policy_args: Arguments for a monte_carlo policy
+    :return: A plot of the MCT
+    """
+    assert policy_args.mode == 'monte_carlo'
+    policy = pmaker.make_policy(policy_args)
+    policy.tree.save_root()
+    
+    go_env.reset()
+    data.pit(go_env, black_policy=policy, white_policy=policy)
+
+    root = policy.tree.orig_root
+    fig = plot_mct(root, max_layers, max_branch)
+    return fig
