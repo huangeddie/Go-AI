@@ -5,6 +5,7 @@ import os
 import shutil
 import multiprocessing as mp
 import queue
+import random
 
 from go_ai import policies
 from go_ai.policies import pmaker
@@ -66,7 +67,7 @@ def replay_mem_to_numpy(replay_mem):
     return states, actions, next_states, rewards, terminals, wins
 
 
-def pit(go_env, black_policy, white_policy, get_trajectory=False):
+def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, get_trajectory=False):
     """
     Pits two policies against each other and returns the results
     :param get_trajectory: Whether to store trajectory in memory
@@ -80,9 +81,11 @@ def pit(go_env, black_policy, white_policy, get_trajectory=False):
         Trajectory is empty list if get_trajectory is None
     """
     num_steps = 0
-    state = go_env.reset()
-    black_policy.reset()
-    white_policy.reset()
+    state = go_env.get_state()
+
+    # Sync policies to current state
+    black_policy.reset(state)
+    white_policy.reset(state)
 
     max_steps = 2 * (go_env.size ** 2)
 
@@ -90,6 +93,7 @@ def pit(go_env, black_policy, white_policy, get_trajectory=False):
 
     done = False
     info = None
+
     while not done:
         # Get turn
         curr_turn = go_env.turn
@@ -103,6 +107,7 @@ def pit(go_env, black_policy, white_policy, get_trajectory=False):
         else:
             assert curr_turn == GoVars.WHITE
             action_probs = white_policy(state, step=num_steps)
+
         action = GoGame.random_weighted_action(action_probs)
 
         # Execute actions in environment and MCT tree
@@ -152,19 +157,6 @@ def pit(go_env, black_policy, white_policy, get_trajectory=False):
     return black_won, replay_mem
 
 
-def self_play(go_env, policy, get_trajectory=False):
-    """
-    Plays out a game, by pitting the policy against itself,
-    and adds the events to the given replay memory
-    :param go_env:
-    :param policy:
-    :param mc_sims:
-    :param get_symmetries:
-    :return: The trajectory of events and number of steps
-    """
-    return pit(go_env, black_policy=policy, white_policy=policy, get_trajectory=get_trajectory)
-
-
 def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: policies.PolicyArgs,
                  second_policy_args: policies.PolicyArgs, out):
     """
@@ -202,6 +194,9 @@ def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: polic
             black_policy, white_policy = second_policy, first_policy
 
         try:
+            # Reset the go environment
+            go_env.reset()
+
             black_won, trajectory = pit(go_env, black_policy=black_policy, white_policy=white_policy,
                                         get_trajectory=get_memory)
 
@@ -228,7 +223,7 @@ def exec_eps_job(episode_queue, first_policy_won_queue, first_policy_args: polic
 
 
 def make_episodes(first_policy_args: policies.PolicyArgs, second_policy_args: policies.PolicyArgs, episodes,
-                  num_workers, outdir=None):
+                  num_workers=1, outdir=None):
     """
     Multiprocessing of pitting the first policy against the second policy
     :param first_policy_args:

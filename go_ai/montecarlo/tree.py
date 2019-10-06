@@ -8,7 +8,7 @@ from go_ai.montecarlo.node import Node
 class MCTree:
     # Environment ot call the stateless go logic APIs
 
-    def __init__(self, state, forward_func):
+    def __init__(self, forward_func, state):
         """
         :param state: Starting state
         :param forward_func: Takes in a batch of states and returns action
@@ -38,25 +38,32 @@ class MCTree:
             pi (1d np array): the search probabilities
             num_search (int): number of search performed
         '''
-        assert max_num_searches > 0
         num_search = 0
-        while num_search < max_num_searches:
-            curr_node = self.root
-            # keep going down the tree with the best move
-            while curr_node.visited() and not curr_node.terminal:
-                curr_node, move = self.select_best_child(curr_node)
-
-            curr_node.back_propagate(curr_node.V)
-
-            # increment search counter
-            num_search += 1
-
-        N = list(map(lambda node: node.N if node is not None else 0, self.root.children))
-        N = np.array(N)
-        if temp > 0:
-            pi = normalize([N ** (1 / temp)], norm='l1')[0]
+        if max_num_searches <= 0:
+            rootstate = self.root.state
+            pis, _ = self.forward_func(rootstate[np.newaxis])
+            pi = pis[0]
+            assert len(pi.shape) == 1
+            return pi
         else:
-            best_actions = (N == np.max(N))
+            while num_search < max_num_searches:
+                curr_node = self.root
+                # keep going down the tree with the best move
+                while curr_node.visited() and not curr_node.terminal:
+                    curr_node, move = self.select_best_child(curr_node)
+
+                curr_node.back_propagate(curr_node.V)
+
+                # increment search counter
+                num_search += 1
+
+            qvals = list(map(lambda node: node.N if node is not None else 0, self.root.children))
+            qvals = np.array(qvals)
+
+        if temp > 0:
+            pi = normalize([qvals ** (1 / temp)], norm='l1')[0]
+        else:
+            best_actions = (qvals == np.max(qvals))
             pi = normalize(best_actions[np.newaxis], norm='l1')[0]
 
         return pi
@@ -134,9 +141,10 @@ class MCTree:
         if not self.root.visited():
             self.root.back_propagate(self.root.V)
 
-    def reset(self):
-        initial_state = GoGame.get_init_board(self.board_size)
-        self.__init__(initial_state, self.forward_func)
+    def reset(self, state=None):
+        if state is None:
+            state = GoGame.get_init_board(self.board_size)
+        self.__init__(self.forward_func, state)
 
     def __str__(self):
         queue = [self.root]

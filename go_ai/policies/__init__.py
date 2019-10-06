@@ -7,6 +7,13 @@ from sklearn.preprocessing import normalize
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
+def greedy_pi(qvals):
+    max_qs = np.max(qvals)
+    pi = (qvals == max_qs).astype(np.int)
+    pi = normalize(pi[np.newaxis], norm='l1')[0]
+    return pi
+
+
 class Policy:
     """
     Interface for all types of policies
@@ -29,7 +36,7 @@ class Policy:
         """
         pass
 
-    def reset(self):
+    def reset(self, state=None):
         """
         Helps synchronize the policy with the outside environment.
         Most policies don't need to implement this function
@@ -57,38 +64,30 @@ class HumanPolicy(Policy):
         :return: Action probabilities
         """
         valid_moves = GoGame.get_valid_moves(state)
-        player_action = None
+
+        # Human interface
+        size = state.shape[1]
+        go_env = gym.make('gym_go:go-v0', size=size, state=state)
         while True:
-            print(GoGame.str(state))
-            coords = input("Enter coordinates separated by space (`q` to quit)\n")
-            if coords == 'p':
-                player_action = None
-            else:
-                try:
-                    coords = coords.split()
-                    row = int(coords[0])
-                    col = int(coords[1])
-                    player_action = (row, col)
-                except Exception as e:
-                    print(e)
-                    continue
+            player_action = go_env.render('human')
             player_action = GoGame.action_2d_to_1d(player_action, state)
-            if valid_moves[player_action]:
+            if valid_moves[player_action] > 0:
                 break
-            else:
-                print("Invalid action")
 
         action_probs = np.zeros(GoGame.get_action_size(state))
         action_probs[player_action] = 1
+
         return action_probs
 
 
-class GreedyPolicy(Policy):
-    def __init__(self, val_func):
+class QTempPolicy(Policy):
+    def __init__(self, val_func, temp):
         """
+        Pi is proportional to the exp(qvals) raised to the 1/temp power
         :param val_func: A function that takes in states and outputs corresponding values
         """
         self.val_func = val_func
+        self.temp = temp
 
     def __call__(self, state, step):
         """
@@ -101,29 +100,34 @@ class GreedyPolicy(Policy):
 
         batch_qvals = go_ai.montecarlo.qval_from_stateval(state[np.newaxis], self.val_func)
         qvals = batch_qvals[0]
-        qvals -= np.min(qvals)
-        qvals += 1e-7
-        qvals = qvals * valid_moves
+        if np.count_nonzero(qvals) == 0:
+            qvals += valid_moves
 
-        if step < 4:
-            # Temperated
-            target_pis = normalize(valid_moves[np.newaxis], norm='l1')[0]
+        if self.temp <= 0:
+            # Max Qs
+            pi = greedy_pi(qvals)
         else:
-            # Max Q
-            max_qs = np.max(qvals)
-            target_pis = (qvals == max_qs).astype(np.int)
-            target_pis = normalize(target_pis[np.newaxis], norm='l1')[0]
+            expq = np.exp(qvals)
+            expq *= valid_moves
+            amp_qs = expq[np.newaxis] ** (1 / self.temp)
+            if np.isnan(amp_qs).any():
+                pi = greedy_pi(qvals)
+            else:
+                pi = normalize(amp_qs, norm='l1')[0]
+                if np.count_nonzero(pi) == 0:
+                    # Incase we amplify so much, everything is zero due to floating point error
+                    # Max Qs
+                    pi = greedy_pi(qvals)
 
-        assert (target_pis[invalid_moves > 0] == 0).all(), target_pis
-        return target_pis
+        assert (pi[invalid_moves > 0] == 0).all(), pi
+        return pi
 
 
 class MctPolicy(Policy):
-    def __init__(self, forward_func, state, mc_sims, temp_func=lambda step: (1 / 8) if (step < 16) else 0):
+    def __init__(self, forward_func, state, temp_func=lambda step: 1 if (step < 4) else 0):
         self.forward_func = forward_func
-        self.mc_sims = mc_sims
         self.temp_func = temp_func
-        self.tree = tree.MCTree(state, self.forward_func)
+        self.tree = tree.MCTree(self.forward_func, state)
 
     def __call__(self, state, step):
         """
@@ -132,7 +136,7 @@ class MctPolicy(Policy):
         :return:
         """
         temp = self.temp_func(step)
-        return self.tree.get_action_probs(max_num_searches=self.mc_sims, temp=temp)
+        return self.tree.get_action_probs(max_num_searches=0, temp=temp)
 
     def step(self, action):
         """
@@ -142,13 +146,14 @@ class MctPolicy(Policy):
         """
         self.tree.step(action)
 
-    def reset(self):
-        self.tree.reset()
+    def reset(self, state=None):
+        self.tree.reset(state)
 
 
 class PolicyArgs:
-    def __init__(self, mode, board_size, weight_path=None, name=None):
+    def __init__(self, mode, board_size, weight_path=None, name=None, temperature=None):
         self.mode = mode
         self.board_size = board_size
         self.model_path = weight_path
         self.name = name if name is not None else mode
+        self.temperature = temperature
