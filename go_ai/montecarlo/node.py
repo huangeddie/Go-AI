@@ -13,8 +13,10 @@ class Node:
         if parentaction is not None:
             self.parent = parentaction[0]
             self.parent.children[parentaction[1]] = self
+            self.last_action = parentaction[1]
         else:
             self.parent = None
+            self.last_action = None
 
         self.height = self.parent.height + 1 if self.parent is not None else 0
         # 1d array of the size that can hold the moves including pass,

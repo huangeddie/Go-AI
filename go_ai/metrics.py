@@ -64,6 +64,17 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None):
     plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
 
 
+def action_1d_to_2d(action_1d, board_width):
+    """
+    Converts 1D action to 2D or None if it's a pass
+    """
+    if action_1d == board_width ** 2:
+        action = None
+    else:
+        action = (action_1d // board_width, action_1d % board_width)
+    return action
+
+
 def state_responses_helper(policy_args: go_ai.policies.PolicyArgs, states, taken_actions, next_states, rewards, terminals,
                            wins):
     """
@@ -77,17 +88,6 @@ def state_responses_helper(policy_args: go_ai.policies.PolicyArgs, states, taken
     :param wins:
     :return:
     """
-
-    def action_1d_to_2d(action_1d, board_width):
-        """
-        Converts 1D action to 2D or None if it's a pass
-        """
-        if action_1d == board_width ** 2:
-            action = None
-        else:
-            action = (action_1d // board_width, action_1d % board_width)
-        return action
-
     board_size = states[0].shape[1]
 
     if policy_args.mode == 'monte_carlo':
@@ -221,8 +221,16 @@ def plot_mct(root_node, max_layers, max_branch=None):
         for j in range(len(layers[i])):
             plt.subplot(num_rows, num_cols, num_cols * i + j + 1)
             plt.axis('off')
-            plt.imshow(matplot_format(layers[i][j].state))
-            # TODO add title
+            
+            node = layers[i][j]
+            if node.last_action:
+                action = action_1d_to_2d(node.last_action, node.state.shape[1])
+            else:
+                action = None
+            visits = node.N
+            value = node.V
+            plt.title('A={} N={} V={:.2f}'.format(action, visits, value))
+            plt.imshow(matplot_format(node.state))
     plt.tight_layout()
     return fig
 

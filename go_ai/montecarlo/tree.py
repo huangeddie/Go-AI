@@ -18,7 +18,7 @@ class MCTree:
         self.forward_func = forward_func
 
         action_probs, state_value = forward_func(state[np.newaxis])
-        action_probs, state_value = action_probs[0], state_value[0]
+        action_probs, state_value = action_probs[0], state_value[0].item()
 
         self.root = Node(None, action_probs, state_value, state)
         assert not self.root.visited()
@@ -137,7 +137,7 @@ class MCTree:
             next_turn = GoGame.get_turn(next_state)
             canonical_state = GoGame.get_canonical_form(next_state, next_turn)
             action_probs, state_value = self.forward_func(canonical_state[np.newaxis])
-            action_probs, state_value = action_probs[0], state_value[0]
+            action_probs, state_value = action_probs[0], state_value[0].item()
             # Set parent to None because we know we're going to set it as root
             child = Node(None, action_probs, state_value, next_state)
 
