@@ -2,7 +2,6 @@ import unittest
 import gym
 import numpy as np
 from go_ai.montecarlo import tree
-import tensorflow as tf
 
 class TestMCTS(unittest.TestCase):
 
@@ -21,7 +20,7 @@ class TestMCTS(unittest.TestCase):
 
         def mock_forward_func(states):
             batch_size = states.shape[0]
-            return tf.zeros((batch_size,self.env.action_space)), tf.zeros((batch_size,1))
+            return np.zeros((batch_size,self.env.action_space)), np.zeros((batch_size,1))
 
         mct = tree.MCTree(next_state, mock_forward_func)
         action_probs = mct.get_action_probs(max_num_searches=0, temp=0)
@@ -35,7 +34,7 @@ class TestMCTS(unittest.TestCase):
 
         def mock_forward_func(states):
             batch_size = states.shape[0]
-            return tf.zeros((batch_size, self.env.action_space)), tf.zeros((batch_size, 1))
+            return np.zeros((batch_size, self.env.action_space)), np.zeros((batch_size, 1))
 
         mct = tree.MCTree(next_state, mock_forward_func)
         action_probs = mct.get_action_probs(max_num_searches=0, temp=0)

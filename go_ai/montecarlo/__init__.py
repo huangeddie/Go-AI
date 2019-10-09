@@ -1,5 +1,5 @@
-import numpy as np
 import gym
+import numpy as np
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -16,7 +16,7 @@ def canonical_winning(canonical_state):
     return winning
 
 
-def batch_children_states(states):
+def batch_canonical_children_states(states):
     # Get all children states
     canonical_next_states = []
     for state in states:
@@ -39,7 +39,7 @@ def qval_from_stateval(states, val_func):
     :return: qvals of children of every state (batch size x children state vals)
     """
 
-    canonical_next_states = batch_children_states(states)
+    canonical_next_states = batch_canonical_children_states(states)
     canonical_next_vals = val_func(canonical_next_states)
 
     curr_idx = 0
@@ -73,7 +73,7 @@ def piqval_from_actorcritic(states, forward_func):
     """
 
     # Get network responses on children
-    canonical_next_states = batch_children_states(states)
+    canonical_next_states = batch_canonical_children_states(states)
     canonical_pis, canonical_next_vals = forward_func(canonical_next_states)
 
     curr_idx = 0
