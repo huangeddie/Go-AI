@@ -8,13 +8,13 @@ GoVars = go_env.govars
 GoGame = go_env.gogame
 
 
-def play_games(go_env, policy1: policies.Policy, policy2: policies.Policy, get_traj, episodes):
+def play_games(go_env, black_policy: policies.Policy, white_policy: policies.Policy, get_traj, episodes):
     replay_data = []
     wins = 0
-    pbar = tqdm(range(1, episodes + 1), desc="{} vs. {}".format(policy1.name, policy2.name), position=0)
+    pbar = tqdm(range(1, episodes + 1), desc="{} vs. {}".format(black_policy.name, white_policy.name), position=0)
     for i in pbar:
         go_env.reset()
-        w, traj = pit(go_env, policy1, policy2, get_traj=get_traj)
+        w, traj = pit(go_env, black_policy, white_policy, get_traj=get_traj)
         wins += w
         replay_data.extend(traj)
         pbar.set_postfix_str("{:.1f}%".format(100 * wins / i))
