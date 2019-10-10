@@ -40,7 +40,6 @@ class ValueNet(nn.Module):
             nn.Linear(16, 1)
         )
 
-        self.optim = optim.Adam(self.parameters(), 1e-2)
         self.criterion = nn.BCEWithLogitsLoss()
 
     def forward(self, x):
@@ -49,7 +48,7 @@ class ValueNet(nn.Module):
         x = self.fcs(x)
         return x
 
-    def optimize(self, replay_data, batch_size):
+    def optimize(self, replay_data, optimizer, batch_size):
         N = len(replay_data[0])
         for component in replay_data:
             assert len(component) == N
@@ -67,12 +66,12 @@ class ValueNet(nn.Module):
             states = torch.from_numpy(states).type(torch.FloatTensor)
             wins = torch.from_numpy(wins[:, np.newaxis]).type(torch.FloatTensor)
 
-            self.optim.zero_grad()
+            optimizer.zero_grad()
             vals = self(states)
             pred_wins = (torch.sigmoid(vals) > 0.5).type(torch.FloatTensor)
             loss = self.criterion(vals, wins)
             loss.backward()
-            self.optim.step()
+            optimizer.step()
 
             running_loss += loss.item()
             running_acc += torch.mean((pred_wins == wins).type(torch.FloatTensor)).item()
