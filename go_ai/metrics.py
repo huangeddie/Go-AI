@@ -193,42 +193,51 @@ def plot_mct(root_node, max_layers, max_branch=None):
     :param max_branch: The max number of children show per node
     :return: A plot with each layer of the MCT states in a row
     """
-    # Traverse tree to flatten nodes into rows
-    layers = [[root_node]]
-    for l in range(1, max_layers):
-        layers.append([])
-        parents = layers[l - 1]
-        for p in parents:
-            if p.is_leaf():
-                continue
+    max_width = max_branch ** (max_layers - 1)
+    grid = np.empty((max_layers, max_width), dtype=object)
+    
+    # Traverse tree to flatten into columns
+    # Consists of (node, level) pairs
+    stack = [(root_node, 0)]
+    curr_x = 0
+    curr_y = -1
+    while stack:
+        node, level = stack.pop()
+        # If we are not moving down in the grid, move right
+        if level <= curr_y:
+            curr_x += 1
+        curr_y = level
+        grid[curr_y, curr_x] = node
+        if level < max_layers - 1 and not node.is_leaf():
             children = list(filter(
-                lambda child: child is not None and child.visited(), p.children))
-            children = sorted(children, key=lambda c: c.N, reverse=True)
+                lambda child: child is not None and child.visited(), node.children))
+            # Sort in ascending order so most visited goes on top of stack
+            children = sorted(children, key=lambda c: c.N)
             if max_branch:
-                children = children[:max_branch]
-            layers[l].extend(children)
-        # If no children were added, stop
-        if not layers[l]:
-            layers = layers[:l]
-            break
+                # Take last k children
+                children = children[-max_branch:]
+            pairs = [(c, curr_y + 1) for c in children]
+            stack.extend(pairs)
 
-    num_rows = len(layers)
-    # Number of columns is max width of layers
-    num_cols = max(map(len, layers))
+    # Trim empty columns from grid
+    grid = grid[:, :curr_x + 1]
 
-    fig = plt.figure(figsize=(num_cols * 2.5, num_rows * 2))
-    for i in range(len(layers)):
-        for j in range(len(layers[i])):
-            plt.subplot(num_rows, num_cols, num_cols * i + j + 1)
-            plt.axis('off')
+    fig = plt.figure(figsize=(grid.shape[1] * 2, grid.shape[0] * 2.5))
+    for i in range(grid.shape[0]):
+        for j in range(grid.shape[1]):
+            node = grid[i, j]
+            if node is None:
+                continue
             
-            node = layers[i][j]
             if node.last_action:
                 action = action_1d_to_2d(node.last_action, node.state.shape[1])
             else:
                 action = None
             visits = node.N
             value = node.V
+            
+            plt.subplot(grid.shape[0], grid.shape[1], grid.shape[1] * i + j + 1)
+            plt.axis('off')
             plt.title('A={} N={} V={:.2f}'.format(action, visits, value))
             plt.imshow(matplot_format(node.state))
     plt.tight_layout()
