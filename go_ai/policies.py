@@ -182,12 +182,14 @@ class QTempPolicy(Policy):
 
 
 class MctPolicy(Policy):
-    def __init__(self, name, forward_func, state, temp_func=lambda step: 1 if (step < 4) else 0):
+    def __init__(self, name, board_size, val_func, temp, num_searches):
         super(MctPolicy, self).__init__(name)
 
-        self.forward_func = forward_func
-        self.temp_func = temp_func
-        self.tree = tree.MCTree(self.forward_func, state)
+        self.val_func = val_func
+        self.temp = temp
+        initial_state = GoGame.get_init_board(board_size)
+        self.tree = tree.MCTree(self.val_func, initial_state)
+        self.num_searches = num_searches
 
     def __call__(self, state, step):
         """
@@ -195,8 +197,7 @@ class MctPolicy(Policy):
         :param step: Parameter used for getting the temperature
         :return:
         """
-        temp = self.temp_func(step)
-        return self.tree.get_action_probs(max_num_searches=0, temp=temp)
+        return self.tree.get_action_probs(max_num_searches=self.num_searches, temp=self.temp)
 
     def step(self, action):
         """
