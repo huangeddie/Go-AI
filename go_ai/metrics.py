@@ -222,7 +222,7 @@ def plot_mct(root_node, max_layers, max_branch=None):
     # Trim empty columns from grid
     grid = grid[:, :curr_x + 1]
 
-    fig = plt.figure(figsize=(grid.shape[1] * 2, grid.shape[0] * 2.5))
+    fig = plt.figure(figsize=(grid.shape[1] * 2, grid.shape[0] * 2))
     for i in range(grid.shape[0]):
         for j in range(grid.shape[1]):
             node = grid[i, j]
