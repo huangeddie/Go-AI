@@ -77,7 +77,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     qvals = None
     if isinstance(policy, policies.QTempPolicy):
         state_vals = policy.val_func(states)
-        qvals = montecarlo.qval_from_stateval(states, policy.val_func)
+        qvals, _ = montecarlo.qval_from_stateval(states, policy.val_func)
 
     valid_moves = data.batch_valid_moves(states)
 

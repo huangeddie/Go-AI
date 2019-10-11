@@ -57,14 +57,14 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
         curr_turn = go_env.turn()
 
         # Get canonical state for policy and memory
-        canonical_state = GoGame.get_canonical_form(state, curr_turn)
+        canonical_state = GoGame.get_canonical_form(state)
 
         # Get an action
         if curr_turn == GoVars.BLACK:
-            action_probs = black_policy(state, step=num_steps)
+            action_probs = black_policy(canonical_state, step=num_steps)
         else:
             assert curr_turn == GoVars.WHITE
-            action_probs = white_policy(state, step=num_steps)
+            action_probs = white_policy(canonical_state, step=num_steps)
 
         action = GoGame.random_weighted_action(action_probs)
 
@@ -72,7 +72,7 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
         next_state, reward, done, _ = go_env.step(action)
 
         # Get canonical form of next state for memory
-        canonical_next_state = GoGame.get_canonical_form(next_state, curr_turn)
+        canonical_next_state = GoGame.get_canonical_form(next_state)
 
         # Sync the policies
         black_policy.step(action)

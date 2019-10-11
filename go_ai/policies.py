@@ -5,20 +5,15 @@ import numpy as np
 import torch
 from sklearn.preprocessing import normalize
 
-import go_ai.montecarlo
-from go_ai.montecarlo import tree
+from go_ai import montecarlo
+from go_ai.montecarlo import tree, greedy_pi
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
-def greedy_pi(qvals):
-    max_qs = np.max(qvals)
-    pi = (qvals == max_qs).astype(np.int)
-    pi = normalize(pi[np.newaxis], norm='l1')[0]
-    return pi
-
-
 def greedy_val_func(states):
+    if len(states) <= 0:
+        return np.array([])
     board_area = GoGame.get_action_size(states[0]) - 1
 
     vals = []
@@ -156,7 +151,7 @@ class QTempPolicy(Policy):
         valid_moves = GoGame.get_valid_moves(state)
         invalid_moves = 1 - valid_moves
 
-        batch_qvals = go_ai.montecarlo.qval_from_stateval(state[np.newaxis], self.val_func)
+        batch_qvals, _ = montecarlo.qval_from_stateval(state[np.newaxis], self.val_func)
         qvals = batch_qvals[0]
         if np.count_nonzero(qvals) == 0:
             qvals += valid_moves
@@ -197,7 +192,12 @@ class MctPolicy(Policy):
         :param step: Parameter used for getting the temperature
         :return:
         """
-        return self.tree.get_action_probs(max_num_searches=self.num_searches, temp=self.temp)
+        root = self.tree.root.state
+        assert (root == state).all(), (root, state)
+        pi = self.tree.get_action_probs(max_num_searches=self.num_searches, temp=self.temp)
+        root = self.tree.root.state
+        assert (root == state).all(), (root, state)
+        return pi
 
     def step(self, action):
         """
