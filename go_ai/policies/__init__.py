@@ -124,12 +124,10 @@ class QTempPolicy(Policy):
 
 
 class MctPolicy(Policy):
-    def __init__(self, forward_func, state,
-            temp_func=lambda step: 1 if (step < 4) else 0, max_searches=0):
+    def __init__(self, forward_func, state, temp_func=lambda step: 1 if (step < 4) else 0):
         self.forward_func = forward_func
         self.temp_func = temp_func
         self.tree = tree.MCTree(self.forward_func, state)
-        self.max_searches = max_searches
 
     def __call__(self, state, step):
         """
@@ -138,7 +136,7 @@ class MctPolicy(Policy):
         :return:
         """
         temp = self.temp_func(step)
-        return self.tree.get_action_probs(max_num_searches=self.max_searches, temp=temp)
+        return self.tree.get_action_probs(max_num_searches=0, temp=temp)
 
     def step(self, action):
         """
@@ -153,11 +151,9 @@ class MctPolicy(Policy):
 
 
 class PolicyArgs:
-    def __init__(self, mode, board_size, weight_path=None, name=None,
-            temperature=None, max_searches=None):
+    def __init__(self, mode, board_size, weight_path=None, name=None, temperature=None):
         self.mode = mode
         self.board_size = board_size
         self.model_path = weight_path
         self.name = name if name is not None else mode
         self.temperature = temperature
-        self.max_searches = max_searches

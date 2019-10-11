@@ -20,8 +20,7 @@ def make_policy(policy_args: policies.PolicyArgs):
         model = tf.keras.models.load_model(policy_args.model_path)
         forward_func = actor_critic.make_forward_func(model)
         init_state = GoGame.get_init_board(policy_args.board_size)
-        max_searches = policy_args.max_searches
-        policy = policies.MctPolicy(forward_func, init_state, max_searches=max_searches)
+        policy = policies.MctPolicy(forward_func, init_state)
 
     elif policy_args.mode == 'random':
         policy = policies.RandomPolicy()
