@@ -9,12 +9,13 @@ INIT_TEMP = 1
 TEMP_DECAY = 3 / 4
 MIN_TEMP = 1 / 64
 
-NUM_SEARCHES = 16
+NUM_SEARCHES = 0 # If set to 0, MCTPolicies become simply QVals
 
 WORKERS = 4
 
 LOAD_SAVED_MODELS = False
 EPISODES_DIR = 'episodes/'
 CHECKPOINT_PATH = 'checkpoints/checkpoint_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
+TMP_PATH = 'checkpoints/tmp_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
 
 DEMO_TRAJECTORY_PATH = 'logs/a_trajectory.png'

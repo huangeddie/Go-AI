@@ -1,6 +1,5 @@
 import os
 import random
-import tempfile
 
 import gym
 import torch
@@ -12,9 +11,7 @@ from go_ai.models import value_models
 from hyperparameters import *
 
 
-def train(rank, tmp_path):
-    barrier = mp.Barrier(WORKERS)
-
+def train(rank, barrier):
     # Environment
     go_env = gym.make('gym_go:go-v0', size=BOARD_SIZE)
 
@@ -38,15 +35,18 @@ def train(rank, tmp_path):
         if r == rank:
             # My turn to optimize
             value_models.optimize(curr_model, replay_data, optim, BATCH_SIZE)
-            torch.save(curr_model.state_dict(), tmp_path)
+            torch.save(curr_model.state_dict(), TMP_PATH)
 
         # Get new parameters
         barrier.wait()
-        barrier.reset()
-        curr_model.load_state_dict(torch.load(tmp_path))
+
+        curr_model.load_state_dict(torch.load(TMP_PATH))
 
 
 if __name__ == '__main__':
+    mp.set_start_method('spawn')
+    barrier = mp.Barrier(WORKERS)
+
     # Environment
     go_env = gym.make('gym_go:go-v0', size=BOARD_SIZE)
 
@@ -80,15 +80,13 @@ if __name__ == '__main__':
     metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJECTORY_PATH)
 
     # Training
-    tmp_path = tempfile.gettempdir() + "/tmp.checkpoint"
-
     for iteration in range(ITERATIONS):
         print(f"Iteration {iteration}")
 
-        mp.spawn(fn=train, args=(tmp_path,), nprocs=WORKERS, join=True)
+        mp.spawn(fn=train, args=(barrier,), nprocs=WORKERS, join=True)
 
         # Evaluate
-        curr_model.load_state_dict(torch.load(tmp_path))
+        curr_model.load_state_dict(torch.load(TMP_PATH))
         accepted = evaluate(go_env, curr_pi, checkpoint_pi, NUM_EVAL_GAMES, CHECKPOINT_PATH)
 
         if accepted == 1:
