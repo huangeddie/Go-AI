@@ -15,6 +15,7 @@ class MyTestCase(unittest.TestCase):
 
         self.num_games = 128
 
+
     def test_rand_vs_greed(self):
         win_rate, _ = game.play_games(self.go_env, self.random_policy, self.greedy_policy, False, self.num_games)
         self.assertAlmostEqual(win_rate, 0, delta=0.1)

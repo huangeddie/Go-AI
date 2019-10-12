@@ -34,11 +34,19 @@ class Node:
         self.post_qsums = np.zeros(action_size)
         self.move_visits = np.zeros(action_size)
 
+    def update_height(self, new_height):
+        self.height = new_height
+        children_height = self.height + 1
+        for child in self.canon_children:
+            if isinstance(child, Node):
+                child.update_height(children_height)
 
     def visited(self):
         return np.sum(self.move_visits) > 0
 
-    @property
+    def is_leaf(self):
+        return not self.cached_children()
+
     def cached_children(self):
         return (self.canon_children != None).any()
 
@@ -60,7 +68,6 @@ class Node:
 
     def latest_qs(self):
         valid_moves = GoGame.get_valid_moves(self.state)
-        children = self.canon_children
         Qs = []
         for move in range(GoGame.get_action_size(self.state)):
             if not valid_moves[move]:

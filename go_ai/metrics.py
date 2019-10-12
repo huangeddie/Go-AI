@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 
 import go_ai.game
 from go_ai import data, montecarlo, policies
+from go_ai.montecarlo import node
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -155,11 +156,11 @@ def plot_symmetries(next_state, outpath):
     plt.close()
 
 
-def plot_mct(root_node, max_layers, max_branch=None):
+def plot_mct(root_node: node.Node, outpath, max_layers=3, max_branch=16):
     """
     :param root_node: The Node to start plotting from
     :param max_layers: The number of layers to plot (1st layer is the root)
-    :param max_branch: The max number of children show per node
+    :param max_branch: The max number of canon_children show per node
     :return: A plot with each layer of the MCT states in a row
     """
     max_width = max_branch ** (max_layers - 1)
@@ -172,45 +173,47 @@ def plot_mct(root_node, max_layers, max_branch=None):
     curr_y = -1
     while stack:
         node, level = stack.pop()
+        assert node is not None
         # If we are not moving down in the grid, move right
         if level <= curr_y:
             curr_x += 1
         curr_y = level
         grid[curr_y, curr_x] = node
         if level < max_layers - 1 and not node.is_leaf():
-            children = list(filter(
-                lambda child: child is not None and child.visited(), node.children))
+            canon_children = list(filter(
+                lambda child: child is not None and child.visited(), node.canon_children))
             # Sort in ascending order so most visited goes on top of stack
-            children = sorted(children, key=lambda c: c.N)
+            canon_children = sorted(canon_children, key=lambda c: np.sum(c.move_visits))
             if max_branch:
-                # Take last k children
-                children = children[-max_branch:]
-            pairs = [(c, curr_y + 1) for c in children]
+                # Take last k canon_children
+                canon_children = canon_children[-max_branch:]
+            pairs = [(c, curr_y + 1) for c in canon_children]
             stack.extend(pairs)
 
     # Trim empty columns from grid
     grid = grid[:, :curr_x + 1]
 
-    fig = plt.figure(figsize=(grid.shape[1] * 2, grid.shape[0] * 2))
+    plt.figure(figsize=(grid.shape[1] * 3, grid.shape[0] * 2))
     for i in range(grid.shape[0]):
         for j in range(grid.shape[1]):
             node = grid[i, j]
             if node is None:
                 continue
 
-            if node.last_action:
-                action = action_1d_to_2d(node.last_action, node.state.shape[1])
+            if node.lastaction:
+                action = action_1d_to_2d(node.lastaction, node.state.shape[1])
             else:
                 action = None
-            visits = node.N
-            value = node.V
+            visits = np.sum(node.move_visits)
+            value = node.value
 
             plt.subplot(grid.shape[0], grid.shape[1], grid.shape[1] * i + j + 1)
             plt.axis('off')
             plt.title('A={} N={} V={:.2f}'.format(action, visits, value))
             plt.imshow(matplot_format(node.state))
     plt.tight_layout()
-    return fig
+    plt.savefig(outpath)
+    plt.close()
 
 
 def gen_mct_plot(go_env, policy_args, max_layers, max_branch=None):

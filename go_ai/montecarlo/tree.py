@@ -20,7 +20,7 @@ class MCTree:
         canonical_state = GoGame.get_canonical_form(state)
         self.val_func = val_func
 
-        canonical_state_val = val_func(canonical_state[np.newaxis])[0]
+        canonical_state_val = val_func(canonical_state[np.newaxis])[0].item()
 
         self.root = Node(None, canonical_state_val, canonical_state)
         assert not self.root.visited()
@@ -45,7 +45,7 @@ class MCTree:
 
         num_search = 0
         if max_num_searches <= 0:
-            if not self.root.cached_children:
+            if not self.root.cached_children():
                 self.cache_children(self.root)
             pi = self.root.latest_qs()
         else:
@@ -55,6 +55,9 @@ class MCTree:
                 while curr_node.visited():
                     curr_node, move = self.select_best_child(curr_node)
                 if not curr_node.terminal:
+                    curr_node, move = self.select_best_child(curr_node)
+                if curr_node.height % 2 == 1 and not curr_node.terminal:
+                    # We want to end on our turn
                     curr_node, move = self.select_best_child(curr_node)
 
                 curr_node.parent.back_propagate(1 - curr_node.value, curr_node.lastaction)
@@ -85,7 +88,7 @@ class MCTree:
             U = U_CONST * P / (1 + N), where P is action value.
             forward_func action probs
         """
-        if not node.cached_children:
+        if not node.cached_children():
             self.cache_children(node)
 
         valid_moves = GoGame.get_valid_moves(node.state)
@@ -120,7 +123,7 @@ class MCTree:
 
         for idx, move in enumerate(valid_move_idcs):
             # Our qval is the negative state value of the canonical child
-            Node((node, move), 1 - batch_qvals[0][move], batch_canonical_children[idx])
+            Node((node, move), 1 - batch_qvals[0][move].item(), batch_canonical_children[idx])
 
     def step(self, action):
         '''
@@ -128,12 +131,14 @@ class MCTree:
         that are not in the child subtree. If such child doesn't exist yet,
         expand it.
         '''
-        if not self.root.cached_children:
+        if not self.root.cached_children():
             self.cache_children(self.root)
         canon_child = self.root.canon_children[action]
-
         self.root = canon_child
+
+        assert isinstance(self.root, Node)
         self.root.parent = None
+        self.root.update_height(0)
 
     def reset(self, state=None):
         if state is None:
