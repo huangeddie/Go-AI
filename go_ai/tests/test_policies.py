@@ -10,7 +10,7 @@ class MyTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.random_policy = policies.RandomPolicy()
         self.greedy_policy = policies.QTempPolicy('Greedy', policies.greedy_val_func, temp=0)
-        self.greedy_mct_policy = policies.MctPolicy('MCT', 4, policies.greedy_val_func, temp=0, num_searches=8)
+        self.greedy_mct_policy = policies.MctPolicy('MCT', 4, policies.greedy_val_func, temp=0, num_searches=16)
         self.go_env = gym.make('gym_go:go-v0', size=4)
 
         self.num_games = 128
@@ -47,11 +47,11 @@ class MyTestCase(unittest.TestCase):
 
     def test_mct_vs_greed(self):
         win_rate, _ = game.play_games(self.go_env, self.greedy_mct_policy, self.greedy_policy, False, self.num_games)
-        self.assertGreaterEqual(win_rate, 0.6)
+        self.assertGreaterEqual(win_rate, 0.7)
 
     def test_greed_vs_mct(self):
         win_rate, _ = game.play_games(self.go_env, self.greedy_policy, self.greedy_mct_policy, False, self.num_games)
-        self.assertLessEqual(win_rate, 0.5)
+        self.assertLessEqual(win_rate, 0.3)
 
 
 if __name__ == '__main__':

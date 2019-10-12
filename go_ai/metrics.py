@@ -156,7 +156,7 @@ def plot_symmetries(next_state, outpath):
     plt.close()
 
 
-def plot_mct(root_node: node.Node, outpath, max_layers=4, max_branch=8):
+def plot_mct(root_node: node.Node, outpath, max_layers=8, max_branch=8):
     """
     :param root_node: The Node to start plotting from
     :param max_layers: The number of layers to plot (1st layer is the root)
@@ -201,7 +201,6 @@ def plot_mct(root_node: node.Node, outpath, max_layers=4, max_branch=8):
 
             if node.lastaction is not None:
                 action = action_1d_to_2d(node.lastaction, node.state.shape[1])
-                print("Action", action)
             else:
                 assert node.parent is None
                 action = None

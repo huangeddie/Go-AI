@@ -79,7 +79,7 @@ class Node:
 
         return np.array(Qs)
 
-    def back_propagate(self, newq, move):
+    def back_propagate(self, parent_q):
         '''
         Description:
             Recursively increases the number visited by 1 and increase the
@@ -87,9 +87,9 @@ class Node:
         '''
         self.visits += 1
         if isinstance(self.parent, Node):
-            self.parent.move_visits[move] += 1
-            self.parent.post_qsums[move] += newq
-            self.parent.back_propagate(1 - newq, self.lastaction)
+            self.parent.move_visits[self.lastaction] += 1
+            self.parent.post_qsums[self.lastaction] += parent_q
+            self.parent.back_propagate(1 - parent_q)
 
     def __str__(self):
         return '{} {}H {}V {}N'.format(np.sum(self.state[[0, 1]], axis=0), self.height, self.value,

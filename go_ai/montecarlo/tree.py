@@ -52,7 +52,8 @@ class MCTree:
             while num_search < max_num_searches:
                 curr_node = self.root
                 # keep going down the tree with the best move
-                while curr_node.visited():
+                assert isinstance(curr_node, Node)
+                while not curr_node.terminal and curr_node.visited():
                     curr_node, move = self.select_best_child(curr_node)
                 if not curr_node.terminal:
                     curr_node, move = self.select_best_child(curr_node)
@@ -60,7 +61,7 @@ class MCTree:
                     # We want to end on our turn
                     curr_node, move = self.select_best_child(curr_node)
 
-                curr_node.back_propagate(1 - curr_node.value, curr_node.lastaction)
+                curr_node.back_propagate(1 - curr_node.value)
 
                 # increment search counter
                 num_search += 1
