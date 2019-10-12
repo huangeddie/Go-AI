@@ -59,7 +59,7 @@ class Policy:
     def __init__(self, name):
         self.name = name
 
-    def __call__(self, state, step):
+    def __call__(self, state, step=None):
         """
         :param state: Go board
         :param step: the number of steps taken in the game so far
@@ -103,7 +103,7 @@ class HumanPolicy(Policy):
     def __init__(self):
         super(HumanPolicy, self).__init__('Human')
 
-    def __call__(self, state, step):
+    def __call__(self, state, step=None):
         """
         :param state:
         :param step:
@@ -142,7 +142,7 @@ class QTempPolicy(Policy):
         self.val_func = val_func
         self.temp = temp
 
-    def __call__(self, state, step):
+    def __call__(self, state, step=None):
         """
         :param state:
         :param step:
@@ -176,14 +176,16 @@ class MctPolicy(Policy):
         self.tree = tree.MCTree(self.val_func, initial_state)
         self.num_searches = num_searches
 
-    def __call__(self, state, step):
+    def __call__(self, state, step=None):
         """
         :param state: Unused variable since we already have the state stored in the tree
         :param step: Parameter used for getting the temperature
         :return:
         """
         root = self.tree.root.state
-        assert (root == state).all(), (root, state)
+        if not (root == state).all():
+            logging.warning("MCTPolicy {} resetted tree, uncaching all work".format(self.name))
+            self.tree.reset(state)
         pi = self.tree.get_action_probs(max_num_searches=self.num_searches, temp=self.temp)
         root = self.tree.root.state
         assert (root == state).all(), (root, state)

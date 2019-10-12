@@ -62,6 +62,7 @@ class MCTree:
                     curr_node, move = self.select_best_child(curr_node)
 
                 curr_node.parent.back_propagate(curr_node.value)
+                curr_node.visits += 1
 
                 # increment search counter
                 num_search += 1

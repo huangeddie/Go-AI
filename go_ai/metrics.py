@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 
 import go_ai.game
 from go_ai import data, montecarlo, policies
-from go_ai.montecarlo import node
+from go_ai.montecarlo import tree
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -68,9 +68,12 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     board_size = states[0].shape[1]
 
     move_probs = []
-    for step, state in enumerate(states):
+    for step, (state, action) in enumerate(zip(states, taken_actions)):
+        if step == 0:
+            policy.reset(state)
         pi = policy(state, step)
         move_probs.append(pi)
+        policy.step(action)
 
     state_vals = None
     qvals = None
@@ -127,7 +130,7 @@ def state_responses(policy: policies.Policy, replay_mem):
     return fig
 
 
-def gen_traj_fig(go_env, policy: policies.Policy, outpath):
+def plot_traj_fig(go_env, policy: policies.Policy, outpath):
     """
     Plays out a self-play game
     :param go_env:
@@ -156,7 +159,7 @@ def plot_symmetries(next_state, outpath):
     plt.close()
 
 
-def plot_mct(root_node: node.Node, outpath, max_layers=8, max_branch=8):
+def plot_mct(tree: tree.MCTree, outpath, max_layers=8, max_branch=8):
     """
     :param root_node: The Node to start plotting from
     :param max_layers: The number of layers to plot (1st layer is the root)
@@ -168,6 +171,7 @@ def plot_mct(root_node: node.Node, outpath, max_layers=8, max_branch=8):
 
     # Traverse tree to flatten into columns
     # Consists of (node, level) pairs
+    root_node = tree.root
     stack = [(root_node, 0)]
     curr_x = 0
     curr_y = -1
@@ -193,6 +197,11 @@ def plot_mct(root_node: node.Node, outpath, max_layers=8, max_branch=8):
     grid = grid[:, :curr_x + 1]
 
     plt.figure(figsize=(grid.shape[1] * 2, grid.shape[0] * 2))
+    # Qvals
+    root_qs = tree.root.latest_qs()
+    plt.subplot(grid.shape[0], grid.shape[1], 2)
+    plt.title('Q Vals')
+    plt.plot(np.arange(len(root_qs)), root_qs)
     for i in range(grid.shape[0]):
         for j in range(grid.shape[1]):
             node = grid[i, j]
@@ -201,15 +210,17 @@ def plot_mct(root_node: node.Node, outpath, max_layers=8, max_branch=8):
 
             if node.lastaction is not None:
                 action = action_1d_to_2d(node.lastaction, node.state.shape[1])
+                qval = node.parent.latest_q(node.lastaction)
             else:
                 assert node.parent is None
                 action = None
+                qval = 0
             visits = node.visits
             value = node.value
 
             plt.subplot(grid.shape[0], grid.shape[1], grid.shape[1] * i + j + 1)
             plt.axis('off')
-            plt.title('A={} N={}\nV={:.2f}'.format(action, visits, value))
+            plt.title('A={} N={}\nV={:.2f}, Q={:.2f}'.format(action, visits, value, qval))
             plt.imshow(matplot_format(node.state))
     plt.tight_layout()
     plt.savefig(outpath)

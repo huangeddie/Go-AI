@@ -44,7 +44,8 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
 
     # Sync policies to current state
     black_policy.reset(state)
-    white_policy.reset(state)
+    if white_policy != black_policy:
+        white_policy.reset(state)
 
     max_steps = 2 * (go_env.size ** 2)
 
