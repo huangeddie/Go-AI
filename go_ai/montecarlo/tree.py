@@ -60,7 +60,7 @@ class MCTree:
                     # We want to end on our turn
                     curr_node, move = self.select_best_child(curr_node)
 
-                curr_node.parent.back_propagate(1 - curr_node.value, curr_node.lastaction)
+                curr_node.back_propagate(1 - curr_node.value, curr_node.lastaction)
 
                 # increment search counter
                 num_search += 1

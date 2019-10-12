@@ -33,6 +33,7 @@ class Node:
         action_size = GoGame.get_action_size(state)
         self.post_qsums = np.zeros(action_size)
         self.move_visits = np.zeros(action_size)
+        self.visits = 0
 
     def update_height(self, new_height):
         self.height = new_height
@@ -42,7 +43,7 @@ class Node:
                 child.update_height(children_height)
 
     def visited(self):
-        return np.sum(self.move_visits) > 0
+        return self.visits > 0
 
     def is_leaf(self):
         return not self.cached_children()
@@ -84,9 +85,10 @@ class Node:
             Recursively increases the number visited by 1 and increase the
             q value increment from this node up to the root node.
         '''
-        self.post_qsums[move] += newq
-        self.move_visits[move] += 1
-        if self.parent is not None:
+        self.visits += 1
+        if isinstance(self.parent, Node):
+            self.parent.move_visits[move] += 1
+            self.parent.post_qsums[move] += newq
             self.parent.back_propagate(1 - newq, self.lastaction)
 
     def __str__(self):

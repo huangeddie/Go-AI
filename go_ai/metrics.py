@@ -156,7 +156,7 @@ def plot_symmetries(next_state, outpath):
     plt.close()
 
 
-def plot_mct(root_node: node.Node, outpath, max_layers=3, max_branch=16):
+def plot_mct(root_node: node.Node, outpath, max_layers=4, max_branch=8):
     """
     :param root_node: The Node to start plotting from
     :param max_layers: The number of layers to plot (1st layer is the root)
@@ -180,8 +180,7 @@ def plot_mct(root_node: node.Node, outpath, max_layers=3, max_branch=16):
         curr_y = level
         grid[curr_y, curr_x] = node
         if level < max_layers - 1 and not node.is_leaf():
-            canon_children = list(filter(
-                lambda child: child is not None and child.visited(), node.canon_children))
+            canon_children = list(filter(lambda child: child is not None and child.visited(), node.canon_children))
             # Sort in ascending order so most visited goes on top of stack
             canon_children = sorted(canon_children, key=lambda c: np.sum(c.move_visits))
             if max_branch:
@@ -193,43 +192,26 @@ def plot_mct(root_node: node.Node, outpath, max_layers=3, max_branch=16):
     # Trim empty columns from grid
     grid = grid[:, :curr_x + 1]
 
-    plt.figure(figsize=(grid.shape[1] * 3, grid.shape[0] * 2))
+    plt.figure(figsize=(grid.shape[1] * 2, grid.shape[0] * 2))
     for i in range(grid.shape[0]):
         for j in range(grid.shape[1]):
             node = grid[i, j]
             if node is None:
                 continue
 
-            if node.lastaction:
+            if node.lastaction is not None:
                 action = action_1d_to_2d(node.lastaction, node.state.shape[1])
+                print("Action", action)
             else:
+                assert node.parent is None
                 action = None
-            visits = np.sum(node.move_visits)
+            visits = node.visits
             value = node.value
 
             plt.subplot(grid.shape[0], grid.shape[1], grid.shape[1] * i + j + 1)
             plt.axis('off')
-            plt.title('A={} N={} V={:.2f}'.format(action, visits, value))
+            plt.title('A={} N={}\nV={:.2f}'.format(action, visits, value))
             plt.imshow(matplot_format(node.state))
     plt.tight_layout()
     plt.savefig(outpath)
     plt.close()
-
-
-def gen_mct_plot(go_env, policy_args, max_layers, max_branch=None):
-    """
-    Displays a MCT after a self-play game
-    :param go_env:
-    :param policy_args: Arguments for a monte_carlo policy
-    :return: A plot of the MCT
-    """
-    assert policy_args.mode == 'monte_carlo'
-    policy = pmaker.make_policy(policy_args)
-    policy.tree.save_root()
-
-    go_env.reset()
-    data.pit(go_env, black_policy=policy, white_policy=policy)
-
-    root = policy.tree.orig_root
-    fig = plot_mct(root, max_layers, max_branch)
-    return fig
