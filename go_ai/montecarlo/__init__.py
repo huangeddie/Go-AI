@@ -69,3 +69,22 @@ def greedy_pi(qvals):
     pi = (qvals == max_qs).astype(np.int)
     pi = normalize(pi[np.newaxis], norm='l1')[0]
     return pi
+
+
+def exp_temp(qvals, temp, valid_moves):
+    if temp <= 0:
+        # Max Qs
+        pi = greedy_pi(qvals)
+    else:
+        expq = np.exp(qvals)
+        expq *= valid_moves
+        amp_qs = expq[np.newaxis] ** (1 / temp)
+        if np.isnan(amp_qs).any():
+            pi = greedy_pi(qvals)
+        else:
+            pi = normalize(amp_qs, norm='l1')[0]
+            if np.count_nonzero(pi) == 0:
+                # Incase we amplify so much, everything is zero due to floating point error
+                # Max Qs
+                pi = greedy_pi(qvals)
+    return pi

@@ -91,10 +91,15 @@ class MCTree:
         valid_moves = GoGame.get_valid_moves(node.state)
         invalid_values = (1 - valid_moves) * np.finfo(np.float).min
 
-        Q = node.latest_qs()
-        prior_pi = node.prior_qs()
+        Qs = node.latest_qs()
+        prior_qs = node.prior_qs()
+        prior_pi = montecarlo.exp_temp(prior_qs, 1, valid_moves)
+
+        assert np.sum(prior_pi) > 0
+
         N = node.move_visits
-        upper_confidence_bound = Q + u_const * prior_pi * np.sqrt(N) / (1 + N)
+        all_visits = np.sum(N)
+        upper_confidence_bound = Qs + u_const * prior_pi * np.sqrt(all_visits) / (1 + N)
         best_move = np.argmax(upper_confidence_bound + invalid_values)
 
         return node.canon_children[best_move], best_move

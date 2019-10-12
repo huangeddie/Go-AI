@@ -3,10 +3,9 @@ import logging
 import gym
 import numpy as np
 import torch
-from sklearn.preprocessing import normalize
 
 from go_ai import montecarlo
-from go_ai.montecarlo import tree, greedy_pi
+from go_ai.montecarlo import tree, exp_temp
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -155,22 +154,9 @@ class QTempPolicy(Policy):
         qvals = batch_qvals[0]
         if np.count_nonzero(qvals) == 0:
             qvals += valid_moves
+        temp = self.temp
 
-        if self.temp <= 0:
-            # Max Qs
-            pi = greedy_pi(qvals)
-        else:
-            expq = np.exp(qvals)
-            expq *= valid_moves
-            amp_qs = expq[np.newaxis] ** (1 / self.temp)
-            if np.isnan(amp_qs).any():
-                pi = greedy_pi(qvals)
-            else:
-                pi = normalize(amp_qs, norm='l1')[0]
-                if np.count_nonzero(pi) == 0:
-                    # Incase we amplify so much, everything is zero due to floating point error
-                    # Max Qs
-                    pi = greedy_pi(qvals)
+        pi = exp_temp(qvals, temp, valid_moves)
 
         assert (pi[invalid_moves > 0] == 0).all(), pi
         return pi
