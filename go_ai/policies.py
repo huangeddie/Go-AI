@@ -216,4 +216,8 @@ class MctPolicy(Policy):
         self.tree.step(action)
 
     def reset(self, state=None):
+        if not hasattr(self, "tree"):
+            assert state is not None
+            # Invoked the first time you call it
+            self.tree = tree.MCTree(self.val_func, state)
         self.tree.reset(state)

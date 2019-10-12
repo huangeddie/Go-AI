@@ -5,17 +5,14 @@ import gym
 from go_ai import game, policies
 
 
-
 class MyTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.random_policy = policies.RandomPolicy()
-        self.greedy_policy = policies.QTempPolicy('Greedy', val_func=policies.greedy_val_func, temp=0, min_temp=)
-        self.greedy_mct_policy = policies.MctPolicy('MCT', val_func=policies.greedy_val_func, num_searches=16, temp=0,
-                                                    min_temp=)
+        self.greedy_policy = policies.QTempPolicy('Greedy', policies.greedy_val_func, temp=0)
+        self.greedy_mct_policy = policies.MctPolicy('MCT', policies.greedy_val_func, num_searches=16, temp=0)
         self.go_env = gym.make('gym_go:go-v0', size=4)
 
         self.num_games = 128
-
 
     def test_rand_vs_greed(self):
         win_rate, _ = game.play_games(self.go_env, self.random_policy, self.greedy_policy, False, self.num_games)
