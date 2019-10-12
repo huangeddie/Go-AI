@@ -1,5 +1,6 @@
 import os
 import random
+import shutil
 
 import gym
 import torch
@@ -11,36 +12,35 @@ from go_ai.models import value_models
 from hyperparameters import *
 
 
-def train(rank, barrier):
+def train(rank, barrier, workers, model_path):
     # Environment
     go_env = gym.make('gym_go:go-v0', size=BOARD_SIZE)
 
     # Model
     curr_model = value_models.ValueNet(BOARD_SIZE)
-    curr_model.load_state_dict(torch.load(CHECKPOINT_PATH))
+    curr_model.load_state_dict(torch.load(model_path))
     optim = torch.optim.Adam(curr_model.parameters(), 1e-3)
 
     # Policy
     curr_pi = policies.MctPolicy('Current', curr_model, NUM_SEARCHES, INIT_TEMP, MIN_TEMP)
 
     # Play some games
-    _, replay_data = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITERATION // WORKERS)
+    _, replay_data = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITERATION // workers)
 
     # Process the data
     random.shuffle(replay_data)
     replay_data = data.replaylist_to_numpy(replay_data)
 
     # Take turns optimizing
-    for r in range(WORKERS):
+    for r in range(workers):
         if r == rank:
             # My turn to optimize
             value_models.optimize(curr_model, replay_data, optim, BATCH_SIZE)
-            torch.save(curr_model.state_dict(), TMP_PATH)
+            torch.save(curr_model.state_dict(), model_path)
 
         # Get new parameters
         barrier.wait()
-
-        curr_model.load_state_dict(torch.load(TMP_PATH))
+        curr_model.load_state_dict(torch.load(model_path))
 
 
 if __name__ == '__main__':
@@ -60,6 +60,8 @@ if __name__ == '__main__':
     else:
         torch.save(curr_model.state_dict(), CHECKPOINT_PATH)
         print("Initialized checkpoint")
+
+    shutil.copy(CHECKPOINT_PATH, TMP_PATH)
 
     curr_model.load_state_dict(torch.load(CHECKPOINT_PATH))
     checkpoint_model.load_state_dict(torch.load(CHECKPOINT_PATH))
@@ -83,7 +85,7 @@ if __name__ == '__main__':
     for iteration in range(ITERATIONS):
         print(f"Iteration {iteration}")
 
-        mp.spawn(fn=train, args=(barrier,), nprocs=WORKERS, join=True)
+        mp.spawn(fn=train, args=(barrier, WORKERS, TMP_PATH), nprocs=WORKERS, join=True)
 
         # Evaluate
         curr_model.load_state_dict(torch.load(TMP_PATH))
@@ -97,6 +99,8 @@ if __name__ == '__main__':
             # See how it fairs against the baselines
             rand_winrate, _ = game.play_games(go_env, curr_pi, rand_pi, False, NUM_EVAL_GAMES)
             greed_winrate, _ = game.play_games(go_env, curr_pi, greedy_pi, False, NUM_EVAL_GAMES)
+        elif accepted == -1:
+            shutil.copy(CHECKPOINT_PATH, TMP_PATH)
 
         # Decay the temperatures if any
         curr_pi.decay_temp(TEMP_DECAY)

@@ -40,31 +40,35 @@ class MCTree:
             num_search (int): number of search performed
         '''
         rootstate = self.root.state
-        valid_moves = GoGame.get_valid_moves(rootstate)
 
         num_search = 0
-        if not self.root.cached_children():
-            self.cache_children(self.root)
+        if max_num_searches <= 0:
+            # Avoid making nodes and stuff
+            qvals, _ = montecarlo.qval_from_stateval(rootstate[np.newaxis], self.val_func)
+            qvals = qvals[0]
+        else:
+            if not self.root.cached_children():
+                self.cache_children(self.root)
 
-        while num_search < max_num_searches:
-            curr_node = self.root
-            # keep going down the tree with the best move
-            assert isinstance(curr_node, Node)
-            while not curr_node.terminal and curr_node.visited():
-                curr_node, move = self.select_best_child(curr_node)
-            if not curr_node.terminal:
-                curr_node, move = self.select_best_child(curr_node)
-            if curr_node.height % 2 == 1 and not curr_node.terminal:
-                # We want to end on our turn
-                curr_node, move = self.select_best_child(curr_node)
+            while num_search < max_num_searches:
+                curr_node = self.root
+                # keep going down the tree with the best move
+                assert isinstance(curr_node, Node)
+                while not curr_node.terminal and curr_node.visited():
+                    curr_node, move = self.select_best_child(curr_node)
+                if not curr_node.terminal:
+                    curr_node, move = self.select_best_child(curr_node)
+                if curr_node.height % 2 == 1 and not curr_node.terminal:
+                    # We want to end on our turn
+                    curr_node, move = self.select_best_child(curr_node)
 
-            curr_node.parent.back_propagate(curr_node.value)
-            curr_node.visits += 1
+                curr_node.parent.back_propagate(curr_node.value)
+                curr_node.visits += 1
 
-            # increment search counter
-            num_search += 1
+                # increment search counter
+                num_search += 1
 
-        qvals = self.root.latest_qs()
+            qvals = self.root.latest_qs()
 
         return qvals
 
@@ -120,9 +124,14 @@ class MCTree:
         that are not in the child subtree. If such child doesn't exist yet,
         expand it.
         '''
-        if not self.root.cached_children():
-            self.cache_children(self.root)
-        canon_child = self.root.canon_children[action]
+        state = self.root.state
+        if self.root.cached_children():
+            canon_child = self.root.canon_children[action]
+        else:
+            childstate = GoGame.get_next_state(state, action)
+            canonchildstate = GoGame.get_canonical_form(childstate)
+            canon_child = Node(None, 0, canonchildstate) # State value doesn't matter
+
         self.root = canon_child
 
         assert isinstance(self.root, Node)
