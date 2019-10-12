@@ -138,7 +138,7 @@ class HumanPolicy(Policy):
 
 
 class QTempPolicy(Policy):
-    def __init__(self, name, val_func, temp, min_temp):
+    def __init__(self, name, val_func, temp, min_temp=0):
         """
         Pi is proportional to the exp(qvals) raised to the 1/temp power
         :param min_temp:
@@ -177,7 +177,7 @@ class QTempPolicy(Policy):
 
 
 class MctPolicy(Policy):
-    def __init__(self, name, val_func, temp, min_temp, num_searches):
+    def __init__(self, name, val_func, num_searches, temp, min_temp=0):
         super(MctPolicy, self).__init__(name, temp, min_temp)
         if isinstance(val_func, torch.nn.Module):
             self.pytorch_model = val_func

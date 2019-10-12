@@ -31,15 +31,15 @@ if __name__ == '__main__':
     print(curr_model)
 
     # Policies
-    curr_pi = policies.MctPolicy('Current', curr_model, INIT_TEMP, MIN_TEMP, NUM_SEARCHES)
-    checkpoint_pi = policies.MctPolicy('Checkpoint', checkpoint_model, INIT_TEMP, MIN_TEMP, NUM_SEARCHES)
+    curr_pi = policies.MctPolicy('Current', curr_model, NUM_SEARCHES, INIT_TEMP, MIN_TEMP)
+    checkpoint_pi = policies.MctPolicy('Checkpoint', checkpoint_model, NUM_SEARCHES, INIT_TEMP, MIN_TEMP)
 
     curr_pi = policies.QTempPolicy('Current', curr_model, INIT_TEMP, MIN_TEMP)
     checkpoint_pi = policies.QTempPolicy('Checkpoint', checkpoint_model, INIT_TEMP, MIN_TEMP)
 
     rand_pi = policies.RandomPolicy()
     greedy_pi = policies.QTempPolicy('Greedy', policies.greedy_val_func, 0, MIN_TEMP)
-    greedymct_pi = policies.MctPolicy('MCT', policies.greedy_val_func, 0, MIN_TEMP, NUM_SEARCHES)
+    greedymct_pi = policies.MctPolicy('MCT', policies.greedy_val_func, NUM_SEARCHES, 0, MIN_TEMP)
 
     human_policy = policies.HumanPolicy()
 
