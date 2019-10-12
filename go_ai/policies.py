@@ -138,6 +138,7 @@ class QTempPolicy(Policy):
         if isinstance(val_func, torch.nn.Module):
             logging.info("Converting pytorch value function to numpy")
             val_func = pytorch_to_numpy(val_func, logits=True)
+
         self.val_func = val_func
         self.temp = temp
 
@@ -165,6 +166,9 @@ class QTempPolicy(Policy):
 class MctPolicy(Policy):
     def __init__(self, name, board_size, val_func, temp, num_searches):
         super(MctPolicy, self).__init__(name)
+        if isinstance(val_func, torch.nn.Module):
+            logging.info("Converting pytorch value function to numpy")
+            val_func = pytorch_to_numpy(val_func, logits=True)
 
         self.val_func = val_func
         self.temp = temp

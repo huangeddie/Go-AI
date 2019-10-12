@@ -47,11 +47,11 @@ class MyTestCase(unittest.TestCase):
 
     def test_mct_vs_greed(self):
         win_rate, _ = game.play_games(self.go_env, self.greedy_mct_policy, self.greedy_policy, False, self.num_games)
-        self.assertGreaterEqual(win_rate, 0.7)
+        self.assertGreaterEqual(win_rate, 0.8)
 
     def test_greed_vs_mct(self):
         win_rate, _ = game.play_games(self.go_env, self.greedy_policy, self.greedy_mct_policy, False, self.num_games)
-        self.assertLessEqual(win_rate, 0.3)
+        self.assertLessEqual(win_rate, 0.2)
 
 
 if __name__ == '__main__':
