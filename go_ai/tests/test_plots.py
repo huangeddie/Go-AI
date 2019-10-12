@@ -10,8 +10,9 @@ from go_ai import policies, metrics
 class MyTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.random_policy = policies.RandomPolicy()
-        self.greedy_policy = policies.QTempPolicy('Greedy', policies.greedy_val_func, temp=0)
-        self.greedymct_pi = policies.MctPolicy('MCT', 4, policies.greedy_val_func, temp=0, num_searches=16)
+        self.greedy_policy = policies.QTempPolicy('Greedy', val_func=policies.greedy_val_func, temp=0, min_temp=)
+        self.greedymct_pi = policies.MctPolicy('MCT', val_func=policies.greedy_val_func, temp=0, min_temp=,
+                                               num_searches=16)
         self.go_env = gym.make('gym_go:go-v0', size=4)
         self.basedir = 'plots/'
 

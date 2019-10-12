@@ -56,8 +56,11 @@ class Policy:
     Interface for all types of policies
     """
 
-    def __init__(self, name):
+    def __init__(self, name, temp=None, min_temp=1 / 64):
         self.name = name
+        self.temp = temp
+        self.min_temp = min_temp
+        self.pytorch_model = None
 
     def __call__(self, state, step=None):
         """
@@ -66,6 +69,14 @@ class Policy:
         :return: Action probabilities
         """
         pass
+
+    def decay_temp(self, decay):
+        self.temp *= decay
+        if self.temp < self.min_temp:
+            self.temp = self.min_temp
+
+    def set_temp(self, temp):
+        self.temp = temp
 
     def step(self, action):
         """
@@ -89,7 +100,7 @@ class RandomPolicy(Policy):
     def __init__(self):
         super(RandomPolicy, self).__init__('Random')
 
-    def __call__(self, state, step):
+    def __call__(self, state, step=None):
         """
         :param state:
         :param step:
@@ -127,20 +138,22 @@ class HumanPolicy(Policy):
 
 
 class QTempPolicy(Policy):
-    def __init__(self, name, val_func, temp):
+    def __init__(self, name, val_func, temp, min_temp):
         """
         Pi is proportional to the exp(qvals) raised to the 1/temp power
+        :param min_temp:
         :param val_func: A function that takes in states and outputs corresponding values
         """
 
-        super(QTempPolicy, self).__init__(name)
+        super(QTempPolicy, self).__init__(name, temp, min_temp)
 
         if isinstance(val_func, torch.nn.Module):
-            logging.info("Converting pytorch value function to numpy")
+            self.pytorch_model = val_func
+            logging.info("Saved Pytorch model")
+            logging.info("Created numpy value function from Pytorch model")
             val_func = pytorch_to_numpy(val_func, logits=True)
 
         self.val_func = val_func
-        self.temp = temp
 
     def __call__(self, state, step=None):
         """
@@ -164,16 +177,15 @@ class QTempPolicy(Policy):
 
 
 class MctPolicy(Policy):
-    def __init__(self, name, board_size, val_func, temp, num_searches):
-        super(MctPolicy, self).__init__(name)
+    def __init__(self, name, val_func, temp, min_temp, num_searches):
+        super(MctPolicy, self).__init__(name, temp, min_temp)
         if isinstance(val_func, torch.nn.Module):
-            logging.info("Converting pytorch value function to numpy")
+            self.pytorch_model = val_func
+            logging.info("Saved Pytorch model")
+            logging.info("Created numpy value function from Pytorch model")
             val_func = pytorch_to_numpy(val_func, logits=True)
 
         self.val_func = val_func
-        self.temp = temp
-        initial_state = GoGame.get_init_board(board_size)
-        self.tree = tree.MCTree(self.val_func, initial_state)
         self.num_searches = num_searches
 
     def __call__(self, state, step=None):
@@ -182,6 +194,10 @@ class MctPolicy(Policy):
         :param step: Parameter used for getting the temperature
         :return:
         """
+        if not hasattr(self, "tree"):
+            # Invoked the first time you call it
+            self.tree = tree.MCTree(self.val_func, state)
+
         root = self.tree.root.state
         if not (root == state).all():
             logging.warning("MCTPolicy {} resetted tree, uncaching all work".format(self.name))
