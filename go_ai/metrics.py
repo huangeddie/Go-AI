@@ -6,6 +6,8 @@ import go_ai.game
 from go_ai import data, montecarlo, policies
 from go_ai.montecarlo import tree
 
+from tqdm import tqdm
+
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
@@ -68,7 +70,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     board_size = states[0].shape[1]
 
     move_probs = []
-    for step, (state, action) in enumerate(zip(states, taken_actions)):
+    for step, (state, action) in tqdm(enumerate(zip(states, taken_actions)), desc="Model responses", leave=False):
         if step == 0:
             policy.reset(state)
         pi = policy(state, step)
@@ -77,17 +79,17 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
 
     state_vals = None
     qvals = None
-    if isinstance(policy, policies.QTempPolicy):
+    if isinstance(policy, policies.MctPolicy):
         state_vals = policy.val_func(states)
         qvals, _ = montecarlo.qval_from_stateval(states, policy.val_func)
 
     valid_moves = data.batch_valid_moves(states)
 
     num_states = states.shape[0]
-    num_cols = 4 if isinstance(policy, policies.QTempPolicy) else 3
+    num_cols = 4 if isinstance(policy, policies.MctPolicy) else 3
 
     fig = plt.figure(figsize=(num_cols * 2.5, num_states * 2))
-    for i in range(num_states):
+    for i in tqdm(range(num_states), desc="Plots", leave=False):
         curr_col = 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
@@ -96,7 +98,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
         plt.imshow(matplot_format(states[i]))
         curr_col += 1
 
-        if isinstance(policy, policies.QTempPolicy):
+        if isinstance(policy, policies.MctPolicy):
             plt.subplot(num_states, num_cols, curr_col + num_cols * i)
             plot_move_distr('Q Vals', qvals[i], valid_moves[i], scalar=state_vals[i].item())
             curr_col += 1

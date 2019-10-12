@@ -4,6 +4,17 @@ from go_ai import policies, game
 
 
 def evaluate(go_env, curr_pi: policies.Policy, checkpoint_pi: policies.Policy, num_games, checkpoint_path):
+    """
+    If current policy is better than the checkpoint policy, it is set as the new checkpoint policy
+    If it's significantly worse, the current policy's parameters are reset back to the checkpoint
+    Otherwise nothing happens
+    :param go_env:
+    :param curr_pi:
+    :param checkpoint_pi:
+    :param num_games:
+    :param checkpoint_path:
+    :return:
+    """
     # Evaluate against checkpoint model and other baselines
     opp_winrate, _ = game.play_games(go_env, curr_pi, checkpoint_pi, False, num_games)
 

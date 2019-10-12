@@ -1,13 +1,50 @@
 import os
 import random
+import tempfile
 
 import gym
 import torch
+from torch import multiprocessing as mp
 
 from evaluation import evaluate
 from go_ai import policies, game, metrics, data
 from go_ai.models import value_models
 from hyperparameters import *
+
+
+def train(rank, tmp_path):
+    barrier = mp.Barrier(WORKERS)
+
+    # Environment
+    go_env = gym.make('gym_go:go-v0', size=BOARD_SIZE)
+
+    # Model
+    curr_model = value_models.ValueNet(BOARD_SIZE)
+    curr_model.load_state_dict(torch.load(CHECKPOINT_PATH))
+    optim = torch.optim.Adam(curr_model.parameters(), 1e-3)
+
+    # Policy
+    curr_pi = policies.MctPolicy('Current', curr_model, NUM_SEARCHES, INIT_TEMP, MIN_TEMP)
+
+    # Play some games
+    _, replay_data = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITERATION // WORKERS)
+
+    # Process the data
+    random.shuffle(replay_data)
+    replay_data = data.replaylist_to_numpy(replay_data)
+
+    # Take turns optimizing
+    for r in range(WORKERS):
+        if r == rank:
+            # My turn to optimize
+            value_models.optimize(curr_model, replay_data, optim, BATCH_SIZE)
+            torch.save(curr_model.state_dict(), tmp_path)
+
+        # Get new parameters
+        barrier.wait()
+        barrier.reset()
+        curr_model.load_state_dict(torch.load(tmp_path))
+
 
 if __name__ == '__main__':
     # Environment
@@ -27,17 +64,15 @@ if __name__ == '__main__':
     curr_model.load_state_dict(torch.load(CHECKPOINT_PATH))
     checkpoint_model.load_state_dict(torch.load(CHECKPOINT_PATH))
 
-    optim = torch.optim.Adam(curr_model.parameters(), 1e-3)
     print(curr_model)
 
     # Policies
     curr_pi = policies.MctPolicy('Current', curr_model, NUM_SEARCHES, INIT_TEMP, MIN_TEMP)
     checkpoint_pi = policies.MctPolicy('Checkpoint', checkpoint_model, NUM_SEARCHES, INIT_TEMP, MIN_TEMP)
 
-
     rand_pi = policies.RandomPolicy()
     greedy_pi = policies.MctPolicy('Greedy', policies.greedy_val_func, num_searches=0, temp=0)
-    greedymct_pi = policies.MctPolicy('MCT', policies.greedy_val_func, NUM_SEARCHES, 0, MIN_TEMP)
+    greedymct_pi = policies.MctPolicy('MCT', policies.greedy_val_func, NUM_SEARCHES, temp=0)
 
     human_policy = policies.HumanPolicy()
 
@@ -45,20 +80,15 @@ if __name__ == '__main__':
     metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJECTORY_PATH)
 
     # Training
+    tmp_path = tempfile.gettempdir() + "/tmp.checkpoint"
+
     for iteration in range(ITERATIONS):
         print(f"Iteration {iteration}")
 
-        # Make and write out the episode data
-        _, replay_data = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITERATION)
-
-        # Process the data
-        random.shuffle(replay_data)
-        replay_data = data.replaylist_to_numpy(replay_data)
-
-        # Optimize
-        value_models.optimize(curr_model, replay_data, optim, BATCH_SIZE)
+        mp.spawn(fn=train, args=(tmp_path,), nprocs=WORKERS, join=True)
 
         # Evaluate
+        curr_model.load_state_dict(torch.load(tmp_path))
         accepted = evaluate(go_env, curr_pi, checkpoint_pi, NUM_EVAL_GAMES, CHECKPOINT_PATH)
 
         if accepted == 1:

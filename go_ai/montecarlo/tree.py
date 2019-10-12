@@ -1,6 +1,5 @@
 import gym
 import numpy as np
-from sklearn.preprocessing import normalize
 
 from go_ai import montecarlo
 from go_ai.montecarlo.node import Node
@@ -29,7 +28,7 @@ class MCTree:
         self.board_size = canonical_state.shape[1]
         self.action_size = GoGame.get_action_size(self.root.state)
 
-    def get_action_probs(self, max_num_searches, temp):
+    def get_qvals(self, max_num_searches, temp):
         '''
         Description:
             Select a child node that maximizes Q + U,
@@ -44,42 +43,30 @@ class MCTree:
         valid_moves = GoGame.get_valid_moves(rootstate)
 
         num_search = 0
-        if max_num_searches <= 0:
-            if not self.root.cached_children():
-                self.cache_children(self.root)
-            pi = self.root.latest_qs()
-        else:
-            while num_search < max_num_searches:
-                curr_node = self.root
-                # keep going down the tree with the best move
-                assert isinstance(curr_node, Node)
-                while not curr_node.terminal and curr_node.visited():
-                    curr_node, move = self.select_best_child(curr_node)
-                if not curr_node.terminal:
-                    curr_node, move = self.select_best_child(curr_node)
-                if curr_node.height % 2 == 1 and not curr_node.terminal:
-                    # We want to end on our turn
-                    curr_node, move = self.select_best_child(curr_node)
+        if not self.root.cached_children():
+            self.cache_children(self.root)
 
-                curr_node.parent.back_propagate(curr_node.value)
-                curr_node.visits += 1
+        while num_search < max_num_searches:
+            curr_node = self.root
+            # keep going down the tree with the best move
+            assert isinstance(curr_node, Node)
+            while not curr_node.terminal and curr_node.visited():
+                curr_node, move = self.select_best_child(curr_node)
+            if not curr_node.terminal:
+                curr_node, move = self.select_best_child(curr_node)
+            if curr_node.height % 2 == 1 and not curr_node.terminal:
+                # We want to end on our turn
+                curr_node, move = self.select_best_child(curr_node)
 
-                # increment search counter
-                num_search += 1
+            curr_node.parent.back_propagate(curr_node.value)
+            curr_node.visits += 1
 
-            pi = self.root.latest_qs()
+            # increment search counter
+            num_search += 1
 
-        assert (pi >= 0).all(), pi
+        qvals = self.root.latest_qs()
 
-        if np.count_nonzero(pi) == 0:
-            pi += valid_moves
-
-        if temp > 0:
-            pi = normalize([pi ** (1 / temp)], norm='l1')[0]
-        else:
-            pi = montecarlo.greedy_pi(pi)
-
-        return pi
+        return qvals
 
     def select_best_child(self, node, u_const=1):
         """
