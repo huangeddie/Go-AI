@@ -1,74 +1,76 @@
-import os
 import random
+import collections
 
 import gym
 import torch
 
-from evaluation import evaluate
+import train_utils
 from go_ai import policies, game, metrics, data
 from go_ai.models import value_models
 from hyperparameters import *
 
 if __name__ == '__main__':
-    # Environment
-    go_env = gym.make('gym_go:go-v0', size=BOARD_SIZE)
-
     # Model
     curr_model = value_models.ValueNet(BOARD_SIZE)
     checkpoint_model = value_models.ValueNet(BOARD_SIZE)
+    print(curr_model)
 
-    if LOAD_SAVED_MODELS:
-        assert os.path.exists(CHECKPOINT_PATH)
-        print("Starting from checkpoint")
-    else:
-        torch.save(curr_model.state_dict(), CHECKPOINT_PATH)
-        print("Initialized checkpoint")
+    # Set parameters on disk
+    train_utils.set_disk_params(LOAD_SAVED_MODELS, CHECKPOINT_PATH, TMP_PATH, curr_model)
 
+    # Load parameters from disk
     curr_model.load_state_dict(torch.load(CHECKPOINT_PATH))
     checkpoint_model.load_state_dict(torch.load(CHECKPOINT_PATH))
 
     optim = torch.optim.Adam(curr_model.parameters(), 1e-3)
-    print(curr_model)
 
     # Policies
-    curr_pi = policies.MctPolicy('Current', curr_model, NUM_SEARCHES, INIT_TEMP, MIN_TEMP)
-    checkpoint_pi = policies.MctPolicy('Checkpoint', checkpoint_model, NUM_SEARCHES, INIT_TEMP, MIN_TEMP)
+    curr_pi = policies.MctPolicy('Current', curr_model, MCT_SEARCHES, INIT_TEMP, MIN_TEMP)
+    checkpoint_pi = policies.MctPolicy('Checkpoint', checkpoint_model, MCT_SEARCHES, INIT_TEMP, MIN_TEMP)
 
+    # Environment
+    go_env = gym.make('gym_go:go-v0', size=BOARD_SIZE)
 
-    rand_pi = policies.RandomPolicy()
-    greedy_pi = policies.MctPolicy('Greedy', policies.greedy_val_func, num_searches=0, temp=0)
-    greedymct_pi = policies.MctPolicy('MCT', policies.greedy_val_func, NUM_SEARCHES, 0, MIN_TEMP)
-
-    human_policy = policies.HumanPolicy()
-
-    # Sample Trajectory
+    # Log a Sample Trajectory
     metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJECTORY_PATH)
+
+    # Replay data
+    replay_data = collections.deque(maxlen=REPLAY_MEM_SIZE)
 
     # Training
     for iteration in range(ITERATIONS):
         print(f"Iteration {iteration}")
 
         # Make and write out the episode data
-        _, replay_data = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITERATION)
+        _, trajectories = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITERATION)
+        replay_data.extend(trajectories)
 
         # Process the data
-        random.shuffle(replay_data)
-        replay_data = data.replaylist_to_numpy(replay_data)
+        train_data = random.sample(replay_data)
+        train_data = data.replaylist_to_numpy(train_data)
 
         # Optimize
-        value_models.optimize(curr_model, replay_data, optim, BATCH_SIZE)
+        value_models.optimize(curr_model, train_data, optim, BATCH_SIZE)
 
         # Evaluate
-        accepted = evaluate(go_env, curr_pi, checkpoint_pi, NUM_EVAL_GAMES, CHECKPOINT_PATH)
+        status = train_utils.update_checkpoint(go_env, curr_pi, checkpoint_pi, NUM_EVAL_GAMES, CHECKPOINT_PATH)
 
-        if accepted == 1:
+        if status == 1:
+            # Update checkpoint policy
+            checkpoint_pi.pytorch_model.load_state_dict(torch.load(CHECKPOINT_PATH))
+            print("Accepted new model")
+
             # Plot samples of states and response heatmaps
             metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJECTORY_PATH)
             print("Plotted sample trajectory")
 
             # See how it fairs against the baselines
-            rand_winrate, _ = game.play_games(go_env, curr_pi, rand_pi, False, NUM_EVAL_GAMES)
-            greed_winrate, _ = game.play_games(go_env, curr_pi, greedy_pi, False, NUM_EVAL_GAMES)
+            game.play_games(go_env, curr_pi, policies.RAND_PI, False, NUM_EVAL_GAMES)
+            game.play_games(go_env, curr_pi, policies.GREEDY_PI, False, NUM_EVAL_GAMES)
+            game.play_games(go_env, curr_pi, policies.MCT_GREEDY_PI, False, NUM_EVAL_GAMES)
+        elif status == -1:
+            curr_pi.pytorch_model.load_state_dict(torch.load(CHECKPOINT_PATH))
+            print("Rejected new model")
 
         # Decay the temperatures if any
         curr_pi.decay_temp(TEMP_DECAY)
@@ -77,4 +79,4 @@ if __name__ == '__main__':
 
     # Evaluate
     checkpoint_pi.set_temp(0)
-    game.pit(go_env, human_policy, checkpoint_pi, False)
+    game.pit(go_env, policies.HUMAN_PI, checkpoint_pi, False)

@@ -2,7 +2,6 @@ import gym
 import numpy as np
 import torch
 import torch.nn as nn
-from torch import optim
 from tqdm import tqdm
 
 from go_ai import data
