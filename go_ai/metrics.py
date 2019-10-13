@@ -1,12 +1,11 @@
 import gym
 import numpy as np
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 import go_ai.game
 from go_ai import data, montecarlo, policies
 from go_ai.montecarlo import tree
-
-from tqdm import tqdm
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -37,13 +36,12 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None):
     valid_values = np.extract(valid_moves[:-1] == 1, move_distr[:-1])
     assert np.isnan(move_distr).any() == False, move_distr
     pass_val = float(move_distr[-1])
-    plt.title(title + (' ' if scalar is None else ' {:.3f}S').format(scalar)
-              + '\n{:.3f}L {:.3f}H {:.3f}P'.format(np.min(valid_values)
-                                                   if len(valid_values) > 0 else 0,
-                                                   np.max(valid_values)
-                                                   if len(valid_values) > 0 else 0,
-                                                   pass_val))
+    plt.title(title + (' ' if scalar is None else f' {scalar:.3f}S')
+              + f'\n{np.min(valid_values) if len(valid_values) > 0 else 0:.3f}L '
+                f'{np.max(valid_values) if len(valid_values) > 0 else 0:.3f}H '
+                f'{pass_val:.3f}P')
     plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
+
 
 def action_1d_to_2d(action_1d, board_width):
     """
@@ -54,6 +52,7 @@ def action_1d_to_2d(action_1d, board_width):
     else:
         action = (action_1d // board_width, action_1d % board_width)
     return action
+
 
 def state_responses_helper(policy: policies.Policy, states, taken_actions, next_states, rewards, terminals, wins):
     """
@@ -70,12 +69,12 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     board_size = states[0].shape[1]
 
     move_probs = []
-    for step, (state, action) in tqdm(enumerate(zip(states, taken_actions)), desc="Model responses", leave=False):
+    for step, (state, prev_action) in tqdm(enumerate(zip(states, taken_actions)), desc="Model responses", leave=False):
         if step == 0:
             policy.reset(state)
         pi = policy(state, step)
         move_probs.append(pi)
-        policy.step(action)
+        policy.step(prev_action)
 
     state_vals = None
     qvals = None
@@ -86,7 +85,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     valid_moves = data.batch_valid_moves(states)
 
     num_states = states.shape[0]
-    num_cols = 4 if isinstance(policy, policies.MctPolicy) else 3
+    num_cols = 3 if isinstance(policy, policies.MctPolicy) else 2
 
     fig = plt.figure(figsize=(num_cols * 2.5, num_states * 2))
     for i in tqdm(range(num_states), desc="Plots", leave=False):
@@ -94,7 +93,17 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
         plt.axis('off')
-        plt.title('Board')
+        if i > 0:
+            prev_action = action_1d_to_2d(taken_actions[i - 1], board_size)
+            board_title = f'Prev Action: {prev_action}\n'
+            if i == num_states - 1:
+                action_took = action_1d_to_2d(taken_actions[i], board_size)
+                board_title += f'Action Took: {action_took}\n'
+        else:
+            board_title = 'Initial Board\n'
+        board_title += f'{rewards[i - 1]:.0f}R {terminals[i]}T, {wins[i]}W'
+
+        plt.title(board_title)
         plt.imshow(matplot_format(states[i]))
         curr_col += 1
 
@@ -105,13 +114,6 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
         plot_move_distr('Model', move_probs[i], valid_moves[i])
-        curr_col += 1
-
-        plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-        plt.axis('off')
-        plt.title('Taken Action: {}\n{:.0f}R {}T, {}W'
-                  .format(action_1d_to_2d(taken_actions[i], board_size), rewards[i], terminals[i], wins[i]))
-        plt.imshow(matplot_format(next_states[i]))
         curr_col += 1
 
     plt.tight_layout()
@@ -203,7 +205,7 @@ def plot_mct(tree: tree.MCTree, outpath, max_layers=8, max_branch=8):
     root_qs = tree.root.latest_qs()
     plt.subplot(grid.shape[0], grid.shape[1], 2)
     plt.title('Q Vals')
-    plt.plot(np.arange(len(root_qs)), root_qs)
+    plt.bar(np.arange(len(root_qs)), root_qs)
     for i in range(grid.shape[0]):
         for j in range(grid.shape[1]):
             node = grid[i, j]
@@ -222,7 +224,7 @@ def plot_mct(tree: tree.MCTree, outpath, max_layers=8, max_branch=8):
 
             plt.subplot(grid.shape[0], grid.shape[1], grid.shape[1] * i + j + 1)
             plt.axis('off')
-            plt.title('A={} N={}\nV={:.2f}, Q={:.2f}'.format(action, visits, value, qval))
+            plt.title(f'A={action} N={visits}\nV={value:.2f}, Q={qval:.2f}')
             plt.imshow(matplot_format(node.state))
     plt.tight_layout()
     plt.savefig(outpath)

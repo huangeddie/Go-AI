@@ -39,14 +39,14 @@ if __name__ == '__main__':
 
     # Training
     for iteration in range(ITERATIONS):
-        print(f"Iteration {iteration}")
+        print(f"Iteration {iteration} | Replay size: {len(replay_data)}")
 
         # Make and write out the episode data
         _, trajectories = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITERATION)
         replay_data.extend(trajectories)
 
         # Process the data
-        train_data = random.sample(replay_data)
+        train_data = random.sample(replay_data, min(DATA_SIZE_PER_ITERATION, len(replay_data)))
         train_data = data.replaylist_to_numpy(train_data)
 
         # Optimize
@@ -75,7 +75,7 @@ if __name__ == '__main__':
         # Decay the temperatures if any
         curr_pi.decay_temp(TEMP_DECAY)
         checkpoint_pi.decay_temp(TEMP_DECAY)
-        print("Temp decayed to {:.5f}, {:.5f}".format(curr_pi.temp, checkpoint_pi.temp))
+        print(f"Temp decayed to {curr_pi.temp:.5f}, {checkpoint_pi.temp:.5f}")
 
     # Evaluate
     checkpoint_pi.set_temp(0)

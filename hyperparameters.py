@@ -1,6 +1,6 @@
 BOARD_SIZE = 4
 
-REPLAY_MEM_SIZE = 1e4 * (2 * BOARD_SIZE ** 2)
+REPLAY_MEM_SIZE = 10000 * (2 * BOARD_SIZE ** 2)
 DATA_SIZE_PER_ITERATION = 256 * (2 * BOARD_SIZE ** 2)
 BATCH_SIZE = 32
 
@@ -12,13 +12,13 @@ INIT_TEMP = 0.1
 TEMP_DECAY = 3 / 4
 MIN_TEMP = 1 / 64
 
-MCT_SEARCHES = 16  # If set to 0, MCTPolicies become simply QVals
+MCT_SEARCHES = 0  # If set to 0, MCTPolicies become simply QVals
 
 WORKERS = 8
 
 LOAD_SAVED_MODELS = True
 EPISODES_DIR = 'episodes/'
-CHECKPOINT_PATH = 'checkpoints/checkpoint_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
+CHECKPOINT_PATH = f'checkpoints/checkpoint_{BOARD_SIZE}x{BOARD_SIZE}.pt'
 TMP_PATH = 'checkpoints/tmp_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
 
 DEMO_TRAJECTORY_PATH = 'logs/a_trajectory.png'

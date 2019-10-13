@@ -25,7 +25,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_rand_mct_search(self):
         self.go_env.reset()
-        for _ in range(random.randint(0, 16)):
+        for _ in range(random.randint(0, 8)):
             valid_moves = self.go_env.get_valid_moves()
             valid_moves[-1] = 0
             valid_move_idcs = np.argwhere(valid_moves > 0).flatten()

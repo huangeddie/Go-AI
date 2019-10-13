@@ -152,6 +152,6 @@ class MCTree:
             for child in curr_node.canon_children:
                 if child is not None:
                     queue.append(child)
-            str_builder += '{}\n\n'.format(curr_node)
+            str_builder += f'{curr_node}\n\n'
 
         return str_builder[:-2]

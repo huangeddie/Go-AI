@@ -92,5 +92,4 @@ class Node:
             self.parent.back_propagate(1 - parent_q)
 
     def __str__(self):
-        return '{} {}H {}V {}N'.format(np.sum(self.state[[0, 1]], axis=0), self.height, self.value,
-                                       np.sum(self.move_visits))
+        return f'{np.sum(self.state[[0, 1]], axis=0)} {self.height}H {self.value}V {np.sum(self.move_visits)}N'

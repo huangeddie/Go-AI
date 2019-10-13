@@ -67,4 +67,4 @@ def optimize(model, replay_data, optimizer, batch_size):
         running_loss += loss.item()
         running_acc += torch.mean((pred_wins == wins).type(torch.FloatTensor)).item()
 
-        pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100* running_acc / i, running_loss / i))
+        pbar.set_postfix_str(f"{100* running_acc / i:.1f}%, {running_loss / i:.3f}L")
