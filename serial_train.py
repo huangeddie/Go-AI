@@ -4,6 +4,7 @@ import collections
 import gym
 import torch
 
+import hyperparameters
 import train_utils
 from go_ai import policies, game, metrics, data
 from go_ai.models import value_models
@@ -18,7 +19,7 @@ if __name__ == '__main__':
     print(curr_model)
 
     # Set parameters on disk
-    train_utils.set_disk_params(LOAD_SAVED_MODELS, CHECKPOINT_PATH, TMP_PATH, curr_model)
+    hyperparameters.reset_disk_params(curr_model)
 
     # Load parameters from disk
     curr_model.load_state_dict(torch.load(CHECKPOINT_PATH))
@@ -34,29 +35,29 @@ if __name__ == '__main__':
     go_env = gym.make('gym_go:go-v0', size=BOARD_SIZE)
 
     # Log a Sample Trajectory
-    metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJECTORY_PATH)
+    metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJPATH)
 
     # Replay data
-    replay_data = collections.deque(maxlen=REPLAY_MEM_SIZE)
+    replay_data = collections.deque(maxlen=REPLAY_MEMSIZE)
 
     # Training
     for iteration in range(ITERATIONS):
         tqdm.write(f"Iteration {iteration} | Replay size: {len(replay_data)} ", file=sys.stderr)
 
         # Make and write out the episode data
-        _, trajectories = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITERATION)
+        _, trajectories = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITER)
         replay_data.extend(trajectories)
 
         # Process the data
-        train_data = random.sample(replay_data, min(DATA_SIZE_PER_ITERATION, len(replay_data)))
+        train_data = random.sample(replay_data, min(TRAINSTEP_MEMSIZE, len(replay_data)))
         train_data = data.replaylist_to_numpy(train_data)
 
         # Optimize
         value_models.optimize(curr_model, train_data, optim, BATCH_SIZE)
 
         # Evaluate
-        if (iteration + 1) % ITERATIONS_PER_EVAL == 0:
-            status = train_utils.update_checkpoint(go_env, curr_pi, checkpoint_pi, NUM_EVAL_GAMES, CHECKPOINT_PATH)
+        if (iteration + 1) % ITERS_PER_EVAL == 0:
+            status = train_utils.update_checkpoint(go_env, curr_pi, checkpoint_pi, NUM_EVALGAMES, CHECKPOINT_PATH)
 
             if status == 1:
                 # Update checkpoint policy
@@ -64,13 +65,13 @@ if __name__ == '__main__':
                 tqdm.write("Accepted new model", file=sys.stderr)
 
                 # Plot samples of states and response heatmaps
-                metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJECTORY_PATH)
+                metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJPATH)
                 tqdm.write("Plotted sample trajectory", file=sys.stderr)
 
                 # See how it fairs against the baselines
-                game.play_games(go_env, curr_pi, policies.RAND_PI, False, NUM_EVAL_GAMES)
-                game.play_games(go_env, curr_pi, policies.GREEDY_PI, False, NUM_EVAL_GAMES)
-                game.play_games(go_env, curr_pi, policies.MCT_GREEDY_PI, False, NUM_EVAL_GAMES)
+                game.play_games(go_env, curr_pi, policies.RAND_PI, False, NUM_EVALGAMES)
+                game.play_games(go_env, curr_pi, policies.GREEDY_PI, False, NUM_EVALGAMES)
+                game.play_games(go_env, curr_pi, policies.MCT_GREEDY_PI, False, NUM_EVALGAMES)
             elif status == -1:
                 curr_pi.pytorch_model.load_state_dict(torch.load(CHECKPOINT_PATH))
                 tqdm.write("Rejected new model", file=sys.stderr)

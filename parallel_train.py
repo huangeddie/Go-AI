@@ -5,6 +5,7 @@ import gym
 import torch
 from torch import multiprocessing as mp
 
+import hyperparameters
 import train_utils
 from go_ai import policies, game, metrics, data
 from go_ai.models import value_models
@@ -24,7 +25,7 @@ def train(rank, barrier, workers, temp, model_path):
     curr_pi = policies.MctPolicy('Current', curr_model, MCT_SEARCHES, temp)
 
     # Play some games
-    _, replay_data = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITERATION // workers)
+    _, replay_data = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITER // workers)
 
     # Process the data
     random.shuffle(replay_data)
@@ -58,7 +59,7 @@ def asdf(rank, queue: mp.queue.Queue, workers, temp, curr_path, checkpoint_path)
     checkpoint_pi = policies.MctPolicy('Current', curr_model, MCT_SEARCHES, temp)
 
     # Play some games
-    winrate, _ = game.play_games(go_env, curr_pi, checkpoint_pi, False, NUM_EVAL_GAMES // workers)
+    winrate, _ = game.play_games(go_env, curr_pi, checkpoint_pi, False, NUM_EVALGAMES // workers)
     queue.put(winrate)
 
 
@@ -74,7 +75,7 @@ if __name__ == '__main__':
     curr_model = value_models.ValueNet(BOARD_SIZE)
     checkpoint_model = value_models.ValueNet(BOARD_SIZE)
 
-    train_utils.set_disk_params(LOAD_SAVED_MODELS, CHECKPOINT_PATH, TMP_PATH, curr_model)
+    hyperparameters.reset_disk_params(curr_model)
 
     curr_model.load_state_dict(torch.load(CHECKPOINT_PATH))
     checkpoint_model.load_state_dict(torch.load(CHECKPOINT_PATH))
@@ -86,7 +87,7 @@ if __name__ == '__main__':
     checkpoint_pi = policies.MctPolicy('Checkpoint', checkpoint_model, MCT_SEARCHES, INIT_TEMP, MIN_TEMP)
 
     # Sample Trajectory
-    metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJECTORY_PATH)
+    metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJPATH)
 
     # Training
     for iteration in range(ITERATIONS):
@@ -97,17 +98,17 @@ if __name__ == '__main__':
         # Evaluate
         curr_model.load_state_dict(torch.load(TMP_PATH))
         assert curr_pi.pytorch_model == curr_model
-        status = train_utils.update_checkpoint(go_env, curr_pi, checkpoint_pi, NUM_EVAL_GAMES, CHECKPOINT_PATH)
+        status = train_utils.update_checkpoint(go_env, curr_pi, checkpoint_pi, NUM_EVALGAMES, CHECKPOINT_PATH)
 
         if status == 1:
             # Plot samples of states and response heatmaps
-            metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJECTORY_PATH)
+            metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJPATH)
             print("Plotted sample trajectory")
 
             # See how it fairs against the baselines
-            game.play_games(go_env, curr_pi, policies.RAND_PI, False, NUM_EVAL_GAMES)
-            game.play_games(go_env, curr_pi, policies.GREEDY_PI, False, NUM_EVAL_GAMES)
-            game.play_games(go_env, curr_pi, policies.MCT_GREEDY_PI, False, NUM_EVAL_GAMES)
+            game.play_games(go_env, curr_pi, policies.RAND_PI, False, NUM_EVALGAMES)
+            game.play_games(go_env, curr_pi, policies.GREEDY_PI, False, NUM_EVALGAMES)
+            game.play_games(go_env, curr_pi, policies.MCT_GREEDY_PI, False, NUM_EVALGAMES)
         elif status == -1:
             shutil.copy(CHECKPOINT_PATH, TMP_PATH)
 
