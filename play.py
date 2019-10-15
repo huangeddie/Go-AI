@@ -13,6 +13,6 @@ checkpoint_model = value_models.ValueNet(BOARD_SIZE)
 checkpoint_model.load_state_dict(torch.load(CHECKPOINT_PATH))
 
 # Policies
-checkpoint_pi = policies.MctPolicy('Checkpoint', checkpoint_model, 8 * BOARD_SIZE ** 2, 0)
+checkpoint_pi = policies.MctPolicy('Checkpoint', checkpoint_model, 0, 0)
 
 game.pit(go_env, policies.HUMAN_PI, checkpoint_pi, False)
