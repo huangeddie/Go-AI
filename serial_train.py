@@ -8,6 +8,8 @@ import train_utils
 from go_ai import policies, game, metrics, data
 from go_ai.models import value_models
 from hyperparameters import *
+from tqdm import tqdm
+import sys
 
 if __name__ == '__main__':
     # Model
@@ -39,7 +41,7 @@ if __name__ == '__main__':
 
     # Training
     for iteration in range(ITERATIONS):
-        print(f"Iteration {iteration} | Replay size: {len(replay_data)}")
+        tqdm.write(f"Iteration {iteration} | Replay size: {len(replay_data)} ", file=sys.stderr)
 
         # Make and write out the episode data
         _, trajectories = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITERATION)
@@ -53,29 +55,30 @@ if __name__ == '__main__':
         value_models.optimize(curr_model, train_data, optim, BATCH_SIZE)
 
         # Evaluate
-        status = train_utils.update_checkpoint(go_env, curr_pi, checkpoint_pi, NUM_EVAL_GAMES, CHECKPOINT_PATH)
+        if (iteration + 1) % ITERATIONS_PER_EVAL == 0:
+            status = train_utils.update_checkpoint(go_env, curr_pi, checkpoint_pi, NUM_EVAL_GAMES, CHECKPOINT_PATH)
 
-        if status == 1:
-            # Update checkpoint policy
-            checkpoint_pi.pytorch_model.load_state_dict(torch.load(CHECKPOINT_PATH))
-            print("Accepted new model")
+            if status == 1:
+                # Update checkpoint policy
+                checkpoint_pi.pytorch_model.load_state_dict(torch.load(CHECKPOINT_PATH))
+                tqdm.write("Accepted new model", file=sys.stderr)
 
-            # Plot samples of states and response heatmaps
-            metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJECTORY_PATH)
-            print("Plotted sample trajectory")
+                # Plot samples of states and response heatmaps
+                metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJECTORY_PATH)
+                tqdm.write("Plotted sample trajectory", file=sys.stderr)
 
-            # See how it fairs against the baselines
-            game.play_games(go_env, curr_pi, policies.RAND_PI, False, NUM_EVAL_GAMES)
-            game.play_games(go_env, curr_pi, policies.GREEDY_PI, False, NUM_EVAL_GAMES)
-            game.play_games(go_env, curr_pi, policies.MCT_GREEDY_PI, False, NUM_EVAL_GAMES)
-        elif status == -1:
-            curr_pi.pytorch_model.load_state_dict(torch.load(CHECKPOINT_PATH))
-            print("Rejected new model")
+                # See how it fairs against the baselines
+                game.play_games(go_env, curr_pi, policies.RAND_PI, False, NUM_EVAL_GAMES)
+                game.play_games(go_env, curr_pi, policies.GREEDY_PI, False, NUM_EVAL_GAMES)
+                game.play_games(go_env, curr_pi, policies.MCT_GREEDY_PI, False, NUM_EVAL_GAMES)
+            elif status == -1:
+                curr_pi.pytorch_model.load_state_dict(torch.load(CHECKPOINT_PATH))
+                tqdm.write("Rejected new model", file=sys.stderr)
 
         # Decay the temperatures if any
         curr_pi.decay_temp(TEMP_DECAY)
         checkpoint_pi.decay_temp(TEMP_DECAY)
-        print(f"Temp decayed to {curr_pi.temp:.5f}, {checkpoint_pi.temp:.5f}")
+        tqdm.write(f"Temp decayed to {curr_pi.temp:.5f}, {checkpoint_pi.temp:.5f}", file=sys.stderr)
 
     # Evaluate
     checkpoint_pi.set_temp(0)

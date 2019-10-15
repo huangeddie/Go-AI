@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 from go_ai.montecarlo import tree, exp_temp
-from hyperparameters import MCT_SEARCHES
+from hyperparameters import *
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -196,11 +196,11 @@ class MctPolicy(Policy):
         self.tree.reset(state)
 
     def __str__(self):
-        return f"{self.__class__.__name__}[{self.num_searches}S] {self.name}"
+        return f"{self.__class__.__name__}[{self.num_searches} Searches]-{self.name}"
 
 
 RAND_PI = RandomPolicy()
 GREEDY_PI = MctPolicy('Greedy', greedy_val_func, num_searches=0, temp=0)
-MCT_GREEDY_PI = MctPolicy('GreedyMCT', greedy_val_func, MCT_SEARCHES, temp=0)
+MCT_GREEDY_PI = MctPolicy('GreedyMCT', greedy_val_func, num_searches=max(BOARD_SIZE ** 2, MCT_SEARCHES), temp=0)
 
 HUMAN_PI = HumanPolicy()

@@ -39,6 +39,7 @@ class ValueNet(nn.Module):
         x = self.fcs(x)
         return x
 
+
 def optimize(model, replay_data, optimizer, batch_size):
     N = len(replay_data[0])
     for component in replay_data:
@@ -49,7 +50,7 @@ def optimize(model, replay_data, optimizer, batch_size):
     model.train()
     running_loss = 0
     running_acc = 0
-    pbar = tqdm(zip(*batched_data), desc="Optimizing", position=0)
+    pbar = tqdm(zip(*batched_data), desc="Optimizing")
     for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(pbar, 1):
         # Augment
         states = data.batch_random_symmetries(states)
@@ -67,4 +68,4 @@ def optimize(model, replay_data, optimizer, batch_size):
         running_loss += loss.item()
         running_acc += torch.mean((pred_wins == wins).type(torch.FloatTensor)).item()
 
-        pbar.set_postfix_str(f"{100* running_acc / i:.1f}%, {running_loss / i:.3f}L")
+        pbar.set_postfix_str(f"{100 * running_acc / i:.1f}%, {running_loss / i:.3f}L")
