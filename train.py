@@ -83,8 +83,11 @@ def worker_train(rank, barrier, status, winrate):
 
         # Evaluate
         if (iteration + 1) % ITERS_PER_EVAL == 0:
+            # Pit against checkpoint
+            if rank == 0:
+                winrate.value = 0
+            barrier.wait()
             wr, _ = game.play_games(go_env, curr_pi, checkpoint_pi, False, NUM_EVALGAMES // WORKERS)
-
             with winrate.get_lock():
                 winrate.value += (wr / WORKERS)
             barrier.wait()
@@ -92,6 +95,7 @@ def worker_train(rank, barrier, status, winrate):
                 tqdm.write(f"Winrate against checkpoint: {100 * winrate.value:.1f}%")
             barrier.wait()
 
+            # Update checkpoint
             if winrate.value > 0.6:
                 if rank == 0:
                     torch.save(curr_pi.pytorch_model.state_dict(), CHECKPOINT_PATH)
@@ -106,19 +110,20 @@ def worker_train(rank, barrier, status, winrate):
                     # Plot samples of states and response heatmaps
                     metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJPATH)
                     tqdm.write("Plotted sample trajectory")
+                barrier.wait()
 
-                    # See how it fairs against the baselines
-                    for opponent in [policies.RAND_PI, policies.GREEDY_PI, policies.MCT_GREEDY_PI]:
-                        if rank == 0:
-                            winrate.value = 0
-                        barrier.wait()
+                # See how it fairs against the baselines
+                for opponent in [policies.RAND_PI, policies.GREEDY_PI, policies.MCT_GREEDY_PI]:
+                    if rank == 0:
+                        winrate.value = 0
+                    barrier.wait()
 
-                        wr, _ = game.play_games(go_env, curr_pi, opponent, False, NUM_EVALGAMES // WORKERS)
-                        with winrate.get_lock():
-                            winrate.value += (wr / WORKERS)
-                        barrier.wait()
-                        if rank == 0:
-                            tqdm.write(f"Win rate against {opponent}: {100 * winrate.value:.1f}%")
+                    wr, _ = game.play_games(go_env, curr_pi, opponent, False, NUM_EVALGAMES // WORKERS)
+                    with winrate.get_lock():
+                        winrate.value += (wr / WORKERS)
+                    barrier.wait()
+                    if rank == 0:
+                        tqdm.write(f"Win rate against {opponent}: {100 * winrate.value:.1f}%")
 
             elif winrate.value < 0.4:
                 if rank == 0:
