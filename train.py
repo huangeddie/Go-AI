@@ -42,7 +42,7 @@ def worker_train(rank, barrier, status, winrate):
 
     # Log a Sample Trajectory
     if rank == 0:
-        metrics.plot_traj_fig(go_env, curr_pi, EPISODES_DIR + 'a_traj.png')
+        metrics.plot_traj_fig(go_env, curr_pi, DEMO_TRAJPATH)
 
     # Training
     for iteration in range(ITERATIONS):
@@ -83,12 +83,20 @@ def worker_train(rank, barrier, status, winrate):
 
         # Evaluate
         if (iteration + 1) % ITERS_PER_EVAL == 0:
+            wr, _ = game.play_games(go_env, curr_pi, checkpoint_pi, False, NUM_EVALGAMES // WORKERS)
+
+            with winrate.get_lock():
+                winrate.value += (wr / WORKERS)
+            barrier.wait()
             if rank == 0:
-                status.value = update_checkpoint(go_env, curr_pi, checkpoint_pi, NUM_EVALGAMES,
-                                                 CHECKPOINT_PATH)
+                tqdm.write(f"Winrate against checkpoint: {100 * winrate.value:.1f}%")
             barrier.wait()
 
-            if status.value == 1:
+            if winrate.value > 0.6:
+                if rank == 0:
+                    torch.save(curr_pi.pytorch_model.state_dict(), CHECKPOINT_PATH)
+                barrier.wait()
+
                 # Update checkpoint policy
                 checkpoint_pi.pytorch_model.load_state_dict(torch.load(CHECKPOINT_PATH))
 
@@ -102,18 +110,20 @@ def worker_train(rank, barrier, status, winrate):
                     # See how it fairs against the baselines
                     for opponent in [policies.RAND_PI, policies.GREEDY_PI, policies.MCT_GREEDY_PI]:
                         if rank == 0:
-                            winrate.value = 0.0
+                            winrate.value = 0
                         barrier.wait()
 
                         wr, _ = game.play_games(go_env, curr_pi, opponent, False, NUM_EVALGAMES // WORKERS)
                         with winrate.get_lock():
-                            winrate.value += wr / WORKERS
+                            winrate.value += (wr / WORKERS)
                         barrier.wait()
                         if rank == 0:
                             tqdm.write(f"Win rate against {opponent}: {100 * winrate.value:.1f}%")
 
-
-            elif status.value == -1:
+            elif winrate.value < 0.4:
+                if rank == 0:
+                    torch.save(checkpoint_pi.pytorch_model.state_dict(), CHECKPOINT_PATH)
+                barrier.wait()
                 curr_pi.pytorch_model.load_state_dict(torch.load(CHECKPOINT_PATH))
                 if rank == 0:
                     tqdm.write("Rejected new model")
@@ -125,41 +135,6 @@ def worker_train(rank, barrier, status, winrate):
         checkpoint_pi.decay_temp(TEMP_DECAY)
         if rank == 0:
             tqdm.write(f"Temp decayed to {curr_pi.temp:.5f}, {checkpoint_pi.temp:.5f}\n")
-
-
-def update_checkpoint(go_env, first_pi: policies.Policy, second_pi: policies.Policy, num_games, checkpoint_path):
-    """
-    Writes the PyTorch model parameters of the best policy to the checkpoint
-    :param go_env:
-    :param first_pi:
-    :param second_pi:
-    :param num_games:
-    :param checkpoint_path:
-    :return:
-    * 1 = if first policy was better and its parameters were written to checkpoint
-    * 0 = no policy was significantly better than the other, so nothing was written
-    * -1 = the second policy was better and its parameters were written to checkpoint
-    """
-    # Evaluate against checkpoint model and other baselines
-    first_winrate, _ = game.play_games(go_env, first_pi, second_pi, False, num_games)
-
-    # Get the pytorch models
-    first_model = first_pi.pytorch_model
-    second_model = second_pi.pytorch_model
-    assert isinstance(first_model, torch.nn.Module)
-    assert isinstance(second_model, torch.nn.Module)
-
-    if first_winrate > 0.6:
-        # First policy was best
-        torch.save(first_model.state_dict(), checkpoint_path)
-        return 1
-    elif first_winrate >= 0.4:
-        return 0
-    else:
-        assert first_winrate < 0.4
-        # Second policy was best
-        torch.save(second_model.state_dict(), checkpoint_path)
-        return -1
 
 
 if __name__ == '__main__':

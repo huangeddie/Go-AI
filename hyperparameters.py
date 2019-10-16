@@ -9,7 +9,7 @@ REPLAY_MEMSIZE = 1000 * (2 * BOARD_SIZE ** 2)
 TRAINSTEP_MEMSIZE = 256 * (2 * BOARD_SIZE ** 2)
 
 ITERATIONS = 256
-EPISODES_PER_ITER = 64
+EPISODES_PER_ITER = 32
 NUM_EVALGAMES = 128
 ITERS_PER_EVAL = 4
 
@@ -25,6 +25,7 @@ LOAD_SAVEDMODELS = False
 EPISODES_DIR = 'episodes/'
 CHECKPOINT_PATH = f'checkpoints/checkpoint_{BOARD_SIZE}x{BOARD_SIZE}.pt'
 TMP_PATH = 'checkpoints/tmp_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
+DEMO_TRAJPATH = EPISODES_DIR + 'a_traj.png'
 
 
 def reset_disk_params(model):
