@@ -17,18 +17,32 @@ class ValueNet(nn.Module):
     def __init__(self, board_size):
         super(ValueNet, self).__init__()
         self.convs = nn.Sequential(
-            nn.Conv2d(GoVars.NUM_CHNLS, 256, 3, padding=1),
+            nn.Conv2d(GoVars.NUM_CHNLS, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.Conv2d(64, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.Conv2d(128, 256, 3, padding=1),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
             nn.Conv2d(256, 256, 3, padding=1),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
-            nn.Conv2d(256, 256, 3, padding=1),
+            nn.Conv2d(256, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Conv2d(256, 1, 3, padding=1),
+            nn.Conv2d(128, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.Conv2d(64, 1, 3, padding=1),
+            nn.BatchNorm2d(1),
             nn.ReLU(),
         )
 
         self.fcs = nn.Sequential(
             nn.Linear(board_size ** 2, board_size ** 2),
+            nn.BatchNorm1d(board_size ** 2),
             nn.ReLU(),
             nn.Linear(board_size ** 2, 1)
         )

@@ -94,10 +94,10 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
         plt.axis('off')
         if i > 0:
             prev_action = action_1d_to_2d(taken_actions[i - 1], board_size)
-            board_title = f'Prev Action: {prev_action}\n'
+            board_title = f'Action: {prev_action}\n'
             if i == num_states - 1:
                 action_took = action_1d_to_2d(taken_actions[i], board_size)
-                board_title += f'Action Took: {action_took}\n'
+                board_title += f'Action Taken: {action_took}\n'
         else:
             board_title = 'Initial Board\n'
         board_title += f'{rewards[i - 1]:.0f}R {terminals[i]}T, {wins[i]}W'
