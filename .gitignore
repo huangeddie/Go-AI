@@ -1,8 +1,8 @@
 .ipynb_checkpoints/
 __pycache__/
 .idea/
-*.swp
-logs/
 .DS_Store
-tmp/
-data/
+*.png
+*.pickle
+*.jpg
+*.pt

@@ -65,7 +65,7 @@ class Node:
         if visits <= 0:
             return self.prior_q(move)
         else:
-            return self.post_qsums[move] / visits
+            return (self.prior_q(move) + self.post_qsums[move]) / (1 + visits)
 
     def latest_qs(self):
         valid_moves = GoGame.get_valid_moves(self.state)
