@@ -6,7 +6,7 @@ import torch
 BOARD_SIZE = 4
 
 BATCH_SIZE = 32
-REPLAY_MEMSIZE = 2000 * (2 * BOARD_SIZE ** 2)
+REPLAY_MEMSIZE = 1000 * (2 * BOARD_SIZE ** 2)
 TRAINSTEP_MEMSIZE = 256 * (2 * BOARD_SIZE ** 2)
 
 ITERATIONS = 256
@@ -20,7 +20,7 @@ MIN_TEMP = 1 / 32
 
 MCT_SEARCHES = 0  # If set to 0, MCTPolicies become simply QVals
 
-WORKERS = 8
+WORKERS = 4
 
 LOAD_SAVEDMODELS = False
 EPISODES_DIR = 'episodes/'
@@ -39,7 +39,6 @@ def reset_disk_params(model):
     """
     if LOAD_SAVEDMODELS:
         assert os.path.exists(CHECKPOINT_PATH)
-        print("Starting from checkpoint")
     else:
         torch.save(model.state_dict(), CHECKPOINT_PATH)
-        print("Initialized checkpoint")
+    return LOAD_SAVEDMODELS

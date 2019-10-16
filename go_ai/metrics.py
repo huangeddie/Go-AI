@@ -1,7 +1,6 @@
 import gym
 import numpy as np
 from matplotlib import pyplot as plt
-from tqdm import tqdm
 
 import go_ai.game
 from go_ai import data, montecarlo, policies
@@ -69,7 +68,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     board_size = states[0].shape[1]
 
     move_probs = []
-    for step, (state, prev_action) in tqdm(enumerate(zip(states, taken_actions)), desc="Model responses", leave=False):
+    for step, (state, prev_action) in enumerate(zip(states, taken_actions)):
         if step == 0:
             policy.reset(state)
         pi = policy(state, step)
@@ -88,7 +87,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     num_cols = 3 if isinstance(policy, policies.MctPolicy) else 2
 
     fig = plt.figure(figsize=(num_cols * 2.5, num_states * 2))
-    for i in tqdm(range(num_states), desc="Plots", leave=False):
+    for i in range(num_states):
         curr_col = 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)

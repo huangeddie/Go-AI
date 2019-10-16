@@ -1,3 +1,5 @@
+import sys
+
 import gym
 import numpy as np
 import torch
@@ -50,7 +52,7 @@ def optimize(model, replay_data, optimizer, batch_size):
     model.train()
     running_loss = 0
     running_acc = 0
-    pbar = tqdm(zip(*batched_data), desc="Optimizing")
+    pbar = tqdm(zip(*batched_data), desc="Optimizing", file=sys.stdout)
     for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(pbar, 1):
         # Augment
         states = data.batch_random_symmetries(states)
