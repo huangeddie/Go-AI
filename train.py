@@ -1,12 +1,11 @@
 import collections
-import pickle
 import random
 
 import gym
+import torch
 from torch import multiprocessing as mp
 from tqdm import tqdm
 
-import hyperparameters
 from go_ai import policies, game, metrics, data
 from go_ai.models import value_models
 from hyperparameters import *
@@ -15,6 +14,9 @@ from hyperparameters import *
 def worker_train(rank, barrier, status, winrate):
     # Replay data
     replay_data = collections.deque(maxlen=REPLAY_MEMSIZE // WORKERS)
+    if CONTINUE_CHECKPOINT:
+        old_data = data.load_replaydata(EPISODES_DIR, rank)
+        replay_data.extend(old_data)
 
     # Model
     curr_model = value_models.ValueNet(BOARD_SIZE)
@@ -24,8 +26,11 @@ def worker_train(rank, barrier, status, winrate):
 
     # Set parameters on disk
     if rank == 0:
-        continue_checkpoint = hyperparameters.reset_disk_params(curr_model)
-        tqdm.write(f"Continuing from checkpoint: {continue_checkpoint}\n")
+        if CONTINUE_CHECKPOINT:
+            assert os.path.exists(CHECKPOINT_PATH)
+        else:
+            torch.save(curr_model.state_dict(), CHECKPOINT_PATH)
+        tqdm.write(f"Continuing from checkpoint: {CONTINUE_CHECKPOINT}\n")
     barrier.wait()
 
     # Load parameters from disk
@@ -50,25 +55,18 @@ def worker_train(rank, barrier, status, winrate):
             tqdm.write(f"Iteration {iteration} | Replay size: {len(replay_data)}")
         barrier.wait()
 
-        # Make and write out the episode data
+        # Play episodes
         _, trajectories = game.play_games(go_env, curr_pi, curr_pi, True, EPISODES_PER_ITER // WORKERS)
         replay_data.extend(trajectories)
 
-        with open(f"{EPISODES_DIR}worker_{rank}.pickle", 'wb') as f:
-            pickle.dump(replay_data, f)
-
+        # Write episodes to disk
+        data.save_replaydata(replay_data, EPISODES_DIR, rank)
         barrier.wait()
 
         # Process the data
         if rank == 0:
             # Gather all workers' data to sample from
-            all_data = []
-            files = os.listdir(EPISODES_DIR)
-            for file in files:
-                if '.pickle' in file:
-                    with open(EPISODES_DIR + file, 'rb') as f:
-                        worker_data = pickle.load(f)
-                        all_data.extend(worker_data)
+            all_data = data.load_replaydata(EPISODES_DIR)
             train_data = random.sample(all_data, min(TRAINSTEP_MEMSIZE, len(all_data)))
             train_data = data.replaylist_to_numpy(train_data)
 
@@ -113,7 +111,7 @@ def worker_train(rank, barrier, status, winrate):
                 barrier.wait()
 
                 # See how it fairs against the baselines
-                for opponent in [policies.RAND_PI, policies.GREEDY_PI, policies.MCT_GREEDY_PI]:
+                for opponent in [policies.RAND_PI, policies.GREEDY_PI]:
                     if rank == 0:
                         winrate.value = 0
                     barrier.wait()

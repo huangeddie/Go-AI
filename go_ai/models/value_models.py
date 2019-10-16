@@ -28,9 +28,9 @@ class ValueNet(nn.Module):
         )
 
         self.fcs = nn.Sequential(
-            nn.Linear(board_size ** 2, 16),
+            nn.Linear(board_size ** 2, board_size ** 2),
             nn.ReLU(),
-            nn.Linear(16, 1)
+            nn.Linear(board_size ** 2, 1)
         )
 
         self.criterion = nn.BCEWithLogitsLoss()

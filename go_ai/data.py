@@ -1,4 +1,5 @@
 import os
+import pickle
 
 import gym
 import numpy as np
@@ -60,41 +61,19 @@ def replaylist_to_numpy(replay_mem):
     return states, actions, next_states, rewards, terminals, wins
 
 
-def episodes_from_dir(episodes_dir):
-    """
-    Loades episode data from a given directory
-    episode_dir ->
-        * worker_0.npz
-        * worker_1.npz
-        * ...
+def load_replaydata(episodes_dir, worker_rank=None):
+    all_data = []
+    files = os.listdir(episodes_dir)
+    for file in files:
+        if '.pickle' in file:
+            if worker_rank is not None and str(worker_rank) not in file:
+                continue
+            with open(episodes_dir + file, 'rb') as f:
+                worker_data = pickle.load(f)
+                all_data.extend(worker_data)
+    return all_data
 
-    worker_n.npz are files in the format [states, actions, next_states, rewards, terminals, wins]
-    :param episodes_dir:
-    :return: all of [states, actions, next_states, rewards, terminals, wins] concatenated shuffled
-    """
-    worker_data = []
-    for file in os.listdir(episodes_dir):
-        if file[0] == '.':
-            continue
-        data_batch = np.load(os.path.join(episodes_dir, file))
-        worker_data.append([data_batch[file] for file in data_batch.files])
-
-    # Worker data is a list.
-    # Each element of the list is in the form
-    # [states, actions, next_states, rewards, terminals, wins]
-    batched_data = list(zip(*worker_data))
-    # Batched data is in the form
-    # [[[batch of states],...,[batch of states]], [[batch of actions],...],...]
-
-    combined_data = []
-    for batches in batched_data:
-        combined_data.append(np.concatenate(batches))
-
-    # Shuffle
-    data_len = len(combined_data[0])
-    perm = np.random.permutation(data_len)
-    for i in range(len(combined_data)):
-        assert len(combined_data[i]) == data_len
-        combined_data[i] = combined_data[i][perm]
-
-    return combined_data
+def save_replaydata(replay_data, episodes_dir, worker_rank):
+    outpath = os.path.join(episodes_dir, f"worker_{worker_rank}.pickle")
+    with open(outpath, 'wb') as f:
+        pickle.dump(replay_data, f)
