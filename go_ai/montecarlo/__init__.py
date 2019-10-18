@@ -5,6 +5,10 @@ from sklearn.preprocessing import normalize
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
+def invert_qval(qval):
+    return 1 - qval
+
+
 def canonical_winning(canonical_state):
     my_area, opp_area = GoGame.get_areas(canonical_state)
     if my_area > opp_area:
@@ -52,8 +56,9 @@ def qval_from_stateval(states, val_func):
                 canonical_next_state = canonical_next_states[curr_idx]
                 terminal = GoGame.get_game_ended(canonical_next_state)
                 winning = canonical_winning(canonical_next_state)
-                val = (1 - terminal) * canonical_next_vals[curr_idx].item() + (terminal) * winning
-                Qs.append(1 - val)
+                oppo_val = (1 - terminal) * canonical_next_vals[curr_idx].item() + (terminal) * winning
+                qval = invert_qval(oppo_val)
+                Qs.append(qval)
                 curr_idx += 1
             else:
                 Qs.append(0)
@@ -64,9 +69,11 @@ def qval_from_stateval(states, val_func):
     return np.array(batch_qvals), canonical_next_states
 
 
-def greedy_pi(qvals):
-    max_qs = np.max(qvals)
-    pi = (qvals == max_qs).astype(np.int)
+def greedy_pi(qvals, valid_moves):
+    expq = np.exp(qvals)
+    expq *= valid_moves
+    max_qs = np.max(expq)
+    pi = (expq == max_qs).astype(np.int)
     pi = normalize(pi[np.newaxis], norm='l1')[0]
     return pi
 
@@ -74,17 +81,19 @@ def greedy_pi(qvals):
 def exp_temp(qvals, temp, valid_moves):
     if temp <= 0:
         # Max Qs
-        pi = greedy_pi(qvals)
+        pi = greedy_pi(qvals, valid_moves)
     else:
         expq = np.exp(qvals)
         expq *= valid_moves
         amp_qs = expq[np.newaxis] ** (1 / temp)
         if np.isnan(amp_qs).any():
-            pi = greedy_pi(qvals)
+            pi = greedy_pi(qvals, valid_moves)
         else:
             pi = normalize(amp_qs, norm='l1')[0]
             if np.count_nonzero(pi) == 0:
                 # Incase we amplify so much, everything is zero due to floating point error
                 # Max Qs
-                pi = greedy_pi(qvals)
+                pi = greedy_pi(qvals, valid_moves)
+
+    assert (pi[valid_moves == 0] == 0).all(), (qvals, pi, valid_moves)
     return pi

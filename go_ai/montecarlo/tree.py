@@ -28,12 +28,12 @@ class MCTree:
         self.board_size = canonical_state.shape[1]
         self.action_size = GoGame.get_action_size(self.root.state)
 
-    def get_qvals(self, max_num_searches, temp):
+    def get_qvals(self, num_searches):
         '''
         Description:
             Select a child node that maximizes Q + U,
         Args:
-            max_num_searches (int): maximum number of searches performed
+            num_searches (int): maximum number of searches performed
             temp (number): temperature constant
         Returns:
             pi (1d np array): the search probabilities
@@ -42,7 +42,7 @@ class MCTree:
         rootstate = self.root.state
 
         num_search = 0
-        if max_num_searches <= 0:
+        if num_searches <= 0:
             # Avoid making nodes and stuff
             qvals, _ = montecarlo.qval_from_stateval(rootstate[np.newaxis], self.val_func)
             qvals = qvals[0]
@@ -50,7 +50,7 @@ class MCTree:
             if not self.root.cached_children():
                 self.cache_children(self.root)
 
-            while num_search < max_num_searches:
+            while num_search < num_searches:
                 curr_node = self.root
                 # keep going down the tree with the best move
                 assert isinstance(curr_node, Node)
@@ -62,7 +62,7 @@ class MCTree:
                     # We want to end on our turn
                     curr_node, move = self.select_best_child(curr_node)
 
-                curr_node.parent.back_propagate(curr_node.value)
+                curr_node.parent.backup(curr_node.value)
                 curr_node.visits += 1
 
                 # increment search counter
@@ -116,7 +116,7 @@ class MCTree:
 
         for idx, move in enumerate(valid_move_idcs):
             # Our qval is the negative state value of the canonical child
-            Node((node, move), 1 - batch_qvals[0][move].item(), batch_canonical_children[idx])
+            Node((node, move), montecarlo.invert_qval(batch_qvals[0][move].item()), batch_canonical_children[idx])
 
     def step(self, action):
         '''

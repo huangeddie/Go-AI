@@ -45,6 +45,8 @@ def pytorch_to_numpy(model, logits):
             states = torch.from_numpy(states).type(torch.FloatTensor)
             state_vals = model(states)
             if logits:
+                pass
+            else:
                 state_vals = torch.sigmoid(state_vals)
             return state_vals.numpy()
 
@@ -147,7 +149,7 @@ class MctPolicy(Policy):
             self.pytorch_model = val_func
             logging.info("Saved Pytorch model")
             logging.info("Created Numpy value function from Pytorch model")
-            val_func = pytorch_to_numpy(val_func, logits=True)
+            val_func = pytorch_to_numpy(val_func, logits=False)
 
         self.val_func = val_func
         self.num_searches = num_searches
@@ -169,15 +171,14 @@ class MctPolicy(Policy):
         if not (root == state).all():
             logging.warning("MCTPolicy {} resetted tree, uncaching all work".format(self.name))
             self.tree.reset(state)
-        qvals = self.tree.get_qvals(max_num_searches=self.num_searches, temp=self.temp)
+        qvals = self.tree.get_qvals(num_searches=self.num_searches)
 
         if np.count_nonzero(qvals) == 0:
             qvals += valid_moves
-        temp = self.temp
+
+        temp = (1 / 1) if step <= 4 else self.temp
 
         pi = exp_temp(qvals, temp, valid_moves)
-
-        assert (pi[invalid_moves > 0] == 0).all(), pi
         return pi
 
     def step(self, action):
