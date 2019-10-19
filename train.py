@@ -25,7 +25,7 @@ def worker_train(rank, barrier, winrate):
     if rank == 0:
         tqdm.write(f'{curr_model}\n')
 
-    # Set parameters on disk
+    # Set parameters and data on disk
     if rank == 0:
         if CONTINUE_CHECKPOINT:
             assert os.path.exists(CHECKPOINT_PATH)
@@ -34,7 +34,8 @@ def worker_train(rank, barrier, winrate):
             episode_files = os.listdir(EPISODES_DIR)
             for item in episode_files:
                 if item.endswith(".pickle"):
-                    os.remove(item)
+                    os.remove(os.path.join(EPISODES_DIR, item))
+            # Set parameters
             torch.save(curr_model.state_dict(), CHECKPOINT_PATH)
         tqdm.write(f"Continuing from checkpoint: {CONTINUE_CHECKPOINT}\n")
     barrier.wait()
@@ -75,6 +76,8 @@ def worker_train(rank, barrier, winrate):
             all_data = data.load_replaydata(EPISODES_DIR)
             train_data = random.sample(all_data, min(TRAINSAMPLE_MEMSIZE, len(all_data)))
             train_data = data.replaylist_to_numpy(train_data)
+
+            del all_data
 
             # Optimize
             value_models.optimize(curr_model, train_data, optim, BATCH_SIZE)
