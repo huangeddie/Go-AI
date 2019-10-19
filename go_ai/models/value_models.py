@@ -1,8 +1,9 @@
+import sys
+
 import gym
 import numpy as np
 import torch
 import torch.nn as nn
-from torch import optim
 from tqdm import tqdm
 
 from go_ai import data
@@ -16,20 +17,34 @@ class ValueNet(nn.Module):
     def __init__(self, board_size):
         super(ValueNet, self).__init__()
         self.convs = nn.Sequential(
-            nn.Conv2d(GoVars.NUM_CHNLS, 256, 3, padding=1),
+            nn.Conv2d(GoVars.NUM_CHNLS, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.Conv2d(64, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.Conv2d(128, 256, 3, padding=1),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
             nn.Conv2d(256, 256, 3, padding=1),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
-            nn.Conv2d(256, 256, 3, padding=1),
+            nn.Conv2d(256, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Conv2d(256, 1, 3, padding=1),
+            nn.Conv2d(128, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.Conv2d(64, 1, 3, padding=1),
+            nn.BatchNorm2d(1),
             nn.ReLU(),
         )
 
         self.fcs = nn.Sequential(
-            nn.Linear(board_size ** 2, 16),
+            nn.Linear(board_size ** 2, board_size ** 2),
+            nn.BatchNorm1d(board_size ** 2),
             nn.ReLU(),
-            nn.Linear(16, 1)
+            nn.Linear(board_size ** 2, 1)
         )
 
         self.criterion = nn.BCEWithLogitsLoss()
@@ -39,6 +54,7 @@ class ValueNet(nn.Module):
         x = torch.flatten(x, start_dim=1)
         x = self.fcs(x)
         return x
+
 
 def optimize(model, replay_data, optimizer, batch_size):
     N = len(replay_data[0])
@@ -50,7 +66,7 @@ def optimize(model, replay_data, optimizer, batch_size):
     model.train()
     running_loss = 0
     running_acc = 0
-    pbar = tqdm(zip(*batched_data), desc="Optimizing", position=0)
+    pbar = tqdm(zip(*batched_data), desc="Optimizing", file=sys.stdout)
     for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(pbar, 1):
         # Augment
         states = data.batch_random_symmetries(states)
@@ -68,4 +84,4 @@ def optimize(model, replay_data, optimizer, batch_size):
         running_loss += loss.item()
         running_acc += torch.mean((pred_wins == wins).type(torch.FloatTensor)).item()
 
-        pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100* running_acc / i, running_loss / i))
+        pbar.set_postfix_str(f"{100 * running_acc / i:.1f}%, {running_loss / i:.3f}L")

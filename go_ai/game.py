@@ -1,3 +1,5 @@
+import sys
+
 import gym
 from tqdm import tqdm
 
@@ -11,7 +13,8 @@ GoGame = go_env.gogame
 def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Policy, get_traj, episodes):
     replay_data = []
     wins = 0
-    pbar = tqdm(range(1, episodes + 1), desc="{} vs. {}".format(first_policy, second_policy), position=0)
+    pbar = tqdm(range(1, episodes + 1), desc="{} vs. {}".format(first_policy, second_policy), file=sys.stdout,
+                leave=False)
     for i in pbar:
         go_env.reset()
         if i % 2 == 0:

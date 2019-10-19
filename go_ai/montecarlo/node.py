@@ -1,5 +1,6 @@
 import numpy as np
 
+from go_ai import montecarlo
 from go_ai.montecarlo import GoGame
 
 
@@ -53,7 +54,7 @@ class Node:
 
     def prior_q(self, move):
         canon_child = self.canon_children[move]
-        return 1 - canon_child.value
+        return montecarlo.invert_qval(canon_child.value)
 
     def prior_qs(self):
         valid_moves = GoGame.get_valid_moves(self.state)
@@ -65,7 +66,7 @@ class Node:
         if visits <= 0:
             return self.prior_q(move)
         else:
-            return self.post_qsums[move] / visits
+            return (self.prior_q(move) + self.post_qsums[move]) / (1 + visits)
 
     def latest_qs(self):
         valid_moves = GoGame.get_valid_moves(self.state)
@@ -79,7 +80,7 @@ class Node:
 
         return np.array(Qs)
 
-    def back_propagate(self, parent_q):
+    def backup(self, parent_q):
         '''
         Description:
             Recursively increases the number visited by 1 and increase the
@@ -89,8 +90,7 @@ class Node:
         if isinstance(self.parent, Node):
             self.parent.move_visits[self.lastaction] += 1
             self.parent.post_qsums[self.lastaction] += parent_q
-            self.parent.back_propagate(1 - parent_q)
+            self.parent.backup(montecarlo.invert_qval(parent_q))
 
     def __str__(self):
-        return '{} {}H {}V {}N'.format(np.sum(self.state[[0, 1]], axis=0), self.height, self.value,
-                                       np.sum(self.move_visits))
+        return f'{np.sum(self.state[[0, 1]], axis=0)} {self.height}H {self.value}V {np.sum(self.move_visits)}N'

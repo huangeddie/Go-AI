@@ -1,15 +1,18 @@
 import gym
 
 from go_ai import policies, game
+from go_ai.models import value_models
+from hyperparameters import *
 
 # Environment
 BOARD_SIZE = 4
 go_env = gym.make('gym_go:go-v0', size=BOARD_SIZE)
 
 # Policies
-random_policy = policies.RandomPolicy()
-greedy_policy = policies.MctPolicy('Greedy', val_func=policies.greedy_val_func, num_searches=0, temp=0)
-greedy_mct_policy = policies.MctPolicy('MCT', val_func=policies.greedy_val_func, num_searches=128, temp=0)
-human_policy = policies.HumanPolicy()
+checkpoint_model = value_models.ValueNet(BOARD_SIZE)
+checkpoint_model.load_state_dict(torch.load(CHECKPOINT_PATH))
 
-game.pit(go_env, human_policy, greedy_mct_policy, False)
+# Policies
+checkpoint_pi = policies.MctPolicy('Checkpoint', checkpoint_model, 0, 0)
+
+game.pit(go_env, policies.HUMAN_PI, checkpoint_pi, False)
