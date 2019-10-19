@@ -161,7 +161,6 @@ class MctPolicy(Policy):
         :return:
         """
         valid_moves = GoGame.get_valid_moves(state)
-        invalid_moves = 1 - valid_moves
 
         if not hasattr(self, "tree"):
             # Invoked the first time you call it
@@ -176,7 +175,7 @@ class MctPolicy(Policy):
         if np.count_nonzero(qvals) == 0:
             qvals += valid_moves
 
-        temp = (1 / 1) if step <= 4 else self.temp
+        temp = (1 / 8) if step <= 16 else self.temp
 
         pi = exp_temp(qvals, temp, valid_moves)
         return pi

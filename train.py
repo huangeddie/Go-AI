@@ -30,6 +30,11 @@ def worker_train(rank, barrier, winrate):
         if CONTINUE_CHECKPOINT:
             assert os.path.exists(CHECKPOINT_PATH)
         else:
+            # Clear worker data
+            episode_files = os.listdir(EPISODES_DIR)
+            for item in episode_files:
+                if item.endswith(".pickle"):
+                    os.remove(item)
             torch.save(curr_model.state_dict(), CHECKPOINT_PATH)
         tqdm.write(f"Continuing from checkpoint: {CONTINUE_CHECKPOINT}\n")
     barrier.wait()
@@ -37,7 +42,7 @@ def worker_train(rank, barrier, winrate):
     # Load parameters from disk
     curr_model.load_state_dict(torch.load(CHECKPOINT_PATH))
     checkpoint_model.load_state_dict(torch.load(CHECKPOINT_PATH))
-    optim = torch.optim.Adam(curr_model.parameters(), 1e-3)
+    optim = torch.optim.Adam(curr_model.parameters(), 1e-3) if rank == 0 else None
 
     # Policies
     curr_pi = policies.MctPolicy('Current', curr_model, MCT_SEARCHES, INIT_TEMP, MIN_TEMP)
@@ -73,9 +78,6 @@ def worker_train(rank, barrier, winrate):
 
             # Optimize
             value_models.optimize(curr_model, train_data, optim, BATCH_SIZE)
-
-            # Clear data
-            del all_data
 
             torch.save(curr_model.state_dict(), TMP_PATH)
         barrier.wait()
