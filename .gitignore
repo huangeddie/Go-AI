@@ -1,6 +1,8 @@
 .ipynb_checkpoints/
 __pycache__/
 .idea/
+.vscode/
+env/
 .DS_Store
 *.png
 *.pickle
