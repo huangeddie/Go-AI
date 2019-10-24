@@ -151,7 +151,15 @@ if __name__ == '__main__':
         worker_train(0, barrier, winrate)
     else:
         # Parallel Setup
-        mp.set_start_method('spawn')
+        if SPAWN_METHOD:
+            mp.set_start_method(SPAWN_METHOD)
         barrier = mp.Barrier(WORKERS)
         winrate = mp.Value('d', 0.0)
-        mp.spawn(fn=worker_train, args=(barrier, winrate), nprocs=WORKERS, join=True)
+        procs = []
+        for w in range(WORKERS):
+            p = mp.Process(target=worker_train, args=(w, barrier, winrate))
+            p.start()
+            procs.append(p)
+
+        for p in procs:
+            p.join()

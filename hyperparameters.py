@@ -15,10 +15,12 @@ MIN_TEMP = 1 / 32
 
 MCT_SEARCHES = 0  # If set to 0, MCTPolicies become simply QVals
 
-WORKERS = 1
+WORKERS = 16
 
 CONTINUE_CHECKPOINT = False
 EPISODES_DIR = 'episodes/'
 CHECKPOINT_PATH = 'checkpoints/checkpoint_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
 TMP_PATH = 'checkpoints/tmp_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
 DEMO_TRAJPATH = None #EPISODES_DIR + 'a_traj.pdf'
+
+SPAWN_METHOD = None
