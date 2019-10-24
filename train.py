@@ -143,14 +143,15 @@ def worker_train(rank, barrier, winrate):
 
 
 if __name__ == '__main__':
-    # Parallel Setup
-    mp.set_start_method('spawn')
-    barrier = mp.Barrier(WORKERS)
-    winrate = mp.Value('d', 0.0)
-
     tqdm.write('{}/{} Workers\n'.format(WORKERS, mp.cpu_count()))
 
     if WORKERS <= 1:
+        barrier = mp.Barrier(WORKERS)
+        winrate = mp.Value('d', 0.0)
         worker_train(0, barrier, winrate)
     else:
+        # Parallel Setup
+        mp.set_start_method('spawn')
+        barrier = mp.Barrier(WORKERS)
+        winrate = mp.Value('d', 0.0)
         mp.spawn(fn=worker_train, args=(barrier, winrate), nprocs=WORKERS, join=True)

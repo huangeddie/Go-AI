@@ -15,7 +15,7 @@ MIN_TEMP = 1 / 32
 
 MCT_SEARCHES = 0  # If set to 0, MCTPolicies become simply QVals
 
-WORKERS = 4
+WORKERS = 1
 
 CONTINUE_CHECKPOINT = False
 EPISODES_DIR = 'episodes/'
