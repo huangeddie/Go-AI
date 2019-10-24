@@ -59,7 +59,7 @@ def worker_train(rank, barrier, winrate):
         barrier.wait()
 
         # Log a Sample Trajectory
-        if rank == 0:
+        if rank == 0 and DEMO_TRAJPATH is not None:
             metrics.plot_traj_fig(go_env, checkpoint_pi, DEMO_TRAJPATH)
 
         # Play episodes
