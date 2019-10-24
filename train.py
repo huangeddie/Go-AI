@@ -148,7 +148,7 @@ if __name__ == '__main__':
     barrier = mp.Barrier(WORKERS)
     winrate = mp.Value('d', 0.0)
 
-    tqdm.write('{} Workers\n'.format(WORKERS))
+    tqdm.write('{}/{} Workers\n'.format(WORKERS, mp.cpu_count()))
 
     if WORKERS <= 1:
         worker_train(0, barrier, winrate)
