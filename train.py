@@ -23,7 +23,7 @@ def worker_train(rank, barrier, winrate):
     curr_model = value_models.ValueNet(BOARD_SIZE)
     checkpoint_model = value_models.ValueNet(BOARD_SIZE)
     if rank == 0:
-        tqdm.write(f'{curr_model}\n')
+        tqdm.write('{}\n'.format(curr_model))
 
     # Set parameters and data on disk
     if rank == 0:
@@ -37,7 +37,7 @@ def worker_train(rank, barrier, winrate):
                     os.remove(os.path.join(EPISODES_DIR, item))
             # Set parameters
             torch.save(curr_model.state_dict(), CHECKPOINT_PATH)
-        tqdm.write(f"Continuing from checkpoint: {CONTINUE_CHECKPOINT}\n")
+        tqdm.write("Continuing from checkpoint: {}\n".format(CONTINUE_CHECKPOINT))
     barrier.wait()
 
     # Load parameters from disk
@@ -55,7 +55,7 @@ def worker_train(rank, barrier, winrate):
     # Training
     for iteration in range(ITERATIONS):
         if rank == 0:
-            tqdm.write(f"Iteration {iteration} | Worker 0 Replay Size: {len(replay_data)}")
+            tqdm.write("Iteration {} | Worker 0 Replay Size: {}".format(iteration, len(replay_data)))
         barrier.wait()
 
         # Log a Sample Trajectory
@@ -99,7 +99,7 @@ def worker_train(rank, barrier, winrate):
                 winrate.value += (wr / WORKERS)
             barrier.wait()
             if rank == 0:
-                tqdm.write(f"Winrate against checkpoint: {100 * winrate.value:.1f}%")
+                tqdm.write("Winrate against checkpoint: {:.1f}%".format(100 * winrate.value))
             barrier.wait()
 
             # Update checkpoint
@@ -123,7 +123,7 @@ def worker_train(rank, barrier, winrate):
                         winrate.value += (wr / WORKERS)
                     barrier.wait()
                     if rank == 0:
-                        tqdm.write(f"Win rate against {opponent}: {100 * winrate.value:.1f}%")
+                        tqdm.write("Win rate against {}: {:.1f}%".format(opponent, 100 * winrate.value))
 
             elif winrate.value < 0.4:
                 if rank == 0:
@@ -139,7 +139,7 @@ def worker_train(rank, barrier, winrate):
         curr_pi.decay_temp(TEMP_DECAY)
         checkpoint_pi.decay_temp(TEMP_DECAY)
         if rank == 0:
-            tqdm.write(f"Temp decayed to {curr_pi.temp:.5f}, {checkpoint_pi.temp:.5f}\n")
+            tqdm.write("Temp decayed to {:.5f}, {:.5f}\n".format(curr_pi.temp, checkpoint_pi.temp))
 
 
 if __name__ == '__main__':
@@ -148,7 +148,7 @@ if __name__ == '__main__':
     barrier = mp.Barrier(WORKERS)
     winrate = mp.Value('d', 0.0)
 
-    tqdm.write(f'{WORKERS} Workers\n')
+    tqdm.write('{} Workers\n'.format(WORKERS))
 
     if WORKERS <= 1:
         worker_train(0, barrier, winrate)

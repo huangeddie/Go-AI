@@ -196,7 +196,7 @@ class MctPolicy(Policy):
         self.tree.reset(state)
 
     def __str__(self):
-        return f"{self.__class__.__name__}[{self.num_searches} Searches]-{self.name}"
+        return "{}[{} Searches]-{}".format(self.__class__.__name__, self.num_searches, self.name)
 
 
 RAND_PI = RandomPolicy()

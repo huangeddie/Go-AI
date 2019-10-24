@@ -35,10 +35,10 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None):
     valid_values = np.extract(valid_moves[:-1] == 1, move_distr[:-1])
     assert np.isnan(move_distr).any() == False, move_distr
     pass_val = float(move_distr[-1])
-    plt.title(title + (' ' if scalar is None else f' {scalar:.3f}S')
-              + f'\n{np.min(valid_values) if len(valid_values) > 0 else 0:.3f}L '
-                f'{np.max(valid_values) if len(valid_values) > 0 else 0:.3f}H '
-                f'{pass_val:.3f}P')
+    plt.title(title + (' ' if scalar is None else ' {:.3f}S'.format(scalar))
+              + '\n{:.3f}L '.format(np.min(valid_values) if len(valid_values) > 0 else 0)
+              + '{:.3f}H '.format(np.max(valid_values) if len(valid_values) > 0 else 0)
+              + '{:.3f}P'.format(pass_val))
     plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
 
 
@@ -94,13 +94,13 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
         plt.axis('off')
         if i > 0:
             prev_action = action_1d_to_2d(taken_actions[i - 1], board_size)
-            board_title = f'Action: {prev_action}\n'
+            board_title = 'Action: {}\n'.format(prev_action)
             if i == num_states - 1:
                 action_took = action_1d_to_2d(taken_actions[i], board_size)
-                board_title += f'Action Taken: {action_took}\n'
+                board_title += 'Action Taken: {}\n'.format(action_took)
         else:
             board_title = 'Initial Board\n'
-        board_title += f'{rewards[i - 1]:.0f}R {terminals[i]}T, {wins[i]}W'
+        board_title += '{:.0f}R {}T, {}W'.format(rewards[i - 1], terminals[i], wins[i])
 
         plt.title(board_title)
         plt.imshow(matplot_format(states[i]))
@@ -223,7 +223,7 @@ def plot_mct(tree: tree.MCTree, outpath, max_layers=8, max_branch=8):
 
             plt.subplot(grid.shape[0], grid.shape[1], grid.shape[1] * i + j + 1)
             plt.axis('off')
-            plt.title(f'A={action} N={visits}\nV={value:.2f}, Q={qval:.2f}')
+            plt.title('A={} N={}\nV={:.2f}, Q={:.2f}'.format(action, visits, value, qval))
             plt.imshow(matplot_format(node.state))
     plt.tight_layout()
     plt.savefig(outpath)

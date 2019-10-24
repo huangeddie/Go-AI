@@ -19,6 +19,6 @@ WORKERS = 4
 
 CONTINUE_CHECKPOINT = False
 EPISODES_DIR = 'episodes/'
-CHECKPOINT_PATH = f'checkpoints/checkpoint_{BOARD_SIZE}x{BOARD_SIZE}.pt'
+CHECKPOINT_PATH = 'checkpoints/checkpoint_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
 TMP_PATH = 'checkpoints/tmp_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
 DEMO_TRAJPATH = EPISODES_DIR + 'a_traj.pdf'

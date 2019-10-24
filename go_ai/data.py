@@ -74,6 +74,6 @@ def load_replaydata(episodes_dir, worker_rank=None):
     return all_data
 
 def save_replaydata(replay_data, episodes_dir, worker_rank):
-    outpath = os.path.join(episodes_dir, f"worker_{worker_rank}.pickle")
+    outpath = os.path.join(episodes_dir, "worker_{}.pickle".format(worker_rank))
     with open(outpath, 'wb') as f:
         pickle.dump(replay_data, f)
