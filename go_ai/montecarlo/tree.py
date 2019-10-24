@@ -1,65 +1,76 @@
-from sklearn.preprocessing import normalize
+import gym
 import numpy as np
 
-from go_ai.montecarlo import GoGame, piqval_from_actorcritic
+from go_ai import montecarlo
 from go_ai.montecarlo.node import Node
+
+GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
 class MCTree:
-    # Environment ot call the stateless go logic APIs
+    # Environment to call the stateless go logic APIs
 
-    def __init__(self, state, forward_func):
+    def __init__(self, val_func, state):
         """
         :param state: Starting state
-        :param forward_func: Takes in a batch of states and returns action
+        :param val_func: Takes in a batch of states and returns action
         probs and state values
         """
-        self.forward_func = forward_func
+        canonical_state = GoGame.get_canonical_form(state)
+        self.val_func = val_func
 
-        action_probs, state_value = forward_func(state[np.newaxis])
-        action_probs, state_value = action_probs[0], state_value[0]
+        canonical_state_val = val_func(canonical_state[np.newaxis])[0].item()
 
-        self.root = Node(None, action_probs, state_value, state)
+        self.root = Node(None, canonical_state_val, canonical_state)
         assert not self.root.visited()
-        self.root.back_propagate(self.root.V)
 
-        assert state.shape[1] == state.shape[2]
-        self.board_size = state.shape[1]
+        assert canonical_state.shape[1] == canonical_state.shape[2]
+        self.board_size = canonical_state.shape[1]
         self.action_size = GoGame.get_action_size(self.root.state)
 
-    def get_action_probs(self, max_num_searches, temp):
+    def get_qvals(self, num_searches):
         '''
         Description:
             Select a child node that maximizes Q + U,
         Args:
-            max_num_searches (int): maximum number of searches performed
+            num_searches (int): maximum number of searches performed
             temp (number): temperature constant
         Returns:
             pi (1d np array): the search probabilities
             num_search (int): number of search performed
         '''
-        assert max_num_searches > 0
+        rootstate = self.root.state
+
         num_search = 0
-        while num_search < max_num_searches:
-            curr_node = self.root
-            # keep going down the tree with the best move
-            while curr_node.visited() and not curr_node.terminal:
-                curr_node, move = self.select_best_child(curr_node)
-
-            curr_node.back_propagate(curr_node.V)
-
-            # increment search counter
-            num_search += 1
-
-        N = list(map(lambda node: node.N if node is not None else 0, self.root.children))
-        N = np.array(N)
-        if temp > 0:
-            pi = normalize([N ** (1 / temp)], norm='l1')[0]
+        if num_searches <= 0:
+            # Avoid making nodes and stuff
+            qvals, _ = montecarlo.qval_from_stateval(rootstate[np.newaxis], self.val_func)
+            qvals = qvals[0]
         else:
-            best_actions = (N == np.max(N))
-            pi = normalize(best_actions[np.newaxis], norm='l1')[0]
+            if not self.root.cached_children():
+                self.cache_children(self.root)
 
-        return pi
+            while num_search < num_searches:
+                curr_node = self.root
+                # keep going down the tree with the best move
+                assert isinstance(curr_node, Node)
+                while not curr_node.terminal and curr_node.visited():
+                    curr_node, move = self.select_best_child(curr_node)
+                if not curr_node.terminal:
+                    curr_node, move = self.select_best_child(curr_node)
+                if curr_node.height % 2 == 1 and not curr_node.terminal:
+                    # We want to end on our turn
+                    curr_node, move = self.select_best_child(curr_node)
+
+                curr_node.parent.backup(curr_node.value)
+                curr_node.visits += 1
+
+                # increment search counter
+                num_search += 1
+
+            qvals = self.root.latest_qs()
+
+        return qvals
 
     def select_best_child(self, node, u_const=1):
         """
@@ -70,30 +81,24 @@ class MCTree:
             U = U_CONST * P / (1 + N), where P is action value.
             forward_func action probs
         """
-        if not node.cached_children:
+        if not node.cached_children():
             self.cache_children(node)
 
         valid_moves = GoGame.get_valid_moves(node.state)
-        valid_move_idcs = np.argwhere(valid_moves > 0).flatten()
-        best_move = None
-        max_UCB = np.NINF  # negative infinity
-        # calculate Q + U for all children
-        for move in valid_move_idcs:
-            Q = node.avg_Q(move)
-            child = node.children[move]
-            Nsa = child.N
-            Psa = node.action_probs[move]
-            U = u_const * Psa * np.sqrt(node.N) / (1 + Nsa)
+        invalid_values = (1 - valid_moves) * np.finfo(np.float).min
 
-            # UCB: Upper confidence bound
-            if Q + U > max_UCB:
-                max_UCB = Q + U
-                best_move = move
+        Qs = node.latest_qs()
+        prior_qs = node.prior_qs()
+        prior_pi = montecarlo.exp_temp(prior_qs, 1, valid_moves)
 
-        if best_move is None:
-            raise Exception("MCTS: move shouldn't be None, please debug")
+        assert np.sum(prior_pi) > 0
 
-        return node.children[best_move], best_move
+        N = node.move_visits
+        all_visits = np.sum(N)
+        upper_confidence_bound = Qs + u_const * prior_pi * np.sqrt(all_visits) / (1 + N)
+        best_move = np.argmax(upper_confidence_bound + invalid_values)
+
+        return node.canon_children[best_move], best_move
 
     def cache_children(self, node):
         """
@@ -107,11 +112,11 @@ class MCTree:
 
         valid_move_idcs = GoGame.get_valid_moves(node.state)
         valid_move_idcs = np.argwhere(valid_move_idcs > 0).flatten()
+        batch_qvals, batch_canonical_children = montecarlo.qval_from_stateval(node.state[np.newaxis], self.val_func)
 
-        batch_pis, batch_qvals, batch_canonical_children = piqval_from_actorcritic(node.state[np.newaxis],
-                                                                                   self.forward_func)
         for idx, move in enumerate(valid_move_idcs):
-            Node((node, move), batch_pis[0][idx], batch_qvals[0][idx], batch_canonical_children[0][idx])
+            # Our qval is the negative state value of the canonical child
+            Node((node, move), montecarlo.invert_qval(batch_qvals[0][move].item()), batch_canonical_children[idx])
 
     def step(self, action):
         '''
@@ -119,31 +124,32 @@ class MCTree:
         that are not in the child subtree. If such child doesn't exist yet,
         expand it.
         '''
-        child = self.root.children[action]
-        if child is None:
-            next_state = GoGame.get_next_state(self.root.state, action)
-            next_turn = GoGame.get_turn(next_state)
-            canonical_state = GoGame.get_canonical_form(next_state, next_turn)
-            action_probs, state_value = self.forward_func(canonical_state[np.newaxis])
-            action_probs, state_value = action_probs[0], state_value[0]
-            # Set parent to None because we know we're going to set it as root
-            child = Node(None, action_probs, state_value, next_state)
+        state = self.root.state
+        if self.root.cached_children():
+            canon_child = self.root.canon_children.remove(action)
+        else:
+            childstate = GoGame.get_next_state(state, action)
+            canonchildstate = GoGame.get_canonical_form(childstate)
+            canon_child = Node(None, 0, canonchildstate) # State value doesn't matter
 
-        self.root = child
+        self.root = canon_child
+
+        assert isinstance(self.root, Node)
         self.root.parent = None
-        if not self.root.visited():
-            self.root.back_propagate(self.root.V)
+        self.root.update_height(0)
 
-    def reset(self):
-        initial_state = GoGame.get_init_board(self.board_size)
-        self.__init__(initial_state, self.forward_func)
+    def reset(self, state=None):
+        if state is None:
+            state = GoGame.get_init_board(self.board_size)
+
+        self.__init__(self.val_func, state)
 
     def __str__(self):
         queue = [self.root]
         str_builder = ''
         while len(queue) > 0:
             curr_node = queue.pop(0)
-            for child in curr_node.children:
+            for child in curr_node.canon_children:
                 if child is not None:
                     queue.append(child)
             str_builder += '{}\n\n'.format(curr_node)

@@ -1,9 +1,11 @@
 .ipynb_checkpoints/
 __pycache__/
 .idea/
-*.swp
-logs/
-.DS_Store
-tmp/
-data/
+.vscode/
 env/
+.DS_Store
+*.png
+*.pickle
+*.jpg
+*.pt
+*.pdf
