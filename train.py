@@ -1,5 +1,4 @@
 import collections
-import os
 import random
 import sys
 from datetime import datetime
@@ -9,159 +8,137 @@ import torch
 from torch import multiprocessing as mp
 from tqdm import tqdm
 
+import utils
 from go_ai import policies, game, metrics, data
 from go_ai.models import value_models
-from hyperparameters import *
+from utils import sync_checkpoint, parallel_print, setup
 
 
-def worker_print(rank, s):
-    if rank == 0:
-        print(s)
-
-
-def worker_train(rank, barrier, winrate):
-    
-    if rank == 0:
-        tqdm.write('{}/{} Workers'.format(WORKERS, mp.cpu_count()), file=sys.stderr)
-
+def worker_train(rank, args, barrier, winrate):
     # Replay data
-    replay_data = collections.deque(maxlen=REPLAY_MEMSIZE // WORKERS)
-    if CONTINUE_CHECKPOINT:
-        old_data = data.load_replaydata(EPISODES_DIR, rank)
+    replay_data = collections.deque(maxlen=args.replaysize // args.workers)
+    if args.checkpoint:
+        old_data = data.load_replaydata(args.episodes_dir, rank)
         replay_data.extend(old_data)
 
-    # Model
-    curr_model = value_models.ValueNet(BOARD_SIZE)
-    checkpoint_model = value_models.ValueNet(BOARD_SIZE)
+    # Set parameters and episode data on disk
+    setup(args, barrier, rank)
 
-    # Set parameters and data on disk
-    if rank == 0:
-        if CONTINUE_CHECKPOINT:
-            assert os.path.exists(CHECKPOINT_PATH)
-        else:
-            # Clear worker data
-            episode_files = os.listdir(EPISODES_DIR)
-            for item in episode_files:
-                if item.endswith(".pickle"):
-                    os.remove(os.path.join(EPISODES_DIR, item))
-            # Set parameters
-            torch.save(curr_model.state_dict(), CHECKPOINT_PATH)
-        tqdm.write("Continuing from checkpoint: {}".format(CONTINUE_CHECKPOINT), file=sys.stderr)
-    barrier.wait()
+    # Model
+    curr_model = value_models.ValueNet(args.boardsize)
+    checkpoint_model = value_models.ValueNet(args.boardsize)
 
     # Load parameters from disk
-    curr_model.load_state_dict(torch.load(CHECKPOINT_PATH))
-    checkpoint_model.load_state_dict(torch.load(CHECKPOINT_PATH))
+    curr_model.load_state_dict(torch.load(args.check_path))
+    checkpoint_model.load_state_dict(torch.load(args.check_path))
     optim = torch.optim.Adam(curr_model.parameters(), 1e-3) if rank == 0 else None
 
     # Policies
-    curr_pi = policies.MctPolicy('Current', curr_model, MCT_SEARCHES, INIT_TEMP, MIN_TEMP)
-    checkpoint_pi = policies.MctPolicy('Checkpoint', checkpoint_model, MCT_SEARCHES, INIT_TEMP, MIN_TEMP)
+    curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.starttemp, args.mintemp)
+    checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.starttemp, args.mintemp)
 
     # Environment
-    go_env = gym.make('gym_go:go-v0', size=BOARD_SIZE)
+    go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
     # Training
     starttime = datetime.now()
     replay_len = 0
     check_winrate, rand_winrate, greedy_winrate, mctgreedy_wr = 0, 0, 0, 0
     pred_acc, pred_loss = 0, 0
-    worker_print(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tTEMP\tC_WR\tR_WR\tG_WR")
-    for iteration in range(ITERATIONS):
+    parallel_print(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tTEMP\tC_WR\tR_WR\tG_WR")
+    for iteration in range(args.iterations):
         # Log a Sample Trajectory
-        if rank == 0 and DEMO_TRAJPATH is not None:
-            metrics.plot_traj_fig(go_env, checkpoint_pi, DEMO_TRAJPATH)
+        if rank == 0 and args.demotraj_path is not None:
+            metrics.plot_traj_fig(go_env, checkpoint_pi, args.demotraj_path)
 
         # Play episodes
-        _, trajectories = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, EPISODES_PER_ITER // WORKERS)
+        _, trajectories = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, args.episodes // args.workers)
         replay_data.extend(trajectories)
 
         # Write episodes to disk
-        data.save_replaydata(replay_data, EPISODES_DIR, rank)
+        data.save_replaydata(replay_data, args.episodes_dir, rank)
         barrier.wait()
 
-        # Process the data
+        # Optimize
         if rank == 0:
             # Gather all workers' data to sample from
-            all_data = data.load_replaydata(EPISODES_DIR)
+            all_data = data.load_replaydata(args.episodes_dir)
             replay_len = len(all_data)
-            train_data = random.sample(all_data, min(TRAINSAMPLE_MEMSIZE, len(all_data)))
+            train_data = random.sample(all_data, min(args.trainstep_size, len(all_data)))
             train_data = data.replaylist_to_numpy(train_data)
 
             del all_data
 
             # Optimize
-            pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, BATCH_SIZE)
+            pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, args.batchsize)
 
-            torch.save(curr_model.state_dict(), TMP_PATH)
+            torch.save(curr_model.state_dict(), args.tmp_path)
         barrier.wait()
 
         # Update model from worker 0's optimization
-        curr_model.load_state_dict(torch.load(TMP_PATH))
+        curr_model.load_state_dict(torch.load(args.tmp_path))
 
-        # Evaluate
-        if (iteration + 1) % ITERS_PER_EVAL == 0:
-            # Pit against checkpoint
-            if rank == 0:
-                winrate.value = 0
-            barrier.wait()
-            wr, _ = game.play_games(go_env, curr_pi, checkpoint_pi, False, NUM_EVALGAMES // WORKERS)
-            with winrate.get_lock():
-                winrate.value += (wr / WORKERS)
-            barrier.wait()
-            check_winrate = winrate.value
-
-            # Update checkpoint
-            if check_winrate > 0.55:
+        # Model Evaluation
+        if (iteration + 1) % args.eval_interval == 0:
+            # See how this new model compares
+            for opponent in [checkpoint_pi, policies.RAND_PI, policies.GREEDY_PI]:
+                # Reset winrate
                 if rank == 0:
-                    torch.save(curr_pi.pytorch_model.state_dict(), CHECKPOINT_PATH)
+                    winrate.value = 0
                 barrier.wait()
 
-                # Update checkpoint policy
-                checkpoint_pi.pytorch_model.load_state_dict(torch.load(CHECKPOINT_PATH))
-
-                # See how it fairs against the baselines
-                for opponent in [policies.RAND_PI, policies.GREEDY_PI]:
-                    if rank == 0:
-                        winrate.value = 0
-                    barrier.wait()
-
-                    wr, _ = game.play_games(go_env, curr_pi, opponent, False, NUM_EVALGAMES // WORKERS)
-                    with winrate.get_lock():
-                        winrate.value += (wr / WORKERS)
-                    barrier.wait()
-                    if opponent == policies.RAND_PI:
-                        rand_winrate = winrate.value
-                    elif opponent == policies.GREEDY_PI:
-                        greedy_winrate = winrate.value
-
-            elif check_winrate < 0.4:
-                if rank == 0:
-                    torch.save(checkpoint_pi.pytorch_model.state_dict(), CHECKPOINT_PATH)
+                # Play some games
+                wr, _ = game.play_games(go_env, curr_pi, opponent, False, args.evaluations // args.workers)
+                with winrate.get_lock():
+                    winrate.value += (wr / args.workers)
                 barrier.wait()
 
-                curr_pi.pytorch_model.load_state_dict(torch.load(CHECKPOINT_PATH))
+                # Do stuff based on the opponent we faced
+                if opponent == checkpoint_pi:
+                    check_winrate = winrate.value
 
+                    # Sync checkpoint
+                    if check_winrate > 0.55:
+                        sync_checkpoint(rank, barrier, curr_pi, args.check_path, checkpoint_pi)
+                    elif check_winrate < 0.4:
+                        sync_checkpoint(rank, barrier, checkpoint_pi, args.check_path, curr_pi)
+                        # Break out of comparing to other models since we know it's bad
+                        break
+                elif opponent == policies.RAND_PI:
+                    rand_winrate = winrate.value
+                elif opponent == policies.GREEDY_PI:
+                    greedy_winrate = winrate.value
+
+        # Print iteration summary
         currtime = datetime.now()
         delta = currtime - starttime
         iter_info = "{}\t{}\t{:07d}\t{:.1f}\t{:.3f}\t{:.4f}".format(str(delta).split('.')[0], iteration, replay_len,
-                                                                    100 * pred_acc, curr_pi.temp, pred_loss) \
+                                                                    100 * pred_acc, pred_loss, curr_pi.temp) \
                     + "\t{:.1f}\t{:.1f}\t{:.1f}".format(100 * check_winrate, 100 * rand_winrate, 100 * greedy_winrate)
-        worker_print(rank, iter_info)
+        parallel_print(rank, iter_info)
 
         # Decay the temperatures if any
-        curr_pi.decay_temp(TEMP_DECAY)
-        checkpoint_pi.decay_temp(TEMP_DECAY)
+        curr_pi.decay_temp(args.tempdecay)
+        checkpoint_pi.decay_temp(args.tempdecay)
 
 
 if __name__ == '__main__':
-    if WORKERS <= 1:
-        barrier = mp.Barrier(WORKERS)
-        winrate = mp.Value('d', 0.0)
-        worker_train(0, barrier, winrate)
+    # Arguments
+    args = utils.hyperparameters()
+
+    # Parallel Setup
+    mp.set_start_method(args.spawnmethod)
+    tqdm.write('{}/{} Workers'.format(args.workers, mp.cpu_count()), file=sys.stderr)
+    barrier = mp.Barrier(args.workers)
+    winrate = mp.Value('d', 0.0)
+
+    if args.workers <= 1:
+        worker_train(0, args, barrier, winrate)
     else:
-        # Parallel Setup
-        mp.set_start_method('spawn')
-        barrier = mp.Barrier(WORKERS)
-        winrate = mp.Value('d', 0.0)
-        mp.spawn(fn=worker_train, args=(barrier, winrate), nprocs=WORKERS, join=True)
+        procs = []
+        for w in range(args.workers):
+            p = mp.Process(target=worker_train, args=(w, args, barrier, winrate))
+            p.start()
+            procs.append(p)
+        for p in procs:
+            p.join()

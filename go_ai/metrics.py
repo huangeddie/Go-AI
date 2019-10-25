@@ -77,14 +77,14 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
 
     state_vals = None
     qvals = None
-    if isinstance(policy, policies.MctPolicy):
+    if isinstance(policy, policies.MCTS):
         state_vals = policy.val_func(states)
         qvals, _ = montecarlo.qval_from_stateval(states, policy.val_func)
 
     valid_moves = data.batch_valid_moves(states)
 
     num_states = states.shape[0]
-    num_cols = 3 if isinstance(policy, policies.MctPolicy) else 2
+    num_cols = 3 if isinstance(policy, policies.MCTS) else 2
 
     fig = plt.figure(figsize=(num_cols * 2.5, num_states * 2))
     for i in range(num_states):
@@ -106,7 +106,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
         plt.imshow(matplot_format(states[i]))
         curr_col += 1
 
-        if isinstance(policy, policies.MctPolicy):
+        if isinstance(policy, policies.MCTS):
             plt.subplot(num_states, num_cols, curr_col + num_cols * i)
             plot_move_distr('Q Vals', qvals[i], valid_moves[i], scalar=state_vals[i].item())
             curr_col += 1

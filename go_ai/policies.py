@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 from go_ai.montecarlo import tree, exp_temp
-from hyperparameters import *
+from utils import *
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -103,9 +103,9 @@ class Policy:
         return "{} {}".format(self.__class__.__name__, self.name)
 
 
-class RandomPolicy(Policy):
+class Random(Policy):
     def __init__(self):
-        super(RandomPolicy, self).__init__('Random')
+        super(Random, self).__init__('Random')
 
     def __call__(self, state, step=None):
         """
@@ -117,9 +117,9 @@ class RandomPolicy(Policy):
         return valid_moves / np.sum(valid_moves)
 
 
-class HumanPolicy(Policy):
+class Human(Policy):
     def __init__(self):
-        super(HumanPolicy, self).__init__('Human')
+        super(Human, self).__init__('Human')
 
     def __call__(self, state, step=None):
         """
@@ -144,9 +144,9 @@ class HumanPolicy(Policy):
         return action_probs
 
 
-class MctPolicy(Policy):
+class MCTS(Policy):
     def __init__(self, name, val_func, num_searches, temp, min_temp=0):
-        super(MctPolicy, self).__init__(name, temp, min_temp)
+        super(MCTS, self).__init__(name, temp, min_temp)
         if isinstance(val_func, torch.nn.Module):
             self.pytorch_model = val_func
             logging.info("Saved Pytorch model")
@@ -177,9 +177,7 @@ class MctPolicy(Policy):
         if np.count_nonzero(qvals) == 0:
             qvals += valid_moves
 
-        temp = (1 / 8) if step <= 16 else self.temp
-
-        pi = exp_temp(qvals, temp, valid_moves)
+        pi = exp_temp(qvals, self.temp, valid_moves)
         return pi
 
     def step(self, action):
@@ -201,8 +199,6 @@ class MctPolicy(Policy):
         return "{}[{} Searches]-{}".format(self.__class__.__name__, self.num_searches, self.name)
 
 
-RAND_PI = RandomPolicy()
-GREEDY_PI = MctPolicy('Greedy', greedy_val_func, num_searches=0, temp=0)
-MCT_GREEDY_PI = MctPolicy('GreedyMCT', greedy_val_func, num_searches=max(BOARD_SIZE ** 2, MCT_SEARCHES), temp=0)
-
-HUMAN_PI = HumanPolicy()
+RAND_PI = Random()
+GREEDY_PI = MCTS('Greedy', greedy_val_func, num_searches=0, temp=0)
+HUMAN_PI = Human()
