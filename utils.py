@@ -57,7 +57,7 @@ def parallel_print(rank, s):
         print(s)
 
 
-def setup(args, barrier, rank):
+def sync_data(args, barrier, rank):
     if rank == 0:
         if args.checkpoint:
             assert os.path.exists(args.check_path)

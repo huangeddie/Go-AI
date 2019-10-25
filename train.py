@@ -11,7 +11,6 @@ from tqdm import tqdm
 import utils
 from go_ai import policies, game, metrics, data
 from go_ai.models import value_models
-from utils import sync_checkpoint, parallel_print, setup
 
 
 def worker_train(rank, args, barrier, winrate):
@@ -22,7 +21,7 @@ def worker_train(rank, args, barrier, winrate):
         replay_data.extend(old_data)
 
     # Set parameters and episode data on disk
-    setup(args, barrier, rank)
+    utils.sync_data(args, barrier, rank)
 
     # Model
     curr_model = value_models.ValueNet(args.boardsize)
@@ -45,7 +44,7 @@ def worker_train(rank, args, barrier, winrate):
     replay_len = 0
     check_winrate, rand_winrate, greedy_winrate, mctgreedy_wr = 0, 0, 0, 0
     pred_acc, pred_loss = 0, 0
-    parallel_print(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tTEMP\tC_WR\tR_WR\tG_WR")
+    utils.parallel_print(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tTEMP\tC_WR\tR_WR\tG_WR")
     for iteration in range(args.iterations):
         # Log a Sample Trajectory
         if rank == 0 and args.demotraj_path is not None:
@@ -99,11 +98,11 @@ def worker_train(rank, args, barrier, winrate):
 
                     # Sync checkpoint
                     if check_winrate > 0.55:
-                        sync_checkpoint(rank, barrier, newcheckpoint_pi=curr_pi, check_path=args.check_path,
-                                        other_pi=checkpoint_pi)
+                        utils.sync_checkpoint(rank, barrier, newcheckpoint_pi=curr_pi, check_path=args.check_path,
+                                              other_pi=checkpoint_pi)
                     elif check_winrate < 0.4:
-                        sync_checkpoint(rank, barrier, newcheckpoint_pi=checkpoint_pi, check_path=args.check_path,
-                                        other_pi=curr_pi)
+                        utils.sync_checkpoint(rank, barrier, newcheckpoint_pi=checkpoint_pi, check_path=args.check_path,
+                                              other_pi=curr_pi)
                         # Break out of comparing to other models since we know it's bad
                         break
                 elif opponent == policies.RAND_PI:
@@ -117,7 +116,7 @@ def worker_train(rank, args, barrier, winrate):
         iter_info = "{}\t{}\t{:07d}\t{:.1f}\t{:.3f}\t{:.4f}".format(str(delta).split('.')[0], iteration, replay_len,
                                                                     100 * pred_acc, pred_loss, curr_pi.temp) \
                     + "\t{:.1f}\t{:.1f}\t{:.1f}".format(100 * check_winrate, 100 * rand_winrate, 100 * greedy_winrate)
-        parallel_print(rank, iter_info)
+        utils.parallel_print(rank, iter_info)
 
         # Decay the temperatures if any
         curr_pi.decay_temp(args.tempdecay)
@@ -129,7 +128,8 @@ if __name__ == '__main__':
     args = utils.hyperparameters()
 
     # Parallel Setup
-    mp.set_start_method(args.spawnmethod)
+    if args.spawnmethod is not None:
+        mp.set_start_method(args.spawnmethod)
     tqdm.write('{}/{} Workers'.format(args.workers, mp.cpu_count()), file=sys.stderr)
     barrier = mp.Barrier(args.workers)
     winrate = mp.Value('d', 0.0)
