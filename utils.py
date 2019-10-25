@@ -38,12 +38,12 @@ def hyperparameters():
     return parser.parse_args()
 
 
-def sync_checkpoint(rank, barrier, curr_pi, check_path, checkpoint_pi):
+def sync_checkpoint(rank, barrier, newcheckpoint_pi, check_path, other_pi):
     if rank == 0:
-        torch.save(curr_pi.pytorch_model.state_dict(), check_path)
+        torch.save(newcheckpoint_pi.pytorch_model.state_dict(), check_path)
     barrier.wait()
-    # Update checkpoint policy
-    checkpoint_pi.pytorch_model.load_state_dict(torch.load(check_path))
+    # Update other policy
+    other_pi.pytorch_model.load_state_dict(torch.load(check_path))
 
 
 def parallel_print(rank, s):

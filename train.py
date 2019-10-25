@@ -99,9 +99,11 @@ def worker_train(rank, args, barrier, winrate):
 
                     # Sync checkpoint
                     if check_winrate > 0.55:
-                        sync_checkpoint(rank, barrier, curr_pi, args.check_path, checkpoint_pi)
+                        sync_checkpoint(rank, barrier, newcheckpoint_pi=curr_pi, check_path=args.check_path,
+                                        other_pi=checkpoint_pi)
                     elif check_winrate < 0.4:
-                        sync_checkpoint(rank, barrier, checkpoint_pi, args.check_path, curr_pi)
+                        sync_checkpoint(rank, barrier, newcheckpoint_pi=checkpoint_pi, check_path=args.check_path,
+                                        other_pi=curr_pi)
                         # Break out of comparing to other models since we know it's bad
                         break
                 elif opponent == policies.RAND_PI:
