@@ -1,6 +1,8 @@
 import collections
 import os
 import random
+import sys
+from datetime import datetime
 
 import gym
 import torch
@@ -10,6 +12,11 @@ from tqdm import tqdm
 from go_ai import policies, game, metrics, data
 from go_ai.models import value_models
 from hyperparameters import *
+
+
+def worker_print(rank, s):
+    if rank == 0:
+        print(s)
 
 
 def worker_train(rank, barrier, winrate):
@@ -22,8 +29,6 @@ def worker_train(rank, barrier, winrate):
     # Model
     curr_model = value_models.ValueNet(BOARD_SIZE)
     checkpoint_model = value_models.ValueNet(BOARD_SIZE)
-    if rank == 0:
-        tqdm.write('{}\n'.format(curr_model))
 
     # Set parameters and data on disk
     if rank == 0:
@@ -37,7 +42,7 @@ def worker_train(rank, barrier, winrate):
                     os.remove(os.path.join(EPISODES_DIR, item))
             # Set parameters
             torch.save(curr_model.state_dict(), CHECKPOINT_PATH)
-        tqdm.write("Continuing from checkpoint: {}\n".format(CONTINUE_CHECKPOINT))
+        tqdm.write("Continuing from checkpoint: {}".format(CONTINUE_CHECKPOINT), file=sys.stderr)
     barrier.wait()
 
     # Load parameters from disk
@@ -53,11 +58,12 @@ def worker_train(rank, barrier, winrate):
     go_env = gym.make('gym_go:go-v0', size=BOARD_SIZE)
 
     # Training
+    starttime = datetime.now()
+    replay_len = 0
+    check_winrate, rand_winrate, greedy_winrate, mctgreedy_wr = 0, 0, 0, 0
+    pred_acc, pred_loss = 0, 0
+    worker_print(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tTEMP\tC_WR\tR_WR\tG_WR")
     for iteration in range(ITERATIONS):
-        if rank == 0:
-            tqdm.write("Iteration {} | Worker 0 Replay Size: {}".format(iteration, len(replay_data)))
-        barrier.wait()
-
         # Log a Sample Trajectory
         if rank == 0 and DEMO_TRAJPATH is not None:
             metrics.plot_traj_fig(go_env, checkpoint_pi, DEMO_TRAJPATH)
@@ -74,13 +80,14 @@ def worker_train(rank, barrier, winrate):
         if rank == 0:
             # Gather all workers' data to sample from
             all_data = data.load_replaydata(EPISODES_DIR)
+            replay_len = len(all_data)
             train_data = random.sample(all_data, min(TRAINSAMPLE_MEMSIZE, len(all_data)))
             train_data = data.replaylist_to_numpy(train_data)
 
             del all_data
 
             # Optimize
-            value_models.optimize(curr_model, train_data, optim, BATCH_SIZE)
+            pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, BATCH_SIZE)
 
             torch.save(curr_model.state_dict(), TMP_PATH)
         barrier.wait()
@@ -98,15 +105,12 @@ def worker_train(rank, barrier, winrate):
             with winrate.get_lock():
                 winrate.value += (wr / WORKERS)
             barrier.wait()
-            if rank == 0:
-                tqdm.write("Winrate against checkpoint: {:.1f}%".format(100 * winrate.value))
-            barrier.wait()
+            check_winrate = winrate.value
 
             # Update checkpoint
-            if winrate.value > 0.6:
+            if check_winrate > 0.55:
                 if rank == 0:
                     torch.save(curr_pi.pytorch_model.state_dict(), CHECKPOINT_PATH)
-                    tqdm.write("Accepted new model")
                 barrier.wait()
 
                 # Update checkpoint policy
@@ -122,24 +126,28 @@ def worker_train(rank, barrier, winrate):
                     with winrate.get_lock():
                         winrate.value += (wr / WORKERS)
                     barrier.wait()
-                    if rank == 0:
-                        tqdm.write("Win rate against {}: {:.1f}%".format(opponent, 100 * winrate.value))
+                    if opponent == policies.RAND_PI:
+                        rand_winrate = winrate.value
+                    elif opponent == policies.GREEDY_PI:
+                        greedy_winrate = winrate.value
 
-            elif winrate.value < 0.4:
+            elif check_winrate < 0.4:
                 if rank == 0:
                     torch.save(checkpoint_pi.pytorch_model.state_dict(), CHECKPOINT_PATH)
-                    tqdm.write("Rejected new model")
                 barrier.wait()
 
                 curr_pi.pytorch_model.load_state_dict(torch.load(CHECKPOINT_PATH))
 
-            barrier.wait()
+        currtime = datetime.now()
+        delta = currtime - starttime
+        iter_info = "{}\t{}\t{:07d}\t{:.1f}\t{:.3f}\t{:.4f}".format(str(delta).split('.')[0], iteration, replay_len,
+                                                                100 * pred_acc, curr_pi.temp, pred_loss) \
+                    + "\t{:.1f}\t{:.1f}\t{:.1f}".format(100 * check_winrate, 100 * rand_winrate, 100 * greedy_winrate)
+        worker_print(rank, iter_info)
 
         # Decay the temperatures if any
         curr_pi.decay_temp(TEMP_DECAY)
         checkpoint_pi.decay_temp(TEMP_DECAY)
-        if rank == 0:
-            tqdm.write("Temp decayed to {:.5f}, {:.5f}\n".format(curr_pi.temp, checkpoint_pi.temp))
 
 
 if __name__ == '__main__':
@@ -148,7 +156,7 @@ if __name__ == '__main__':
     barrier = mp.Barrier(WORKERS)
     winrate = mp.Value('d', 0.0)
 
-    tqdm.write('{}/{} Workers\n'.format(WORKERS, mp.cpu_count()))
+    tqdm.write('{}/{} Workers'.format(WORKERS, mp.cpu_count()), file=sys.stderr)
 
     if WORKERS <= 1:
         worker_train(0, barrier, winrate)

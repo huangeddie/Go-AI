@@ -1,5 +1,3 @@
-import sys
-
 import gym
 import numpy as np
 import torch
@@ -24,9 +22,6 @@ class ValueNet(nn.Module):
             nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.Conv2d(128, 256, 3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Conv2d(256, 256, 3, padding=1),
             nn.BatchNorm2d(256),
             nn.ReLU(),
             nn.Conv2d(256, 128, 3, padding=1),
@@ -66,7 +61,8 @@ def optimize(model, replay_data, optimizer, batch_size):
     model.train()
     running_loss = 0
     running_acc = 0
-    pbar = tqdm(zip(*batched_data), desc="Optimizing", file=sys.stdout)
+    batches = 0
+    pbar = tqdm(zip(*batched_data), desc="Optimizing", leave=False)
     for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(pbar, 1):
         # Augment
         states = data.batch_random_symmetries(states)
@@ -83,5 +79,9 @@ def optimize(model, replay_data, optimizer, batch_size):
 
         running_loss += loss.item()
         running_acc += torch.mean((pred_wins == wins).type(torch.FloatTensor)).item()
+        batches = i
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * running_acc / i, running_loss / i))
+
+    pbar.close()
+    return running_acc / batches, running_loss / batches
