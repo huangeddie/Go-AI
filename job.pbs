@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -l nodes=01:ppn=2:xk
+#PBS -l nodes=01:ppn=1:xe
 #PBS -l walltime=08:00:00
 #PBS -N go_ai
 #PBS -e stderr.err
@@ -8,5 +8,5 @@
 cd ~/
 source venv/bin/activate
 cd ~/Go-AI
-aprun -n 1 -d 2 python train.py --workers=2 --boardsize=4
+aprun -n 1 -d 1 python train.py --workers=2 --boardsize=4
 
