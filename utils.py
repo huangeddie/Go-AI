@@ -33,7 +33,7 @@ def hyperparameters():
     parser.add_argument('--episodes-dir', type=str, default='episodes/', help='directory to store episodes')
     parser.add_argument('--check-path', type=str, default='checkpoints/checkpoint.pt', help='model path for checkpoint')
     parser.add_argument('--tmp-path', type=str, default='checkpoints/tmp.pt', help='model path for temp model')
-    parser.add_argument('--demotraj-path', type=str, default='episodes/a_traj.pdf', help='path for sample trajectory')
+    parser.add_argument('--demotraj-path', type=str, help='path for sample trajectory')
 
     return parser.parse_args()
 
