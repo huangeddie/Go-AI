@@ -21,4 +21,4 @@ CONTINUE_CHECKPOINT = False
 EPISODES_DIR = 'episodes/'
 CHECKPOINT_PATH = 'checkpoints/checkpoint_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
 TMP_PATH = 'checkpoints/tmp_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
-DEMO_TRAJPATH = EPISODES_DIR + 'a_traj.pdf'
+DEMO_TRAJPATH = None #EPISODES_DIR + 'a_traj.pdf'

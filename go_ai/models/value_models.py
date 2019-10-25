@@ -58,6 +58,8 @@ def optimize(model, replay_data, optimizer, batch_size):
 
     batched_data = [np.array_split(component, N // batch_size) for component in replay_data]
 
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model.to(device)
     model.train()
     running_loss = 0
     running_acc = 0
@@ -67,7 +69,7 @@ def optimize(model, replay_data, optimizer, batch_size):
         # Augment
         states = data.batch_random_symmetries(states)
 
-        states = torch.from_numpy(states).type(torch.FloatTensor)
+        states = torch.from_numpy(states).type(torch.FloatTensor).to(device)
         wins = torch.from_numpy(wins[:, np.newaxis]).type(torch.FloatTensor)
 
         optimizer.zero_grad()
