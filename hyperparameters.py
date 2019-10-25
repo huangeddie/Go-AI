@@ -1,7 +1,7 @@
 BOARD_SIZE = 9
 
 BATCH_SIZE = 32
-REPLAY_MEMSIZE = 100000
+REPLAY_MEMSIZE = 500000
 TRAINSAMPLE_MEMSIZE = 1000 * BATCH_SIZE
 
 ITERATIONS = 256
@@ -15,10 +15,10 @@ MIN_TEMP = 1 / 32
 
 MCT_SEARCHES = 0  # If set to 0, MCTPolicies become simply QVals
 
-WORKERS = 1
+WORKERS = 8
 
 CONTINUE_CHECKPOINT = False
 EPISODES_DIR = 'episodes/'
 CHECKPOINT_PATH = 'checkpoints/checkpoint_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
 TMP_PATH = 'checkpoints/tmp_{}x{}.pt'.format(BOARD_SIZE, BOARD_SIZE)
-DEMO_TRAJPATH = None #EPISODES_DIR + 'a_traj.pdf'
+DEMO_TRAJPATH = EPISODES_DIR + 'a_traj.pdf'

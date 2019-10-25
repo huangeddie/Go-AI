@@ -20,6 +20,10 @@ def worker_print(rank, s):
 
 
 def worker_train(rank, barrier, winrate):
+    
+    if rank == 0:
+        tqdm.write('{}/{} Workers'.format(WORKERS, mp.cpu_count()), file=sys.stderr)
+
     # Replay data
     replay_data = collections.deque(maxlen=REPLAY_MEMSIZE // WORKERS)
     if CONTINUE_CHECKPOINT:
@@ -151,8 +155,6 @@ def worker_train(rank, barrier, winrate):
 
 
 if __name__ == '__main__':
-    tqdm.write('{}/{} Workers'.format(WORKERS, mp.cpu_count()), file=sys.stderr)
-
     if WORKERS <= 1:
         barrier = mp.Barrier(WORKERS)
         winrate = mp.Value('d', 0.0)
