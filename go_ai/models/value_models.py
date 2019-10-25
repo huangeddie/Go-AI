@@ -70,7 +70,7 @@ def optimize(model, replay_data, optimizer, batch_size):
         states = data.batch_random_symmetries(states)
 
         states = torch.from_numpy(states).type(torch.FloatTensor).to(device)
-        wins = torch.from_numpy(wins[:, np.newaxis]).type(torch.FloatTensor)
+        wins = torch.from_numpy(wins[:, np.newaxis]).type(torch.FloatTensor).to(device)
 
         optimizer.zero_grad()
         vals = model(states)
