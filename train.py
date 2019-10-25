@@ -141,7 +141,7 @@ def worker_train(rank, barrier, winrate):
         currtime = datetime.now()
         delta = currtime - starttime
         iter_info = "{}\t{}\t{:07d}\t{:.1f}\t{:.3f}\t{:.4f}".format(str(delta).split('.')[0], iteration, replay_len,
-                                                                100 * pred_acc, curr_pi.temp, pred_loss) \
+                                                                    100 * pred_acc, curr_pi.temp, pred_loss) \
                     + "\t{:.1f}\t{:.1f}\t{:.1f}".format(100 * check_winrate, 100 * rand_winrate, 100 * greedy_winrate)
         worker_print(rank, iter_info)
 
