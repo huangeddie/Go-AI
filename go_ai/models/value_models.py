@@ -74,13 +74,13 @@ def optimize(model, replay_data, optimizer, batch_size):
 
         optimizer.zero_grad()
         vals = model(states)
-        pred_wins = (torch.sigmoid(vals) > 0.5).type(torch.FloatTensor)
+        pred_wins = (torch.sigmoid(vals) > 0.5).type(torch.FloatTensor).to(device)
         loss = model.criterion(vals, wins)
         loss.backward()
         optimizer.step()
 
         running_loss += loss.item()
-        running_acc += torch.mean((pred_wins == wins).type(torch.FloatTensor)).item()
+        running_acc += torch.mean((pred_wins == wins).type(wins.dtype)).item()
         batches = i
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * running_acc / i, running_loss / i))
