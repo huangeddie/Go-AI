@@ -50,7 +50,7 @@ def pytorch_to_numpy(model, logits):
                 pass
             else:
                 state_vals = torch.sigmoid(state_vals)
-            return state_vals.numpy()
+            return state_vals.cpu().numpy()
 
     return val_func
 
