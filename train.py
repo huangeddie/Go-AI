@@ -1,12 +1,10 @@
 import collections
-import os
 import random
 import sys
 from datetime import datetime
 
 import gym
 import torch
-import torch.distributed as dist
 from mpi4py import MPI
 from tqdm import tqdm
 
@@ -23,7 +21,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         replay_data.extend(old_data)
 
     # Set parameters and episode data on disk
-    utils.sync_data(rank, comm, args)
+    # utils.sync_data(rank, comm, args)
 
     # Model
     curr_model = value_models.ValueNet(args.boardsize)
@@ -123,17 +121,11 @@ if __name__ == '__main__':
     args = utils.hyperparameters()
 
     # Parallel Setup
-    name = MPI.Get_processor_name()
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
-    num_nodes = int(comm.Get_size())
-
-    os.environ['MASTER_ADDR'] = '127.0.0.1'
-    os.environ['MASTER_PORT'] = '29500'
-
-    dist.init_process_group('gloo', rank=rank, world_size=num_nodes)
+    world_size = int(comm.Get_size())
 
     if rank == 0:
-        tqdm.write('{} Workers, Board Size {}'.format(num_nodes, args.boardsize), file=sys.stderr)
+        tqdm.write('{} Workers, Board Size {}'.format(world_size, args.boardsize), file=sys.stderr)
 
     worker_train(rank, args, comm)
