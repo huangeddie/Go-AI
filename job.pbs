@@ -8,5 +8,5 @@
 cd ~/
 source venv/bin/activate
 cd ~/Go-AI
-aprun -n 1 -d 1 python train.py --workers=2 --boardsize=4
+aprun -n 1 -d 1 python train.py --workers=1 --boardsize=4
 
