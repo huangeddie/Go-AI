@@ -21,7 +21,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         replay_data.extend(old_data)
 
     # Set parameters and episode data on disk
-    # utils.sync_data(rank, comm, args)
+    utils.sync_data(rank, comm, args)
 
     # Model
     curr_model = value_models.ValueNet(args.boardsize)
@@ -125,7 +125,6 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     world_size = int(comm.Get_size())
 
-    if rank == 0:
-        tqdm.write('{} Workers, Board Size {}'.format(world_size, args.boardsize), file=sys.stderr)
+    tqdm.write('{}-{} Workers, Board Size {}'.format(rank, world_size, args.boardsize), file=sys.stderr)
 
     worker_train(rank, args, comm)
