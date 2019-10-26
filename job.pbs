@@ -5,8 +5,6 @@
 #PBS -e stderr.err
 #PBS -o stdout.out
 #PBS -m bea
-cd ~/
-source venv/bin/activate
 cd ~/Go-AI
 aprun -n 1 -d 1 python train.py --workers=1 --boardsize=4
 
