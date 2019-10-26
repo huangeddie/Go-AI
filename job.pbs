@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -l nodes=01:ppn=1
+#PBS -l nodes=01:ppn=1:K80
 #PBS -l walltime=02:00:00
 #PBS -N go_ai
 #PBS -e stderr.err
