@@ -4,7 +4,7 @@
 #PBS -N go_ai
 #PBS -e stderr.err
 #PBS -o stdout.out
-#PBS -q test
+#PBS -q cs
 cd ~/Go-AI
-mpiexec -n 2 python train.py --boardsize=4 --episodes=32 --evaluation=32
+mpiexec -n 16 python train.py --boardsize=4
 

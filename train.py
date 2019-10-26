@@ -125,6 +125,7 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     world_size = int(comm.Get_size())
 
-    tqdm.write('{}-{} Workers, Board Size {}'.format(rank, world_size, args.boardsize), file=sys.stderr)
+    if rank == 0:
+        tqdm.write('{} Workers, Board Size {}'.format(world_size, args.boardsize), file=sys.stderr)
 
     worker_train(rank, args, comm)
