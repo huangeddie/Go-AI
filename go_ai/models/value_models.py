@@ -58,7 +58,7 @@ def optimize(model, replay_data, optimizer, batch_size):
 
     batched_data = [np.array_split(component, N // batch_size) for component in replay_data]
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu") # "cuda:0" if torch.cuda.is_available() else
     model.to(device)
     model.train()
     running_loss = 0

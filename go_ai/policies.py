@@ -40,7 +40,7 @@ def pytorch_to_numpy(model, logits):
     """
 
     def val_func(states):
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        device = torch.device("cpu") # "cuda:0" if torch.cuda.is_available() else
         model.to(device)
         model.eval()
         with torch.no_grad():
