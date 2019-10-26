@@ -4,6 +4,7 @@ import sys
 
 import torch
 from tqdm import tqdm
+from mpi4py import MPI
 
 from go_ai.models import value_models
 
@@ -11,7 +12,6 @@ from go_ai.models import value_models
 def hyperparameters():
     parser = argparse.ArgumentParser()
     parser.add_argument('--spawnmethod', type=str, help='spawn method for multiprocessing')
-    parser.add_argument('--workers', type=int, help='number of parallel workers')
     parser.add_argument('--checkpoint', type=bool, default=False, help='continue from checkpoint')
 
     parser.add_argument('--boardsize', type=int, help='board size')
@@ -38,10 +38,10 @@ def hyperparameters():
     return parser.parse_args()
 
 
-def sync_checkpoint(rank, barrier, newcheckpoint_pi, check_path, other_pi):
+def sync_checkpoint(rank, comm: MPI.Intracomm, newcheckpoint_pi, check_path, other_pi):
     if rank == 0:
         torch.save(newcheckpoint_pi.pytorch_model.state_dict(), check_path)
-    barrier.wait()
+    comm.allgather(None)
     # Update other policy
     other_pi.pytorch_model.load_state_dict(torch.load(check_path))
 
@@ -57,7 +57,7 @@ def parallel_print(rank, s):
         print(s)
 
 
-def sync_data(args, barrier, rank):
+def sync_data(rank, comm: MPI.Intracomm, args):
     if rank == 0:
         if args.checkpoint:
             assert os.path.exists(args.check_path)
@@ -71,4 +71,4 @@ def sync_data(args, barrier, rank):
             new_model = value_models.ValueNet(args.boardsize)
             torch.save(new_model.state_dict(), args.check_path)
         tqdm.write("Continuing from checkpoint: {}".format(args.checkpoint), file=sys.stderr)
-    barrier.wait()
+    comm.allgather(None)

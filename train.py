@@ -5,7 +5,7 @@ from datetime import datetime
 
 import gym
 import torch
-from torch import multiprocessing as mp
+from mpi4py import MPI
 from tqdm import tqdm
 
 import utils
@@ -13,15 +13,15 @@ from go_ai import policies, game, metrics, data
 from go_ai.models import value_models
 
 
-def worker_train(rank, args, barrier, winrate):
+def worker_train(rank: int, args, comm: MPI.Intracomm):
     # Replay data
-    replay_data = collections.deque(maxlen=args.replaysize // args.workers)
+    replay_data = collections.deque(maxlen=args.replaysize // comm.Get_size())
     if args.checkpoint:
         old_data = data.load_replaydata(args.episodes_dir, rank)
         replay_data.extend(old_data)
 
     # Set parameters and episode data on disk
-    utils.sync_data(args, barrier, rank)
+    utils.sync_data(rank, comm, args)
 
     # Model
     curr_model = value_models.ValueNet(args.boardsize)
@@ -51,12 +51,12 @@ def worker_train(rank, args, barrier, winrate):
             metrics.plot_traj_fig(go_env, checkpoint_pi, args.demotraj_path)
 
         # Play episodes
-        _, trajectories = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, args.episodes // args.workers)
+        _, trajectories = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, args.episodes // comm.Get_size())
         replay_data.extend(trajectories)
 
         # Write episodes to disk
         data.save_replaydata(replay_data, args.episodes_dir, rank)
-        barrier.wait()
+        comm.allgather(None)
 
         # Optimize
         if rank == 0:
@@ -72,7 +72,7 @@ def worker_train(rank, args, barrier, winrate):
             pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, args.batchsize)
 
             torch.save(curr_model.state_dict(), args.tmp_path)
-        barrier.wait()
+        comm.allgather(None)
 
         # Update model from worker 0's optimization
         curr_model.load_state_dict(torch.load(args.tmp_path))
@@ -81,34 +81,27 @@ def worker_train(rank, args, barrier, winrate):
         if (iteration + 1) % args.eval_interval == 0:
             # See how this new model compares
             for opponent in [checkpoint_pi, policies.RAND_PI, policies.GREEDY_PI]:
-                # Reset winrate
-                if rank == 0:
-                    winrate.value = 0
-                barrier.wait()
-
                 # Play some games
-                wr, _ = game.play_games(go_env, curr_pi, opponent, False, args.evaluations // args.workers)
-                with winrate.get_lock():
-                    winrate.value += (wr / args.workers)
-                barrier.wait()
+                wr, _ = game.play_games(go_env, curr_pi, opponent, False, args.evaluations // comm.Get_size())
+                wr = comm.allreduce(wr, op=MPI.SUM)
 
                 # Do stuff based on the opponent we faced
                 if opponent == checkpoint_pi:
-                    check_winrate = winrate.value
+                    check_winrate = wr
 
                     # Sync checkpoint
                     if check_winrate > 0.55:
-                        utils.sync_checkpoint(rank, barrier, newcheckpoint_pi=curr_pi, check_path=args.check_path,
+                        utils.sync_checkpoint(rank, comm, newcheckpoint_pi=curr_pi, check_path=args.check_path,
                                               other_pi=checkpoint_pi)
                     elif check_winrate < 0.4:
-                        utils.sync_checkpoint(rank, barrier, newcheckpoint_pi=checkpoint_pi, check_path=args.check_path,
+                        utils.sync_checkpoint(rank, comm, newcheckpoint_pi=checkpoint_pi, check_path=args.check_path,
                                               other_pi=curr_pi)
                         # Break out of comparing to other models since we know it's bad
                         break
                 elif opponent == policies.RAND_PI:
-                    rand_winrate = winrate.value
+                    rand_winrate = wr
                 elif opponent == policies.GREEDY_PI:
-                    greedy_winrate = winrate.value
+                    greedy_winrate = wr
 
         # Print iteration summary
         currtime = datetime.now()
@@ -128,20 +121,10 @@ if __name__ == '__main__':
     args = utils.hyperparameters()
 
     # Parallel Setup
-    if args.spawnmethod is not None:
-        mp.set_start_method(args.spawnmethod)
-    tqdm.write('{}/{} Workers, Board Size {}, Spawn method: {}'.format(args.workers, mp.cpu_count(), args.boardsize,
-                                                                       mp.get_start_method()), file=sys.stderr)
-    barrier = mp.Barrier(args.workers)
-    winrate = mp.Value('d', 0.0)
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    world_size = comm.Get_size()
+    if rank == 0:
+        tqdm.write('{} Workers, Board Size {}'.format(world_size, args.boardsize), file=sys.stderr)
 
-    if args.workers <= 1:
-        worker_train(0, args, barrier, winrate)
-    else:
-        procs = []
-        for w in range(args.workers):
-            p = mp.Process(target=worker_train, args=(w, args, barrier, winrate))
-            p.start()
-            procs.append(p)
-        for p in procs:
-            p.join()
+    worker_train(rank, args, comm)
