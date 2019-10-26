@@ -6,5 +6,5 @@
 #PBS -o stdout.out
 #PBS -q test
 cd ~/Go-AI
-mpiexec -n 16 python train.py --boardsize=4 --episodes=32 --evaluation=32
+mpiexec -n 2 python train.py --boardsize=4 --episodes=32 --evaluation=32
 
