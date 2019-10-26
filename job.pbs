@@ -6,5 +6,5 @@
 #PBS -o stdout.out
 #PBS -q test
 cd ~/Go-AI
-python train.py --workers=16 --boardsize=4
+python train.py --workers=1 --boardsize=4
 

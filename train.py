@@ -130,7 +130,8 @@ if __name__ == '__main__':
     # Parallel Setup
     if args.spawnmethod is not None:
         mp.set_start_method(args.spawnmethod)
-    tqdm.write('{}/{} Workers, Board Size {}'.format(args.workers, mp.cpu_count(), args.boardsize), file=sys.stderr)
+    tqdm.write('{}/{} Workers, Board Size {}, Spawn method: {}'.format(args.workers, mp.cpu_count(), args.boardsize,
+                                                                       args.spawnmethod), file=sys.stderr)
     barrier = mp.Barrier(args.workers)
     winrate = mp.Value('d', 0.0)
 
