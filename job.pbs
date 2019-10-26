@@ -4,6 +4,7 @@
 #PBS -N go_ai
 #PBS -e stderr.err
 #PBS -o stdout.out
+#PBS -q primary
 cd ~/Go-AI
 python train.py --workers=1 --boardsize=4
 
