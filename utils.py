@@ -3,15 +3,14 @@ import os
 import sys
 
 import torch
-from tqdm import tqdm
 from mpi4py import MPI
+from tqdm import tqdm
 
 from go_ai.models import value_models
 
 
 def hyperparameters():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--spawnmethod', type=str, help='spawn method for multiprocessing')
     parser.add_argument('--checkpoint', type=bool, default=False, help='continue from checkpoint')
 
     parser.add_argument('--boardsize', type=int, help='board size')
@@ -19,7 +18,7 @@ def hyperparameters():
 
     parser.add_argument('--starttemp', type=float, default=1 / 32, help='initial temperature')
     parser.add_argument('--tempdecay', type=float, default=3 / 4, help='temperature decay')
-    parser.add_argument('--mintemp', type=float, default=1 / 128, help='minimum temperature')
+    parser.add_argument('--mintemp', type=float, default=1 / 32, help='minimum temperature')
 
     parser.add_argument('--batchsize', type=int, default=32, help='batch size')
     parser.add_argument('--replaysize', type=int, default=500000, help='replay memory size')
