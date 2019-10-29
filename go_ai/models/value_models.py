@@ -18,16 +18,7 @@ class ValueNet(nn.Module):
             nn.Conv2d(GoVars.NUM_CHNLS, 64, 3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, 128, 3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(128, 256, 3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Conv2d(256, 128, 3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(128, 64, 3, padding=1),
+            nn.Conv2d(64, 64, 3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.Conv2d(64, 1, 3, padding=1),
@@ -36,10 +27,19 @@ class ValueNet(nn.Module):
         )
 
         self.fcs = nn.Sequential(
-            nn.Linear(board_size ** 2, board_size ** 2),
-            nn.BatchNorm1d(board_size ** 2),
+            nn.Linear(board_size ** 2, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Linear(board_size ** 2, 1)
+            nn.Linear(256, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, 1)
         )
 
         self.criterion = nn.BCEWithLogitsLoss()
