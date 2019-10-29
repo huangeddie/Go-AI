@@ -5,12 +5,12 @@
 #PBS -e stderr.err
 #PBS -o stdout.out
 #PBS -q test
-module load openmpi/3.1.1-intel-18.0
-
-cd $PBS_O_WORKDIR
 echo -n > stdout.out
 echo -n > stderr.err
+module load openmpi/3.1.1-intel-18.0
 module list
+
+cd $PBS_O_WORKDIR
 mpiexec --version
 mpiexec -n 16 python train.py --boardsize=4
 
