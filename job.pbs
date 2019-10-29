@@ -1,10 +1,10 @@
 #!/bin/bash
-#PBS -l nodes=02:ppn=1
+#PBS -l nodes=16:ppn=1
 #PBS -l walltime=02:00:00
 #PBS -N go_ai
 #PBS -e stderr.err
 #PBS -o stdout.out
-#PBS -q test
+#PBS -q cs
 cd ~/Go-AI
-mpiexec -n 2 python train.py --boardsize=4
+mpiexec -n 16 python train.py --boardsize=4
 
