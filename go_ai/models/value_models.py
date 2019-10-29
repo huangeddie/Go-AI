@@ -76,7 +76,7 @@ def optimize(model, replay_data, optimizer, batch_size):
 
         optimizer.zero_grad()
         vals = model(states)
-        pred_wins = (torch.sigmoid(vals) > 0.5).type(torch.FloatTensor)
+        pred_wins = (torch.sigmoid(vals) > 0.5).type(vals.dtype)
         loss = model.criterion(vals, wins)
         loss.backward()
         optimizer.step()
