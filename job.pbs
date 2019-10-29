@@ -4,7 +4,7 @@
 #PBS -N go_ai
 #PBS -e stderr.err
 #PBS -o stdout.out
-#PBS -q cs
+#PBS -q test
 cd ~/Go-AI
 module load mvapich2/2.3-intel-18.0
 mpirun --version
