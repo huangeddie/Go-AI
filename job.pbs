@@ -6,5 +6,5 @@
 #PBS -o stdout.out
 #PBS -q cs
 cd ~/Go-AI
-mpiexec -n 16 python train.py --boardsize=4
+mpiexec -n 16 -binding cpu python train.py --boardsize=4
 
