@@ -12,5 +12,5 @@ echo -n > stdout.out
 echo -n > stderr.err
 module list
 mpiexec --version
-HYDRA_TOPO_DEBUG=1 mpiexec -n 4 python train.py --boardsize=4
+HYDRA_TOPO_DEBUG=1 mpiexec -n 4 -bind-to core python train.py --boardsize=4
 
