@@ -67,7 +67,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             del all_data
 
             # Optimize
-            pred_acc, pred_loss = value_models.optimmodulize(curr_model, train_data, optim, args.batchsize)
+            pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, args.batchsize)
 
             torch.save(curr_model.state_dict(), args.tmp_path)
         comm.allgather(None)
