@@ -6,7 +6,7 @@
 #PBS -o stdout.out
 #PBS -q test
 cd ~/Go-AI
-module load openmpi
-mpirun --version
-mpirun -n 16 python train.py --boardsize=4
+module load openmpi/3.1.1-intel-18.0
+mpiexec --version
+mpiexec -n 16 python train.py --boardsize=4
 
