@@ -124,6 +124,7 @@ if __name__ == '__main__':
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     world_size = int(comm.Get_size())
+    print(rank, flush=True)
 
     if rank == 0:
         tqdm.write('{} Workers, Board Size {}'.format(world_size, args.boardsize), file=sys.stderr)
