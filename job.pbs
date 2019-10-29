@@ -1,6 +1,6 @@
 #!/bin/bash
 #PBS -l nodes=1:ppn=16
-#PBS -l walltime=01:00:00
+#PBS -l walltime=00:05:00
 #PBS -N go_ai
 #PBS -e stderr.err
 #PBS -o stdout.out
@@ -10,7 +10,5 @@ module load mvapich2/2.3-intel-18.0
 cd $PBS_O_WORKDIR
 echo -n > stdout.out
 echo -n > stderr.err
-module list
-mpiexec --version
-HYDRA_TOPO_DEBUG=1 mpiexec -n 4 -bind-to core python train.py --boardsize=4
+mpiexec -n 16 -bind-to core python train.py --boardsize=4
 
