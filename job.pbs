@@ -5,12 +5,12 @@
 #PBS -e stderr.err
 #PBS -o stdout.out
 #PBS -q test
-echo -n > stdout.out
-echo -n > stderr.err
 module load mvapich2/2.3-intel-18.0
 
 cd $PBS_O_WORKDIR
+echo -n > stdout.out
+echo -n > stderr.err
 module list
 mpiexec --version
-mpiexec -n 16 python train.py --boardsize=4
+mpiexec -n 4 python train.py --boardsize=4
 
