@@ -45,7 +45,7 @@ def sync_checkpoint(rank, comm: MPI.Intracomm, newcheckpoint_pi, check_path, oth
     other_pi.pytorch_model.load_state_dict(torch.load(check_path))
 
 
-def parallel_print(rank, s):
+def parallel_out(rank, s):
     """
     Only the first worker prints stuff
     :param rank:
@@ -54,6 +54,16 @@ def parallel_print(rank, s):
     """
     if rank == 0:
         print(s, flush=True)
+
+def parallel_err(rank, s):
+    """
+    Only the first worker prints stuff
+    :param rank:
+    :param s:
+    :return:
+    """
+    if rank == 0:
+        tqdm.write(s, file=sys.stderr)
 
 
 def sync_data(rank, comm: MPI.Intracomm, args):
@@ -69,5 +79,5 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             # Set parameters
             new_model = value_models.ValueNet(args.boardsize)
             torch.save(new_model.state_dict(), args.check_path)
-        tqdm.write("Continuing from checkpoint: {}".format(args.checkpoint), file=sys.stderr)
+    parallel_err("Continuing from checkpoint: {}".format(args.checkpoint))
     comm.allgather(None)

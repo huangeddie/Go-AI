@@ -57,12 +57,13 @@ def optimize(model, replay_data, optimizer, batch_size):
         assert len(component) == N
 
     batched_data = [np.array_split(component, N // batch_size) for component in replay_data]
+    batched_data = list(zip(*batched_data))
 
     model.train()
     running_loss = 0
     running_acc = 0
     batches = 0
-    pbar = tqdm(zip(*batched_data), desc="Optimizing", leave=False)
+    pbar = tqdm(batched_data, desc="Optimizing", leave=False)
     for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(pbar, 1):
         # Augment
         states = data.batch_random_symmetries(states)

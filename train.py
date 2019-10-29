@@ -1,12 +1,10 @@
 import collections
 import random
-import sys
 from datetime import datetime
 
 import gym
 import torch
 from mpi4py import MPI
-from tqdm import tqdm
 
 import utils
 from go_ai import policies, game, metrics, data
@@ -44,7 +42,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     replay_len = 0
     check_winrate, rand_winrate, greedy_winrate, mctgreedy_wr = 0, 0, 0, 0
     pred_acc, pred_loss = 0, 0
-    utils.parallel_print(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tTEMP\tC_WR\tR_WR\tG_WR")
+    utils.parallel_out(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tTEMP\tC_WR\tR_WR\tG_WR")
     for iteration in range(args.iterations):
         # Log a Sample Trajectory
         if rank == 0 and args.demotraj_path is not None:
@@ -69,7 +67,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             del all_data
 
             # Optimize
-            pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, args.batchsize)
+            pred_acc, pred_loss = value_models.optimmodulize(curr_model, train_data, optim, args.batchsize)
 
             torch.save(curr_model.state_dict(), args.tmp_path)
         comm.allgather(None)
@@ -80,7 +78,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         # Model Evaluation
         if (iteration + 1) % args.eval_interval == 0:
             # See how this new model compares
-            for opponent in [checkpoint_pi]:#, policies.RAND_PI, policies.GREEDY_PI]:
+            for opponent in [checkpoint_pi, policies.RAND_PI, policies.GREEDY_PI]:
                 # Play some games
                 wr, _ = game.play_games(go_env, curr_pi, opponent, False, args.evaluations // comm.Get_size())
                 wr = comm.allreduce(wr, op=MPI.SUM) / comm.Get_size()
@@ -93,11 +91,15 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                     if check_winrate > 0.55:
                         utils.sync_checkpoint(rank, comm, newcheckpoint_pi=curr_pi, check_path=args.check_path,
                                               other_pi=checkpoint_pi)
+                        utils.parallel_err(rank, "Accepted new checkpoint")
                     elif check_winrate < 0.4:
                         utils.sync_checkpoint(rank, comm, newcheckpoint_pi=checkpoint_pi, check_path=args.check_path,
                                               other_pi=curr_pi)
                         # Break out of comparing to other models since we know it's bad
+                        utils.parallel_err(rank, "Rejected new checkpoint")
                         break
+                    else:
+                        utils.parallel_err(rank, "Continuing to train candidate checkpoint")
                 elif opponent == policies.RAND_PI:
                     rand_winrate = wr
                 elif opponent == policies.GREEDY_PI:
@@ -109,7 +111,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         iter_info = "{}\t{}\t{:07d}\t{:.1f}\t{:.3f}\t{:.4f}".format(str(delta).split('.')[0], iteration, replay_len,
                                                                     100 * pred_acc, pred_loss, curr_pi.temp) \
                     + "\t{:.1f}\t{:.1f}\t{:.1f}".format(100 * check_winrate, 100 * rand_winrate, 100 * greedy_winrate)
-        utils.parallel_print(rank, iter_info)
+        utils.parallel_out(rank, iter_info)
 
         # Decay the temperatures if any
         curr_pi.decay_temp(args.tempdecay)
@@ -125,8 +127,6 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     world_size = int(comm.Get_size())
 
-
-    if rank == 0:
-        tqdm.write('{} Workers, Board Size {}'.format(world_size, args.boardsize), file=sys.stderr)
+    utils.parallel_err(rank, '{} Workers, Board Size {}')
 
     worker_train(rank, args, comm)
