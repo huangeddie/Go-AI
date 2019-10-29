@@ -52,6 +52,8 @@ class ValueNet(nn.Module):
 
 
 def optimize(model, replay_data, optimizer, batch_size):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     N = len(replay_data[0])
     for component in replay_data:
         assert len(component) == N
@@ -60,6 +62,7 @@ def optimize(model, replay_data, optimizer, batch_size):
     batched_data = list(zip(*batched_data))
 
     model.train()
+    model.to(device)
     running_loss = 0
     running_acc = 0
     batches = 0
@@ -68,8 +71,8 @@ def optimize(model, replay_data, optimizer, batch_size):
         # Augment
         states = data.batch_random_symmetries(states)
 
-        states = torch.from_numpy(states).type(torch.FloatTensor)
-        wins = torch.from_numpy(wins[:, np.newaxis]).type(torch.FloatTensor)
+        states = torch.from_numpy(states).type(torch.FloatTensor).to(device)
+        wins = torch.from_numpy(wins[:, np.newaxis]).type(torch.FloatTensor).to(device)
 
         optimizer.zero_grad()
         vals = model(states)
@@ -85,4 +88,6 @@ def optimize(model, replay_data, optimizer, batch_size):
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * running_acc / i, running_loss / i))
 
     pbar.close()
+    # Back to CPU
+    model.to(torch.device('cpu'))
     return running_acc / batches, running_loss / batches
