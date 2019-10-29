@@ -1,12 +1,12 @@
 #!/bin/bash
 #PBS -l nodes=1:ppn=16
-#PBS -l walltime=02:00:00
+#PBS -l walltime=01:00:00
 #PBS -N go_ai
 #PBS -e stderr.err
 #PBS -o stdout.out
 #PBS -q test
 cd ~/Go-AI
-module load mvapich2/2.3-intel-18.0
+module load openmpi
 mpirun --version
 mpirun -n 16 python train.py --boardsize=4
 
