@@ -79,5 +79,5 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             # Set parameters
             new_model = value_models.ValueNet(args.boardsize)
             torch.save(new_model.state_dict(), args.check_path)
-    parallel_err("Continuing from checkpoint: {}".format(args.checkpoint))
+    parallel_err(rank, "Continuing from checkpoint: {}".format(args.checkpoint))
     comm.allgather(None)
