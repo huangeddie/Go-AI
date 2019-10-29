@@ -5,7 +5,7 @@
 #PBS -N go_ai
 #PBS -e stderr.err
 #PBS -o stdout.out
-#PBS -q secondary
+#PBS -q cs
 cd ~/Go-AI
 mpiexec -n 16 python train.py --boardsize=4
 
