@@ -53,7 +53,7 @@ def parallel_print(rank, s):
     :return:
     """
     if rank == 0:
-        print(s)
+        print(s, flush=True)
 
 
 def sync_data(rank, comm: MPI.Intracomm, args):

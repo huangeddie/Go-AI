@@ -83,7 +83,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             for opponent in [checkpoint_pi]:#, policies.RAND_PI, policies.GREEDY_PI]:
                 # Play some games
                 wr, _ = game.play_games(go_env, curr_pi, opponent, False, args.evaluations // comm.Get_size())
-                wr = comm.allreduce(wr, op=MPI.SUM)
+                wr = comm.allreduce(wr, op=MPI.SUM) / comm.Get_size()
 
                 # Do stuff based on the opponent we faced
                 if opponent == checkpoint_pi:
