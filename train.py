@@ -14,9 +14,6 @@ from go_ai.models import value_models
 def worker_train(rank: int, args, comm: MPI.Intracomm):
     # Replay data
     replay_data = collections.deque(maxlen=args.replaysize // comm.Get_size())
-    if args.checkpoint:
-        old_data = data.load_replaydata(args.episodes_dir, rank)
-        replay_data.extend(old_data)
 
     # Set parameters and episode data on disk
     utils.sync_data(rank, comm, args)
@@ -52,14 +49,14 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         _, trajectories = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, args.episodes // comm.Get_size())
         replay_data.extend(trajectories)
 
-        # Write episodes to disk
-        data.save_replaydata(replay_data, args.episodes_dir, rank)
-        comm.allgather(None)
+        # Gather episodes
+        worker_data = comm.gather(replay_data, root=0)
 
         # Optimize
         if rank == 0:
-            # Gather all workers' data to sample from
-            all_data = data.load_replaydata(args.episodes_dir)
+            all_data = []
+            for worker_eps in worker_data:
+                all_data.extend(worker_eps)
             replay_len = len(all_data)
             train_data = random.sample(all_data, min(args.trainstep_size, len(all_data)))
             train_data = data.replaylist_to_numpy(train_data)
