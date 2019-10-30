@@ -194,7 +194,7 @@ class MCTS(Policy):
         self.tree.reset(state)
 
     def __str__(self):
-        return "{}[{} Searches]-{}".format(self.__class__.__name__, self.num_searches, self.name)
+        return "{}[{}S {}T]-{}".format(self.__class__.__name__, self.num_searches, self.temp, self.name)
 
 
 RAND_PI = Random()
