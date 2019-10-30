@@ -88,7 +88,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                     if check_winrate > 0.55:
                         utils.sync_checkpoint(rank, comm, newcheckpoint_pi=curr_pi, check_path=args.check_path,
                                               other_pi=checkpoint_pi)
-                        utils.parallel_err(rank, f"{100 * wr} Accepted new checkpoint")
+                        utils.parallel_err(rank, f"{100 * wr:.3f} Accepted new checkpoint")
 
                         # Clear episodes
                         replay_data.clear()
@@ -97,10 +97,10 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                         utils.sync_checkpoint(rank, comm, newcheckpoint_pi=checkpoint_pi, check_path=args.check_path,
                                               other_pi=curr_pi)
                         # Break out of comparing to other models since we know it's bad
-                        utils.parallel_err(rank, f"{100 * wr} Rejected new checkpoint")
+                        utils.parallel_err(rank, f"{100 * wr:.3f} Rejected new checkpoint")
                         break
                     else:
-                        utils.parallel_err(rank, f"{100 * wr} Continuing to train candidate checkpoint")
+                        utils.parallel_err(rank, f"{100 * wr:.3f} Continuing to train candidate checkpoint")
                         break
                 elif opponent == policies.RAND_PI:
                     rand_winrate = wr
