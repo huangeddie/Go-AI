@@ -6,8 +6,8 @@ import torch
 from mpi4py import MPI
 from tqdm import tqdm
 
-from go_ai.models import value_models
 from go_ai import data
+from go_ai.models import value_models
 
 
 def hyperparameters():
@@ -17,9 +17,7 @@ def hyperparameters():
     parser.add_argument('--boardsize', type=int, help='board size')
     parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches')
 
-    parser.add_argument('--starttemp', type=float, default=1 / 16, help='initial temperature')
-    parser.add_argument('--tempdecay', type=float, default=3 / 4, help='temperature decay')
-    parser.add_argument('--mintemp', type=float, default=1 / 16, help='minimum temperature')
+    parser.add_argument('--temp', type=float, default=1 / 32, help='initial temperature')
 
     parser.add_argument('--batchsize', type=int, default=32, help='batch size')
     parser.add_argument('--replaysize', type=int, default=500000, help='replay memory size')
@@ -56,6 +54,7 @@ def parallel_out(rank, s):
     if rank == 0:
         print(s, flush=True)
 
+
 def parallel_err(rank, s):
     """
     Only the first worker prints stuff
@@ -80,5 +79,3 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             torch.save(new_model.state_dict(), args.check_path)
     parallel_err(rank, "Continuing from checkpoint: {}".format(args.checkpoint))
     comm.allgather(None)
-
-

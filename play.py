@@ -13,10 +13,12 @@ go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 # Policies
 checkpoint_model = value_models.ValueNet(args.boardsize)
 checkpoint_model.load_state_dict(torch.load(args.check_path))
-checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, 0, 0)
+checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, 0, args.temp)
+print("Loaded model")
 
 # Sample trajectory
 metrics.plot_traj_fig(go_env, checkpoint_pi, 'episodes/atraj.pdf')
+print("Plotted sample trajectory")
 
 # Play
 game.pit(go_env, policies.HUMAN_PI, checkpoint_pi, False)

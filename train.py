@@ -28,8 +28,8 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     optim = torch.optim.Adam(curr_model.parameters(), 1e-3) if rank == 0 else None
 
     # Policies
-    curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.starttemp, args.mintemp)
-    checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.starttemp, args.mintemp)
+    curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp)
+    checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp)
 
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize)
@@ -114,10 +114,6 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                                                                     100 * pred_acc, pred_loss, curr_pi.temp) \
                     + "\t{:.1f}\t{:.1f}\t{:.1f}".format(100 * check_winrate, 100 * rand_winrate, 100 * greedy_winrate)
         utils.parallel_out(rank, iter_info)
-
-        # Decay the temperatures if any
-        curr_pi.decay_temp(args.tempdecay)
-        checkpoint_pi.decay_temp(args.tempdecay)
 
 
 if __name__ == '__main__':
