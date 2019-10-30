@@ -17,10 +17,10 @@ def hyperparameters():
     parser.add_argument('--boardsize', type=int, help='board size')
     parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches')
 
-    parser.add_argument('--temp', type=float, default=1 / 32, help='initial temperature')
+    parser.add_argument('--temp', type=float, default=1 / 64, help='initial temperature')
 
     parser.add_argument('--batchsize', type=int, default=32, help='batch size')
-    parser.add_argument('--replaysize', type=int, default=500000, help='replay memory size')
+    parser.add_argument('--replaysize', type=int, default=400000, help='replay memory size')
     parser.add_argument('--trainstep-size', type=int, default=1000 * 32, help='train step size')
 
     parser.add_argument('--iterations', type=int, default=128, help='iterations')
@@ -39,7 +39,7 @@ def hyperparameters():
 def sync_checkpoint(rank, comm: MPI.Intracomm, newcheckpoint_pi, check_path, other_pi):
     if rank == 0:
         torch.save(newcheckpoint_pi.pytorch_model.state_dict(), check_path)
-    comm.allgather(None)
+    comm.Barrier()
     # Update other policy
     other_pi.pytorch_model.load_state_dict(torch.load(check_path))
 
@@ -78,4 +78,4 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             new_model = value_models.ValueNet(args.boardsize)
             torch.save(new_model.state_dict(), args.check_path)
     parallel_err(rank, "Continuing from checkpoint: {}".format(args.checkpoint))
-    comm.allgather(None)
+    comm.Barrier()

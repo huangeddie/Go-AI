@@ -21,4 +21,5 @@ metrics.plot_traj_fig(go_env, checkpoint_pi, 'episodes/atraj.pdf')
 print("Plotted sample trajectory")
 
 # Play
+go_env.reset()
 game.pit(go_env, policies.HUMAN_PI, checkpoint_pi, False)
