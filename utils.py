@@ -15,7 +15,7 @@ def hyperparameters():
     parser.add_argument('--checkpoint', type=bool, default=False, help='continue from checkpoint')
 
     parser.add_argument('--boardsize', type=int, help='board size')
-    parser.add_argument('--mcts', type=int, default=50, help='monte carlo searches')
+    parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches')
 
     parser.add_argument('--temp', type=float, default=1 / 128, help='initial temperature')
 
