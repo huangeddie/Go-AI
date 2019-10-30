@@ -16,9 +16,9 @@ def hyperparameters():
     parser.add_argument('--boardsize', type=int, help='board size')
     parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches')
 
-    parser.add_argument('--starttemp', type=float, default=1 / 32, help='initial temperature')
+    parser.add_argument('--starttemp', type=float, default=1 / 16, help='initial temperature')
     parser.add_argument('--tempdecay', type=float, default=3 / 4, help='temperature decay')
-    parser.add_argument('--mintemp', type=float, default=1 / 32, help='minimum temperature')
+    parser.add_argument('--mintemp', type=float, default=1 / 16, help='minimum temperature')
 
     parser.add_argument('--batchsize', type=int, default=32, help='batch size')
     parser.add_argument('--replaysize', type=int, default=500000, help='replay memory size')
