@@ -26,7 +26,7 @@ def hyperparameters():
     parser.add_argument('--trainstep-size', type=int, default=1000 * 32, help='train step size')
 
     parser.add_argument('--iterations', type=int, default=128, help='iterations')
-    parser.add_argument('--episodes', type=int, default=128, help='episodes')
+    parser.add_argument('--episodes', type=int, default=256, help='episodes')
     parser.add_argument('--evaluations', type=int, default=128, help='episodes')
     parser.add_argument('--eval-interval', type=int, default=1, help='iterations per evaluation')
 
