@@ -37,7 +37,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     # Training
     starttime = datetime.now()
     replay_len = 0
-    check_winrate, rand_winrate, greedy_winrate, mctgreedy_wr = 0, 0, 0, 0
+    check_winrate, rand_winrate, greedy_winrate = 0, 0, 0,
     pred_acc, pred_loss = 0, 0
     utils.parallel_out(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tTEMP\tC_WR\tR_WR\tG_WR")
     for iteration in range(args.iterations):
@@ -46,7 +46,9 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             metrics.plot_traj_fig(go_env, checkpoint_pi, args.demotraj_path)
 
         # Play episodes
-        _, trajectories = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, args.episodes // comm.Get_size())
+        wr, trajectories = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, args.episodes // comm.Get_size())
+        wr = comm.allreduce(wr, op=MPI.SUM) / comm.Get_size()
+        utils.parallel_err(rank, f'W/L distribution: {100 * wr:.1f}')
         replay_data.extend(trajectories)
 
         # Gather episodes
@@ -110,9 +112,9 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         # Print iteration summary
         currtime = datetime.now()
         delta = currtime - starttime
-        iter_info = "{}\t{}\t{:07d}\t{:.1f}\t{:.3f}\t{:.4f}".format(str(delta).split('.')[0], iteration, replay_len,
-                                                                    100 * pred_acc, pred_loss, curr_pi.temp) \
-                    + "\t{:.1f}\t{:.1f}\t{:.1f}".format(100 * check_winrate, 100 * rand_winrate, 100 * greedy_winrate)
+        iter_info = f"{str(delta).split('.')[0]}\t{iteration}\t{replay_len:07d}\t{100 * pred_acc:.1f}" \
+                    f"\t{pred_loss:.3f}\t{curr_pi.temp:.4f}\t{100 * check_winrate:.1f}\t{100 * rand_winrate:.1f}" \
+                    f"\t{100 * greedy_winrate:.1f}"
         utils.parallel_out(rank, iter_info)
 
 
@@ -125,6 +127,6 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     world_size = int(comm.Get_size())
 
-    utils.parallel_err(rank, '{} Workers, Board Size {}'.format(world_size, args.boardsize))
+    utils.parallel_err(rank, f'{world_size} Workers, Board Size {args.boardsize}, Temp {args.temp}')
 
     worker_train(rank, args, comm)
