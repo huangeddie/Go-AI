@@ -7,6 +7,7 @@ from mpi4py import MPI
 from tqdm import tqdm
 
 from go_ai.models import value_models
+from go_ai import data
 
 
 def hyperparameters():
@@ -72,12 +73,12 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             assert os.path.exists(args.check_path)
         else:
             # Clear worker data
-            episode_files = os.listdir(args.episodes_dir)
-            for item in episode_files:
-                if item.endswith(".pickle"):
-                    os.remove(os.path.join(args.episodes_dir, item))
+            episodes_dir = args.episodes_dir
+            data.clear_episodes(episodes_dir)
             # Set parameters
             new_model = value_models.ValueNet(args.boardsize)
             torch.save(new_model.state_dict(), args.check_path)
     parallel_err(rank, "Continuing from checkpoint: {}".format(args.checkpoint))
     comm.allgather(None)
+
+

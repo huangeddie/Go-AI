@@ -77,3 +77,10 @@ def save_replaydata(replay_data, episodes_dir, worker_rank):
     outpath = os.path.join(episodes_dir, "worker_{}.pickle".format(worker_rank))
     with open(outpath, 'wb') as f:
         pickle.dump(replay_data, f)
+
+
+def clear_episodes(episodes_dir):
+    episode_files = os.listdir(episodes_dir)
+    for item in episode_files:
+        if item.endswith(".pickle"):
+            os.remove(os.path.join(episodes_dir, item))
