@@ -39,7 +39,7 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None):
               + '\n{:.3f}L '.format(np.min(valid_values) if len(valid_values) > 0 else 0)
               + '{:.3f}H '.format(np.max(valid_values) if len(valid_values) > 0 else 0)
               + '{:.3f}P'.format(pass_val))
-    plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)))
+    plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)), vmin=0, vmax=1)
 
 
 def action_1d_to_2d(action_1d, board_width):
