@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -l nodes=4:ppn=16
+#PBS -l nodes=8:ppn=16
 #PBS -l walltime=08:00:00
 #PBS -N go_ai
 #PBS -e stderr.err
@@ -10,5 +10,5 @@ module load mvapich2/2.3-intel-18.0
 cd $PBS_O_WORKDIR
 echo -n > stdout.out
 echo -n > stderr.err
-mpiexec -n 64 -bind-to core python train.py --boardsize=7
+mpiexec -n 128 -bind-to core python train.py --boardsize=7
 
