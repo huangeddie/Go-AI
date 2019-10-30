@@ -101,6 +101,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                         break
                     else:
                         utils.parallel_err(rank, f"{100 * wr} Continuing to train candidate checkpoint")
+                        break
                 elif opponent == policies.RAND_PI:
                     rand_winrate = wr
                 elif opponent == policies.GREEDY_PI:
