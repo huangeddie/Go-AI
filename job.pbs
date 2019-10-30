@@ -10,5 +10,5 @@ module load mvapich2/2.3-intel-18.0
 cd $PBS_O_WORKDIR
 echo -n > stdout.out
 echo -n > stderr.err
-mpiexec -n 64 -bind-to core python train.py --boardsize=7 --checkpoint=True
+mpiexec -n 64 -bind-to core python train.py --boardsize=9 --checkpoint=False
 
