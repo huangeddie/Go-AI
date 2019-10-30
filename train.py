@@ -127,6 +127,6 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     world_size = int(comm.Get_size())
 
-    utils.parallel_err(rank, f'{world_size} Workers, Board Size {args.boardsize}, Temp {args.temp}')
+    utils.parallel_err(rank, f'{world_size} Workers, Board Size {args.boardsize}, Temp {args.temp:.4f}')
 
     worker_train(rank, args, comm)

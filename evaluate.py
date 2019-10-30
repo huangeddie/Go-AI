@@ -17,7 +17,7 @@ checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.te
 print("Loaded model")
 
 # Sample trajectory and plot prior qvals
-metrics.plot_traj_fig(go_env, checkpoint_pi, f'episodes/atraj_{checkpoint_pi.temp:.5f}.pdf')
+metrics.plot_traj_fig(go_env, checkpoint_pi, f'episodes/atraj_{checkpoint_pi.temp:.4f}.pdf')
 print("Plotted sample trajectory")
 
 # Play
