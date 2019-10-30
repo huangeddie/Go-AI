@@ -74,7 +74,7 @@ def sync_data(rank, comm: MPI.Intracomm, args):
         else:
             # Clear worker data
             episodes_dir = args.episodes_dir
-            data.clear_episodes(episodes_dir)
+            data.clear_episodes_dir(episodes_dir)
             # Set parameters
             new_model = value_models.ValueNet(args.boardsize)
             torch.save(new_model.state_dict(), args.check_path)

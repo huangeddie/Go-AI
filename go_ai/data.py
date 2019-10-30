@@ -79,7 +79,7 @@ def save_replaydata(replay_data, episodes_dir, worker_rank):
         pickle.dump(replay_data, f)
 
 
-def clear_episodes(episodes_dir):
+def clear_episodes_dir(episodes_dir):
     episode_files = os.listdir(episodes_dir)
     for item in episode_files:
         if item.endswith(".pickle"):
