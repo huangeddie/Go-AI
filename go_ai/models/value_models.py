@@ -39,6 +39,15 @@ class ValueNet(nn.Module):
             nn.Linear(256, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
             nn.Linear(256, 1)
         )
 

@@ -20,9 +20,9 @@ def hyperparameters():
     parser.add_argument('--temp', type=float, default=1 / 8, help='initial temperature')
     parser.add_argument('--tempsteps', type=float, default=8, help='first k steps to apply temperature to pi')
 
-    parser.add_argument('--batchsize', type=int, default=32, help='batch size')
+    parser.add_argument('--batchsize', type=int, default=64, help='batch size')
     parser.add_argument('--replaysize', type=int, default=400000, help='replay memory size')
-    parser.add_argument('--trainstep-size', type=int, default=1000 * 32, help='train step size')
+    parser.add_argument('--trainstep-size', type=int, default=1000 * 64, help='train step size')
 
     parser.add_argument('--iterations', type=int, default=128, help='iterations')
     parser.add_argument('--episodes', type=int, default=256, help='episodes')

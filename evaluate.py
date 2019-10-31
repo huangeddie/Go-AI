@@ -19,14 +19,14 @@ go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 # Policies
 checkpoint_model = value_models.ValueNet(args.boardsize)
 checkpoint_model.load_state_dict(torch.load(args.check_path))
-checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp)
+checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
 print("Loaded model")
 
 # Elo
-if os.path.exists('stats.txt'):
+if os.path.exists('checkpoints/stats.txt'):
     rand_elo = 0
     greed_elo = 0
-    df = pd.read_csv('stats.txt', sep='\t')
+    df = pd.read_csv('checkpoints/stats.txt', sep='\t')
 
     # New checkpoints
     checks = df[df['C_WR'] > 55]
@@ -52,5 +52,5 @@ if os.path.exists('stats.txt'):
     print("Plotted Elos")
 
 # Sample trajectory and plot prior qvals
-metrics.plot_traj_fig(go_env, checkpoint_pi, f'episodes/atraj_{checkpoint_pi.temp:.4f}.pdf')
+metrics.plot_traj_fig(go_env, checkpoint_pi, f'checkpoints/atraj_{checkpoint_pi.temp:.4f}.pdf')
 print("Plotted sample trajectory")
