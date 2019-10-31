@@ -142,7 +142,7 @@ class Human(Policy):
 
 
 class MCTS(Policy):
-    def __init__(self, name, val_func, num_searches, temp, temp_steps):
+    def __init__(self, name, val_func, num_searches, temp=0, temp_steps=0):
         super(MCTS, self).__init__(name, temp, temp_steps)
         if isinstance(val_func, torch.nn.Module):
             self.pytorch_model = val_func
@@ -201,5 +201,5 @@ class MCTS(Policy):
 
 
 RAND_PI = Random()
-GREEDY_PI = MCTS('Greedy', greedy_val_func, num_searches=0, temp=0)
+GREEDY_PI = MCTS('Greedy', greedy_val_func, num_searches=0)
 HUMAN_PI = Human()
