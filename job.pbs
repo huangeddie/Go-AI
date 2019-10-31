@@ -1,9 +1,9 @@
 #!/bin/bash
 #PBS -l nodes=4:ppn=16
-#PBS -l walltime=08:00:00
+#PBS -l walltime=12:00:00
 #PBS -N go_ai
-#PBS -e stderr.err
-#PBS -o stdout.out
+#PBS -e log.txt
+#PBS -o stats.txt
 #PBS -q cs
 module load mvapich2/2.3-intel-18.0
 

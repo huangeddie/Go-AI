@@ -28,8 +28,8 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     optim = torch.optim.Adam(curr_model.parameters(), 1e-3) if rank == 0 else None
 
     # Policies
-    curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp)
-    checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp)
+    curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
+    checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
 
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize)

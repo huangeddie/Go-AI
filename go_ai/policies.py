@@ -57,10 +57,10 @@ class Policy:
     Interface for all types of policies
     """
 
-    def __init__(self, name, temp=None, min_temp=1 / 64):
+    def __init__(self, name, temp=None, temp_steps=None):
         self.name = name
         self.temp = temp
-        self.min_temp = min_temp
+        self.temp_steps = temp_steps
         self.pytorch_model = None
 
     def __call__(self, state, step=None):
@@ -73,8 +73,8 @@ class Policy:
 
     def decay_temp(self, decay):
         self.temp *= decay
-        if self.temp < self.min_temp:
-            self.temp = self.min_temp
+        if self.temp < 0:
+            self.temp = 0
 
     def set_temp(self, temp):
         self.temp = temp
@@ -142,8 +142,8 @@ class Human(Policy):
 
 
 class MCTS(Policy):
-    def __init__(self, name, val_func, num_searches, temp, min_temp=0):
-        super(MCTS, self).__init__(name, temp, min_temp)
+    def __init__(self, name, val_func, num_searches, temp, temp_steps):
+        super(MCTS, self).__init__(name, temp, temp_steps)
         if isinstance(val_func, torch.nn.Module):
             self.pytorch_model = val_func
             logging.info("Saved Pytorch model")
@@ -175,7 +175,7 @@ class MCTS(Policy):
             qvals += valid_moves
 
         assert step is not None
-        if step <= 8:
+        if step <= self.temp_steps:
             pi = exp_temp(qvals, self.temp, valid_moves)
         else:
             pi = exp_temp(qvals, 0, valid_moves)
