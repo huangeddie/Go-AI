@@ -37,7 +37,7 @@ class ValueNet(nn.Module):
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.Conv2d(64, 1, 3, padding=1),
-            nn.BatchNorm2d(4),
+            nn.BatchNorm2d(1),
             nn.ReLU(),
         )
 
