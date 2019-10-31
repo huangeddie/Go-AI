@@ -2,7 +2,6 @@ import logging
 
 import gym
 import numpy as np
-import torch
 
 from go_ai.montecarlo import tree, exp_temp
 from utils import *
@@ -175,7 +174,11 @@ class MCTS(Policy):
         if np.count_nonzero(qvals) == 0:
             qvals += valid_moves
 
-        pi = exp_temp(qvals, self.temp, valid_moves)
+        assert step is not None
+        if step <= 8:
+            pi = exp_temp(qvals, self.temp, valid_moves)
+        else:
+            pi = exp_temp(qvals, 0, valid_moves)
         return pi
 
     def step(self, action):
@@ -194,7 +197,7 @@ class MCTS(Policy):
         self.tree.reset(state)
 
     def __str__(self):
-        return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.4f}T]-{self.name}"
+        return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.5f}T]-{self.name}"
 
 
 RAND_PI = Random()
