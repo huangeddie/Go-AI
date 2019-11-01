@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from go_ai import data
 from go_ai.models import value_models
+import time
 
 
 def hyperparameters():
@@ -64,7 +65,7 @@ def parallel_err(rank, s):
     :return:
     """
     if rank == 0:
-        tqdm.write(s, file=sys.stderr)
+        tqdm.write(f"{time.strftime('%H:%M:%S', time.localtime())}\t{s}", file=sys.stderr)
 
 
 def sync_data(rank, comm: MPI.Intracomm, args):

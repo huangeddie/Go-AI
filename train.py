@@ -44,6 +44,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         # Log a Sample Trajectory
         if rank == 0 and args.demotraj_path is not None:
             metrics.plot_traj_fig(go_env, checkpoint_pi, args.demotraj_path)
+            utils.parallel_err(rank, "Plotted trajectory")
 
         # Play episodes
         wr, trajectories = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, args.episodes // comm.Get_size())
@@ -81,6 +82,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                 # Play some games
                 wr, _ = game.play_games(go_env, curr_pi, opponent, False, args.evaluations // comm.Get_size())
                 wr = comm.allreduce(wr, op=MPI.SUM) / comm.Get_size()
+                utils.parallel_err(rank, f"{checkpoint_pi} V {opponent} - {100 * wr:.3f}")
 
                 # Do stuff based on the opponent we faced
                 if opponent == checkpoint_pi:
@@ -90,7 +92,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                     if check_winrate > 0.55:
                         utils.sync_checkpoint(rank, comm, newcheckpoint_pi=curr_pi, check_path=args.check_path,
                                               other_pi=checkpoint_pi)
-                        utils.parallel_err(rank, f"{100 * wr:.3f} Accepted new checkpoint")
+                        utils.parallel_err(rank, f"Accepted new checkpoint")
 
                         # Clear episodes
                         replay_data.clear()
@@ -99,10 +101,10 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                         utils.sync_checkpoint(rank, comm, newcheckpoint_pi=checkpoint_pi, check_path=args.check_path,
                                               other_pi=curr_pi)
                         # Break out of comparing to other models since we know it's bad
-                        utils.parallel_err(rank, f"{100 * wr:.3f} Rejected new checkpoint")
+                        utils.parallel_err(rank, f"Rejected new checkpoint")
                         break
                     else:
-                        utils.parallel_err(rank, f"{100 * wr:.3f} Continuing to train candidate checkpoint")
+                        utils.parallel_err(rank, f"Continuing to train candidate checkpoint")
                         break
                 elif opponent == policies.RAND_PI:
                     rand_winrate = wr

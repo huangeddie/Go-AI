@@ -2,13 +2,13 @@
 #PBS -l nodes=4:ppn=16
 #PBS -l walltime=12:00:00
 #PBS -N go_ai
-#PBS -e log.txt
-#PBS -o stats.txt
+#PBS -e checkpoints/log.txt
+#PBS -o checkpoints/stats.txt
 #PBS -q cs
 module load mvapich2/2.3-intel-18.0
 
 cd $PBS_O_WORKDIR
-echo -n > stats.txt
-echo -n > log.txt
+echo -n > checkpoints/stats.txt
+echo -n > checkpoints/log.txt
 mpiexec -n 64 -bind-to core python train.py --boardsize=9
 
