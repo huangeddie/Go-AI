@@ -55,13 +55,13 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         # Write episodes
         data.save_replaydata(rank, replay_data, args.episodes_dir)
         comm.Barrier()
-        utils.parallel_err(rank, 'Wrote replay data to disk')
+        utils.parallel_err(rank, 'Wrote all replay data to disk')
 
 
         # Optimize
         if rank == 0:
             all_data = data.load_replaydata(args.episodes_dir)
-            utils.parallel_err(rank, 'Loaded all replay data')
+            utils.parallel_err(rank, 'Loaded all replay data to worker 0')
             replay_len = len(all_data)
             train_data = random.sample(all_data, min(args.trainstep_size, len(all_data)))
             train_data = data.replaylist_to_numpy(train_data)
@@ -70,7 +70,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             del all_data
 
             # Optimize
-            utils.parallel_err(rank, 'Optimizing...')
+            utils.parallel_err(rank, 'Optimizing on worker 0...')
             pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, args.batchsize)
             utils.parallel_err(rank, f'Optimized: {100*pred_acc:.1f}% {pred_loss:.3f}L')
 
