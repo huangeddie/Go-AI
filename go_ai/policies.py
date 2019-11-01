@@ -2,10 +2,9 @@ import logging
 
 import gym
 import numpy as np
-import torch
 
 from go_ai.montecarlo import tree, exp_temp
-from hyperparameters import *
+from utils import *
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -48,7 +47,7 @@ def pytorch_to_numpy(model, logits):
                 pass
             else:
                 state_vals = torch.sigmoid(state_vals)
-            return state_vals.numpy()
+            return state_vals.cpu().numpy()
 
     return val_func
 
@@ -58,10 +57,10 @@ class Policy:
     Interface for all types of policies
     """
 
-    def __init__(self, name, temp=None, min_temp=1 / 64):
+    def __init__(self, name, temp=None, temp_steps=None):
         self.name = name
         self.temp = temp
-        self.min_temp = min_temp
+        self.temp_steps = temp_steps
         self.pytorch_model = None
 
     def __call__(self, state, step=None):
@@ -74,8 +73,8 @@ class Policy:
 
     def decay_temp(self, decay):
         self.temp *= decay
-        if self.temp < self.min_temp:
-            self.temp = self.min_temp
+        if self.temp < 0:
+            self.temp = 0
 
     def set_temp(self, temp):
         self.temp = temp
@@ -101,9 +100,9 @@ class Policy:
         return "{} {}".format(self.__class__.__name__, self.name)
 
 
-class RandomPolicy(Policy):
+class Random(Policy):
     def __init__(self):
-        super(RandomPolicy, self).__init__('Random')
+        super(Random, self).__init__('Random')
 
     def __call__(self, state, step=None):
         """
@@ -115,9 +114,9 @@ class RandomPolicy(Policy):
         return valid_moves / np.sum(valid_moves)
 
 
-class HumanPolicy(Policy):
+class Human(Policy):
     def __init__(self):
-        super(HumanPolicy, self).__init__('Human')
+        super(Human, self).__init__('Human')
 
     def __call__(self, state, step=None):
         """
@@ -142,9 +141,9 @@ class HumanPolicy(Policy):
         return action_probs
 
 
-class MctPolicy(Policy):
-    def __init__(self, name, val_func, num_searches, temp, min_temp=0):
-        super(MctPolicy, self).__init__(name, temp, min_temp)
+class MCTS(Policy):
+    def __init__(self, name, val_func, num_searches, temp=0, temp_steps=0):
+        super(MCTS, self).__init__(name, temp, temp_steps)
         if isinstance(val_func, torch.nn.Module):
             self.pytorch_model = val_func
             logging.info("Saved Pytorch model")
@@ -175,9 +174,11 @@ class MctPolicy(Policy):
         if np.count_nonzero(qvals) == 0:
             qvals += valid_moves
 
-        temp = (1 / 8) if step <= 16 else self.temp
-
-        pi = exp_temp(qvals, temp, valid_moves)
+        assert step is not None
+        if step <= self.temp_steps:
+            pi = exp_temp(qvals, self.temp, valid_moves)
+        else:
+            pi = exp_temp(qvals, 0, valid_moves)
         return pi
 
     def step(self, action):
@@ -196,11 +197,9 @@ class MctPolicy(Policy):
         self.tree.reset(state)
 
     def __str__(self):
-        return "{}[{} Searches]-{}".format(self.__class__.__name__, self.num_searches, self.name)
+        return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.4f}T]-{self.name}"
 
 
-RAND_PI = RandomPolicy()
-GREEDY_PI = MctPolicy('Greedy', greedy_val_func, num_searches=0, temp=0)
-MCT_GREEDY_PI = MctPolicy('GreedyMCT', greedy_val_func, num_searches=max(BOARD_SIZE ** 2, MCT_SEARCHES), temp=0)
-
-HUMAN_PI = HumanPolicy()
+RAND_PI = Random()
+GREEDY_PI = MCTS('Greedy', greedy_val_func, num_searches=0)
+HUMAN_PI = Human()

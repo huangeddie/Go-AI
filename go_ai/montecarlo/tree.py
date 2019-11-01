@@ -126,7 +126,7 @@ class MCTree:
         '''
         state = self.root.state
         if self.root.cached_children():
-            canon_child = self.root.canon_children.remove(action)
+            canon_child = self.root.canon_children[action]
         else:
             childstate = GoGame.get_next_state(state, action)
             canonchildstate = GoGame.get_canonical_form(childstate)
