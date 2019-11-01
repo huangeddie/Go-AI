@@ -175,7 +175,7 @@ class MCTS(Policy):
             qvals += valid_moves
 
         assert step is not None
-        if step <= self.temp_steps:
+        if step < self.temp_steps:
             pi = exp_temp(qvals, self.temp, valid_moves)
         else:
             pi = exp_temp(qvals, 0, valid_moves)

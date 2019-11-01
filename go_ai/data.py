@@ -62,6 +62,12 @@ def replaylist_to_numpy(replay_mem):
 
 
 def load_replaydata(episodes_dir, worker_rank=None):
+    """
+    Loads replay data from a directory.
+    :param episodes_dir:
+    :param worker_rank: If specified, loads only that specific worker's data. Otherwise it loads all data from all workers
+    :return:
+    """
     all_data = []
     files = os.listdir(episodes_dir)
     for file in files:
@@ -74,7 +80,7 @@ def load_replaydata(episodes_dir, worker_rank=None):
     return all_data
 
 
-def save_replaydata(replay_data, episodes_dir, worker_rank):
+def save_replaydata(worker_rank, replay_data, episodes_dir):
     outpath = os.path.join(episodes_dir, "worker_{}.pickle".format(worker_rank))
     with open(outpath, 'wb') as f:
         pickle.dump(replay_data, f)
