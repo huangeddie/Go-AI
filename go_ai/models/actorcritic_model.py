@@ -104,7 +104,7 @@ def optimize(model, replay_data, optimizer, batch_size):
         optimizer.step()
 
         critic_running_loss += loss.item()
-        critic_running_acc += torch.mean((pred_wins == wins).type(wins.dtype)).item()
+        critic_running_acc += torch.mean((pred_wins == wins).type(torch.IntTensor)).item()
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * critic_running_acc / i, critic_running_loss / i))
     pbar.close()
@@ -130,7 +130,7 @@ def optimize(model, replay_data, optimizer, batch_size):
         optimizer.step()
 
         actor_running_loss += loss.item()
-        actor_running_acc += torch.mean((pred_actions == greedy_actions).type(wins.dtype)).item()
+        actor_running_acc += torch.mean((pred_actions == greedy_actions).type(torch.IntTensor)).item()
         batches = i
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * actor_running_acc / i, actor_running_loss / i))
