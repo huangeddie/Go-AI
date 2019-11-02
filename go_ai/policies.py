@@ -2,6 +2,7 @@ import logging
 
 import gym
 import numpy as np
+import torch
 
 from go_ai.montecarlo import tree, exp_temp
 from utils import *
@@ -198,6 +199,31 @@ class MCTS(Policy):
 
     def __str__(self):
         return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.4f}T]-{self.name}"
+
+
+class ActorCritic(Policy):
+    def __init__(self, name, network, temp=0, temp_steps=0):
+        super(ActorCritic, self).__init__(name, temp, temp_steps)
+        self.pytorch_model = network
+
+    def __call__(self, state, step=None):
+        """
+        :param state: Current state to act on
+        :param step: Parameter used for getting the temperature
+        :return: Action probabilities
+        """
+        self.pytorch_model.eval()
+        state_tensor = torch.from_numpy(state[np.newaxis]).type(torch.FloatTensor)
+        policy_scores, _ = self.pytorch_model(state_tensor)
+        policy_scores = policy_scores.detach().numpy()
+
+        valid_moves = GoGame.get_valid_moves(state)
+        pi = exp_temp(policy_scores, self.temp, valid_moves)
+        
+        assert step is not None
+        temp = self.temp if step <= self.temp_steps else 0
+        pi = exp_temp(policy_scores, temp, valid_moves)
+        return pi
 
 
 RAND_PI = Random()
