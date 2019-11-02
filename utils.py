@@ -34,6 +34,8 @@ def hyperparameters():
     parser.add_argument('--check-path', type=str, default='checkpoints/checkpoint.pt', help='model path for checkpoint')
     parser.add_argument('--tmp-path', type=str, default='checkpoints/tmp.pt', help='model path for temp model')
     parser.add_argument('--demotraj-path', type=str, help='path for sample trajectory')
+    
+    parser.add_argument('--agent', type=str, choices=['mcts', 'ac'], default='mcts', help='type of agent/model')
 
     return parser.parse_args()
 
