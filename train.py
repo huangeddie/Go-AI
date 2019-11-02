@@ -20,7 +20,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
 
     # Load replay data if any
     if args.checkpoint:
-        replay_data = data.load_replaydata(args.episode_dir, rank)
+        replay_data = data.load_replaydata(args.episodes_dir, rank)
 
     # Model
     curr_model = value_models.ValueNet(args.boardsize)
