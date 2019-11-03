@@ -3,7 +3,7 @@ import torch
 
 import utils
 from go_ai import policies, game
-from go_ai.models import value_models
+from go_ai.models import value_models, actorcritic_model
 
 args = utils.hyperparameters()
 
@@ -11,9 +11,14 @@ args = utils.hyperparameters()
 go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
-checkpoint_model = value_models.ValueNet(args.boardsize)
-checkpoint_model.load_state_dict(torch.load(args.check_path))
-checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp)
+if args.agent == 'mcts':
+    checkpoint_model = value_models.ValueNet(args.boardsize)
+    checkpoint_model.load_state_dict(torch.load(args.check_path))
+    checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp)
+elif args.agent == 'ac':
+    checkpoint_model = actorcritic_model.ActorCriticNet(args.boardsize)
+    checkpoint_model.load_state_dict(torch.load(args.check_path))
+    checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model, args.temp)
 print("Loaded model")
 
 # Play
