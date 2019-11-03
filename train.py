@@ -18,6 +18,10 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     # Set parameters and episode data on disk
     utils.sync_data(rank, comm, args)
 
+    # Load replay data if any
+    if args.checkpoint:
+        replay_data = data.load_replaydata(args.episodes_dir, rank)
+
     # Model
     if args.agent == 'mcts':
         curr_model = value_models.ValueNet(args.boardsize)
@@ -60,25 +64,30 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         utils.parallel_err(rank, f'W/L distribution: {100 * wr:.1f}')
         replay_data.extend(trajectories)
 
-        # Gather episodes
-        worker_data = comm.gather(replay_data, root=0)
+        # Write episodes
+        data.save_replaydata(rank, replay_data, args.episodes_dir)
+        comm.Barrier()
+        utils.parallel_err(rank, 'Wrote all replay data to disk')
+
 
         # Optimize
         if rank == 0:
-            all_data = []
-            for worker_eps in worker_data:
-                all_data.extend(worker_eps)
+            all_data = data.load_replaydata(args.episodes_dir)
+            utils.parallel_err(rank, 'Loaded all replay data to worker 0')
             replay_len = len(all_data)
             train_data = random.sample(all_data, min(args.trainstep_size, len(all_data)))
             train_data = data.replaylist_to_numpy(train_data)
 
+            # Save memory
             del all_data
 
             # Optimize
+            utils.parallel_err(rank, 'Optimizing on worker 0...')
             if args.agent == 'mcts':
                 pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, args.batchsize)
             elif args.agent == 'ac':
                 _, _, pred_acc, pred_loss = actorcritic_model.optimize(curr_model, train_data, optim, args.batchsize)
+            utils.parallel_err(rank, f'Optimized: {100*pred_acc:.1f}% {pred_loss:.3f}L')
 
             torch.save(curr_model.state_dict(), args.tmp_path)
         comm.Barrier()
