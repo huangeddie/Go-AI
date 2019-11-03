@@ -15,48 +15,60 @@ class ActorCriticNet(nn.Module):
     def __init__(self, board_size):
         super(ActorCriticNet, self).__init__()
         self.shared_convs = nn.Sequential(
-            nn.Conv2d(GoVars.NUM_CHNLS, 32, 3, padding=1),
-            nn.BatchNorm2d(32),
+            nn.Conv2d(GoVars.NUM_CHNLS, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(32, 32, 3, padding=1),
-            nn.BatchNorm2d(32),
+            nn.Conv2d(64, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Conv2d(32, 4, 1),
-            nn.BatchNorm2d(4),
+            nn.Conv2d(128, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.Conv2d(128, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.Conv2d(64, 1, 3, padding=1),
+            nn.BatchNorm2d(1),
             nn.ReLU(),
         )
 
         self.shared_fcs = nn.Sequential(
-            nn.Linear(4 * board_size ** 2, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(board_size ** 2, board_size ** 2),
+            nn.BatchNorm1d(board_size ** 2),
             nn.ReLU(),
         )
+
+        # self.shared_fcs = nn.Sequential(
+        #     nn.Linear(4 * board_size ** 2, 256),
+        #     nn.BatchNorm1d(256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, 256),
+        #     nn.BatchNorm1d(256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, 256),
+        #     nn.BatchNorm1d(256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, 256),
+        #     nn.BatchNorm1d(256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, 256),
+        #     nn.BatchNorm1d(256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, 256),
+        #     nn.BatchNorm1d(256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, 256),
+        #     nn.BatchNorm1d(256),
+        #     nn.ReLU(),
+        # )
 
         action_size = GoGame.get_action_size(board_size=board_size)
         self.actor = nn.Sequential(
-            nn.Linear(256, action_size),
+            nn.Linear(board_size ** 2, action_size),
         )
 
         self.critic = nn.Sequential(
-            nn.Linear(256, 1),
+            nn.Linear(board_size ** 2, 1),
         )
 
         self.actor_criterion = nn.CrossEntropyLoss()
@@ -111,11 +123,11 @@ def optimize(model, replay_data, optimizer, batch_size):
 
         optimizer.zero_grad()
         _, vals = model(states)
-        pred_wins = (torch.sigmoid(vals) > 0.5).type(vals.dtype)
         loss = model.critic_criterion(vals, wins)
         loss.backward()
         optimizer.step()
 
+        pred_wins = (torch.sigmoid(vals) > 0.5).type(vals.dtype)
         critic_running_loss += loss.item()
         critic_running_acc += torch.mean((pred_wins == wins).type(torch.FloatTensor)).item()
 
@@ -135,13 +147,20 @@ def optimize(model, replay_data, optimizer, batch_size):
 
         optimizer.zero_grad()
         policy_scores, _ = model(states)
-        pred_actions = torch.argmax(policy_scores, dim=1)
         qvals = montecarlo.qval_from_stateval(states, val_func)[0]
         greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1)).type(torch.LongTensor)
         loss = model.actor_criterion(policy_scores, greedy_actions)
+        if torch.isinf(loss).any():
+            print('Infinite loss!')
+            print('greedy_actions: ', greedy_actions)
+            greedy_scores = []
+            for j, a in enumerate(greedy_actions):
+                greedy_scores.append(policy_scores[j, a].item())
+            print('policy_scores[greedy]: ', greedy_scores)
         loss.backward()
         optimizer.step()
-
+        
+        pred_actions = torch.argmax(policy_scores, dim=1)
         actor_running_loss += loss.item()
         actor_running_acc += torch.mean((pred_actions == greedy_actions).type(torch.FloatTensor)).item()
         batches = i
