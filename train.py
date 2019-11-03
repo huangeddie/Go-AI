@@ -8,7 +8,7 @@ from mpi4py import MPI
 
 import utils
 from go_ai import policies, game, metrics, data
-from go_ai.models import value_models
+from go_ai.models import value_models, actorcritic_model
 
 
 def worker_train(rank: int, args, comm: MPI.Intracomm):
@@ -19,8 +19,12 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     utils.sync_data(rank, comm, args)
 
     # Model
-    curr_model = value_models.ValueNet(args.boardsize)
-    checkpoint_model = value_models.ValueNet(args.boardsize)
+    if args.agent == 'mcts':
+        curr_model = value_models.ValueNet(args.boardsize)
+        checkpoint_model = value_models.ValueNet(args.boardsize)
+    elif args.agent == 'ac':
+        curr_model = actorcritic_model.ActorCriticNet(args.boardsize)
+        checkpoint_model = actorcritic_model.ActorCriticNet(args.boardsize)
 
     # Load parameters from disk
     curr_model.load_state_dict(torch.load(args.check_path))
@@ -28,8 +32,12 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     optim = torch.optim.Adam(curr_model.parameters(), 1e-3) if rank == 0 else None
 
     # Policies
-    curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
-    checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
+    if args.agent == 'mcts':
+        curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
+        checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
+    elif args.agent == 'ac':
+        curr_pi = policies.ActorCritic('Current', curr_model, args.temp, args.tempsteps)
+        checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model, args.temp, args.tempsteps)
 
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize)
@@ -67,7 +75,10 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             del all_data
 
             # Optimize
-            pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, args.batchsize)
+            if args.agent == 'mcts':
+                pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, args.batchsize)
+            elif args.agent == 'ac':
+                _, _, pred_acc, pred_loss = actorcritic_model.optimize(curr_model, train_data, optim, args.batchsize)
 
             torch.save(curr_model.state_dict(), args.tmp_path)
         comm.Barrier()

@@ -7,7 +7,7 @@ from mpi4py import MPI
 from tqdm import tqdm
 
 from go_ai import data
-from go_ai.models import value_models
+from go_ai.models import value_models, actorcritic_model
 import time
 
 
@@ -79,7 +79,10 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             episodes_dir = args.episodes_dir
             data.clear_episodes_dir(episodes_dir)
             # Set parameters
-            new_model = value_models.ValueNet(args.boardsize)
+            if args.agent == 'mcts':
+                new_model = value_models.ValueNet(args.boardsize)
+            elif args.agent == 'ac':
+                new_model = actorcritic_model.ActorCriticNet(args.boardsize)
             torch.save(new_model.state_dict(), args.check_path)
     parallel_err(rank, "Using checkpoint: {}".format(args.checkpoint))
     comm.Barrier()

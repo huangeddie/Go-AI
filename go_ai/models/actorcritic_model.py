@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 
-from go_ai import data, montecarlo
+from go_ai import data, montecarlo, policies
 
 gymgo = gym.make('gym_go:go-v0', size=0)
 GoGame = gymgo.gogame
@@ -72,9 +72,20 @@ class ActorCriticNet(nn.Module):
         vals = self.critic(x)
         return policy_scores, vals
 
-    def get_probs(self, policy_scores, state, temp):
-        valid_moves = data.batch_valid_moves(state)
-        return montecarlo.exp_temp(policy_scores, temp, valid_moves)
+
+class CriticWrapper(nn.Module):
+    def __init__(self, net):
+        super(CriticWrapper, self).__init__()
+        self.net = net
+
+    def forward(self, state):
+        return self.net(state)[1]
+
+    def eval(self):
+        self.net.eval()
+
+    def train(self):
+        self.net.train()
 
 
 def optimize(model, replay_data, optimizer, batch_size):
@@ -84,6 +95,8 @@ def optimize(model, replay_data, optimizer, batch_size):
 
     batched_data = [np.array_split(component, N // batch_size) for component in replay_data]
     batched_data = list(zip(*batched_data))
+
+    val_func = policies.pytorch_to_numpy(CriticWrapper(model), logits=True)
 
     model.train()
     critic_running_loss = 0
@@ -104,7 +117,7 @@ def optimize(model, replay_data, optimizer, batch_size):
         optimizer.step()
 
         critic_running_loss += loss.item()
-        critic_running_acc += torch.mean((pred_wins == wins).type(torch.IntTensor)).item()
+        critic_running_acc += torch.mean((pred_wins == wins).type(torch.FloatTensor)).item()
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * critic_running_acc / i, critic_running_loss / i))
     pbar.close()
@@ -123,14 +136,14 @@ def optimize(model, replay_data, optimizer, batch_size):
         optimizer.zero_grad()
         policy_scores, _ = model(states)
         pred_actions = torch.argmax(policy_scores, dim=1)
-        qvals = montecarlo.qval_from_stateval(states, lambda s: model(s)[1])
-        greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1)).type(torch.FloatTensor)
+        qvals = montecarlo.qval_from_stateval(states, val_func)[0]
+        greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1)).type(torch.LongTensor)
         loss = model.actor_criterion(policy_scores, greedy_actions)
         loss.backward()
         optimizer.step()
 
         actor_running_loss += loss.item()
-        actor_running_acc += torch.mean((pred_actions == greedy_actions).type(torch.IntTensor)).item()
+        actor_running_acc += torch.mean((pred_actions == greedy_actions).type(torch.FloatTensor)).item()
         batches = i
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * actor_running_acc / i, actor_running_loss / i))

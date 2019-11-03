@@ -176,7 +176,7 @@ class MCTS(Policy):
             qvals += valid_moves
 
         assert step is not None
-        if step <= self.temp_steps:
+        if step < self.temp_steps:
             pi = exp_temp(qvals, self.temp, valid_moves)
         else:
             pi = exp_temp(qvals, 0, valid_moves)
@@ -215,13 +215,13 @@ class ActorCritic(Policy):
         self.pytorch_model.eval()
         state_tensor = torch.from_numpy(state[np.newaxis]).type(torch.FloatTensor)
         policy_scores, _ = self.pytorch_model(state_tensor)
-        policy_scores = policy_scores.detach().numpy()
+        policy_scores = policy_scores.detach().numpy()[0]
 
         valid_moves = GoGame.get_valid_moves(state)
         pi = exp_temp(policy_scores, self.temp, valid_moves)
         
         assert step is not None
-        temp = self.temp if step <= self.temp_steps else 0
+        temp = self.temp if step < self.temp_steps else 0
         pi = exp_temp(policy_scores, temp, valid_moves)
         return pi
 
