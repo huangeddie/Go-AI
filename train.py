@@ -33,7 +33,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     # Load parameters from disk
     curr_model.load_state_dict(torch.load(args.check_path))
     checkpoint_model.load_state_dict(torch.load(args.check_path))
-    optim = torch.optim.Adam(curr_model.parameters(), 1e-3) if rank == 0 else None
+    optim = torch.optim.Adam(curr_model.parameters(), args.learning_rate) if rank == 0 else None
 
     # Policies
     if args.agent == 'mcts':

@@ -20,6 +20,7 @@ def hyperparameters():
 
     parser.add_argument('--temp', type=float, default=1 / 16, help='initial temperature')
     parser.add_argument('--tempsteps', type=float, default=8, help='first k steps to apply temperature to pi')
+    parser.add_argument('--learning-rate', type=float, default=1e-3, help='learning rate for optimizer')
 
     parser.add_argument('--batchsize', type=int, default=64, help='batch size')
     parser.add_argument('--replaysize', type=int, default=400000, help='replay memory size')
