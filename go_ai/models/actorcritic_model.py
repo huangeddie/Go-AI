@@ -38,30 +38,6 @@ class ActorCriticNet(nn.Module):
             nn.ReLU(),
         )
 
-        # self.shared_fcs = nn.Sequential(
-        #     nn.Linear(4 * board_size ** 2, 256),
-        #     nn.BatchNorm1d(256),
-        #     nn.ReLU(),
-        #     nn.Linear(256, 256),
-        #     nn.BatchNorm1d(256),
-        #     nn.ReLU(),
-        #     nn.Linear(256, 256),
-        #     nn.BatchNorm1d(256),
-        #     nn.ReLU(),
-        #     nn.Linear(256, 256),
-        #     nn.BatchNorm1d(256),
-        #     nn.ReLU(),
-        #     nn.Linear(256, 256),
-        #     nn.BatchNorm1d(256),
-        #     nn.ReLU(),
-        #     nn.Linear(256, 256),
-        #     nn.BatchNorm1d(256),
-        #     nn.ReLU(),
-        #     nn.Linear(256, 256),
-        #     nn.BatchNorm1d(256),
-        #     nn.ReLU(),
-        # )
-
         action_size = GoGame.get_action_size(board_size=board_size)
         self.actor = nn.Sequential(
             nn.Linear(board_size ** 2, action_size),
@@ -108,8 +84,6 @@ def optimize(model, replay_data, optimizer, batch_size):
     batched_data = [np.array_split(component, N // batch_size) for component in replay_data]
     batched_data = list(zip(*batched_data))
 
-    val_func = policies.pytorch_to_numpy(CriticWrapper(model), logits=True)
-
     model.train()
     critic_running_loss = 0
     critic_running_acc = 0
@@ -134,6 +108,8 @@ def optimize(model, replay_data, optimizer, batch_size):
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * critic_running_acc / i, critic_running_loss / i))
     pbar.close()
 
+    val_func = policies.pytorch_to_numpy(CriticWrapper(model), logits=False)
+    
     actor_running_loss = 0
     actor_running_acc = 0
     batches = 0
@@ -141,17 +117,21 @@ def optimize(model, replay_data, optimizer, batch_size):
     for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(pbar, 1):
         # Augment
         states = data.batch_random_symmetries(states)
+        invalid_values = data.batch_invalid_values(states)
 
         states = torch.from_numpy(states).type(torch.FloatTensor)
         wins = torch.from_numpy(wins[:, np.newaxis]).type(torch.FloatTensor)
 
         optimizer.zero_grad()
         policy_scores, _ = model(states)
+        
         qvals = montecarlo.qval_from_stateval(states, val_func)[0]
+        qvals += invalid_values
         greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1)).type(torch.LongTensor)
+        
         loss = model.actor_criterion(policy_scores, greedy_actions)
-        if torch.isinf(loss).any():
-            print('Infinite loss!')
+        if (loss > 1000).any():
+            print('Big loss!')
             print('greedy_actions: ', greedy_actions)
             greedy_scores = []
             for j, a in enumerate(greedy_actions):

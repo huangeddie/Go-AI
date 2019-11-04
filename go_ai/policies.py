@@ -202,8 +202,8 @@ class MCTS(Policy):
 
 
 class ActorCritic(Policy):
-    def __init__(self, name, network, temp=0, temp_steps=0):
-        super(ActorCritic, self).__init__(name, temp, temp_steps)
+    def __init__(self, name, network):
+        super(ActorCritic, self).__init__(name)
         self.pytorch_model = network
 
     def __call__(self, state, step=None):
@@ -215,14 +215,8 @@ class ActorCritic(Policy):
         self.pytorch_model.eval()
         state_tensor = torch.from_numpy(state[np.newaxis]).type(torch.FloatTensor)
         policy_scores, _ = self.pytorch_model(state_tensor)
-        policy_scores = policy_scores.detach().numpy()[0]
-
-        valid_moves = GoGame.get_valid_moves(state)
-        pi = exp_temp(policy_scores, self.temp, valid_moves)
-        
-        assert step is not None
-        temp = self.temp if step < self.temp_steps else 0
-        pi = exp_temp(policy_scores, temp, valid_moves)
+        pi = torch.nn.functional.softmax(policy_scores, dim=1)
+        pi = pi.detach().numpy()[0]
         return pi
 
 
