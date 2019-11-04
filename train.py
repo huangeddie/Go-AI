@@ -51,7 +51,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     replay_len = 0
     check_winrate, rand_winrate, greedy_winrate = 0, 0, 0,
     pred_acc, pred_loss, actor_acc, actor_loss = 0, 0, 0, 0,
-    utils.parallel_out(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tACT_ACC\tACT_LOSS\tTEMP\tC_WR\tR_WR\tG_WR")
+    utils.parallel_out(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tACT_ACC\tA_LOSS\tTEMP\tC_WR\tR_WR\tG_WR")
     for iteration in range(args.iterations):
         # Log a Sample Trajectory
         if rank == 0 and args.demotraj_path is not None:
@@ -136,7 +136,6 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         # Print iteration summary
         currtime = datetime.now()
         delta = currtime - starttime
-        print(pred_acc, pred_loss, actor_acc, actor_loss)
         iter_info = f"{str(delta).split('.')[0]}\t{iteration}\t{replay_len:07d}" \
                     f"\t{100 * pred_acc:.1f}\t{pred_loss:.3f}\t{100 * actor_acc:.1f}" \
                     f"\t{actor_loss:.3f}\t{curr_pi.temp:.4f}\t{100 * check_winrate:.1f}" \
