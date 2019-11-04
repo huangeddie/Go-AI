@@ -203,7 +203,7 @@ class MCTS(Policy):
 
 class ActorCritic(Policy):
     def __init__(self, name, network):
-        super(ActorCritic, self).__init__(name)
+        super(ActorCritic, self).__init__(name, temp=0)
         self.pytorch_model = network
 
     def __call__(self, state, step=None):
