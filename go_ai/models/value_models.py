@@ -12,44 +12,49 @@ GoVars = gymgo.govars
 
 
 class ValueNet(nn.Module):
-    def __init__(self, board_size):
-        super(ValueNet, self).__init__()
-        self.convs = nn.Sequential(
-            nn.Conv2d(GoVars.NUM_CHNLS, 32, 3, padding=1),
+    def __init__(self, num_convs=8, num_fcs=2):
+        super().__init__()
+        assert num_convs >= 2
+        assert num_fcs >= 2
+
+        # Convolutions
+        convs = [
+            nn.Conv2d(6, 32, 3, padding=1),
             nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.Conv2d(32, 32, 3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
+            nn.ReLU()
+        ]
+
+        for i in range(num_convs - 2):
+            convs.extend([
+                nn.Conv2d(32, 32, 3, padding=1),
+                nn.BatchNorm2d(32),
+                nn.ReLU(),
+            ])
+        convs.extend([
             nn.Conv2d(32, 4, 1),
             nn.BatchNorm2d(4),
             nn.ReLU(),
-        )
+        ])
 
-        self.fcs = nn.Sequential(
-            nn.Linear(4 * board_size ** 2, 256),
+        self.convs = nn.Sequential(*convs)
+
+        # Fully Connected
+        fcs = [
+            nn.Linear(4 * 9 * 9, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 1)
-        )
+        ]
+
+        for i in range(num_fcs - 2):
+            fcs.extend([
+                nn.Linear(256, 256),
+                nn.BatchNorm1d(256),
+                nn.ReLU(),
+            ])
+
+        fcs.append(nn.Linear(256, 1))
+
+        self.fcs = nn.Sequential(*fcs)
 
         self.criterion = nn.BCEWithLogitsLoss()
 
