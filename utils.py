@@ -27,7 +27,7 @@ def hyperparameters():
 
     parser.add_argument('--iterations', type=int, default=128, help='iterations')
     parser.add_argument('--episodes', type=int, default=256, help='episodes')
-    parser.add_argument('--evaluations', type=int, default=128, help='episodes')
+    parser.add_argument('--evaluations', type=int, default=256, help='episodes')
     parser.add_argument('--eval-interval', type=int, default=1, help='iterations per evaluation')
 
     parser.add_argument('--episodes-dir', type=str, default='episodes/', help='directory to store episodes')
