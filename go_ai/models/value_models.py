@@ -12,7 +12,7 @@ GoVars = gymgo.govars
 
 
 class ValueNet(nn.Module):
-    def __init__(self, num_convs=8, num_fcs=2):
+    def __init__(self, boardsize, num_convs=8, num_fcs=2):
         super().__init__()
         assert num_convs >= 2
         assert num_fcs >= 2
@@ -40,7 +40,7 @@ class ValueNet(nn.Module):
 
         # Fully Connected
         fcs = [
-            nn.Linear(4 * 9 * 9, 256),
+            nn.Linear(4 * boardsize ** 2, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
         ]

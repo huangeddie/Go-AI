@@ -5,93 +5,80 @@ from go_ai.montecarlo import GoGame
 
 
 class Node:
-    def __init__(self, parentaction, state_value, state):
+    def __init__(self, parentaction, prior_value, state):
         '''
         Args:
             parent (?Node): parent Node
-            state_value (float): the state value of this node
+            prior_value (float): the state value of this node
             state: state of the game as a numpy array
         '''
         if parentaction is not None:
             self.parent = parentaction[0]
             self.parent.canon_children[parentaction[1]] = self
-            self.lastaction = parentaction[1]
+            self.actiontook = parentaction[1]
         else:
-            self.lastaction = None
+            self.actiontook = None
             self.parent = None
 
         self.height = self.parent.height + 1 if self.parent is not None else 0
-        # 1d array of the size that can hold the moves including pass,
-        # initially all None
         assert len(state.shape) == 3, (state, state.shape)
         assert state.shape[1] == state.shape[2], (state, state.shape)
-        board_size = state.shape[1]
-        self.canon_children = np.empty(board_size ** 2 + 1, dtype=object)
+
         self.state = state
+        self.prior_value = prior_value  # the value of this node prior to lookahead
         self.terminal = GoGame.get_game_ended(state)
-        # number of time this node was visited
-        self.value = state_value  # the evaluation of this node (value)
-        action_size = GoGame.get_action_size(state)
-        self.post_qsums = np.zeros(action_size)
-        self.move_visits = np.zeros(action_size)
+
+        # Visits
+        self.actionsize = GoGame.get_action_size(state)
+        self.canon_children = None
+        self.move_visits = np.zeros(self.actionsize)
         self.visits = 0
 
     def update_height(self, new_height):
         self.height = new_height
         children_height = self.height + 1
-        for child in self.canon_children:
-            if isinstance(child, Node):
-                child.update_height(children_height)
 
-    def visited(self):
-        return self.visits > 0
+        if not self.is_leaf():
+            for child in self.canon_children:
+                if isinstance(child, Node):
+                    child.update_height(children_height)
+
+    def latest_value(self):
+        if self.is_leaf():
+            return self.prior_value
+        else:
+            qs = []
+            for child in self.canon_children:
+                if child is None:
+                    qs.append(0)
+                else:
+                    qs.append(montecarlo.invert_val(child.latest_value()))
+            max_qval = max(qs)
+
+            # Average of prior of max q-val
+            return (self.prior_value + max_qval) / 2
 
     def is_leaf(self):
-        return not self.cached_children()
-
-    def cached_children(self):
-        return (self.canon_children != None).any()
-
-    def prior_q(self, move):
-        canon_child = self.canon_children[move]
-        return montecarlo.invert_qval(canon_child.value)
-
-    def prior_qs(self):
-        valid_moves = GoGame.get_valid_moves(self.state)
-        Qs = [(self.prior_q(move) if valid_moves[move] else 0) for move in range(GoGame.get_action_size(self.state))]
-        return np.array(Qs)
+        return self.canon_children is None
 
     def latest_q(self, move):
-        visits = self.move_visits[move]
-        if visits <= 0:
-            return self.prior_q(move)
-        else:
-            return (self.prior_q(move) + self.post_qsums[move]) / (1 + visits)
+        """
+        Assumes child exists
+        :param move:
+        :return:
+        """
+        return montecarlo.invert_val(self.canon_children[move].latest_value())
 
     def latest_qs(self):
-        valid_moves = GoGame.get_valid_moves(self.state)
-        Qs = []
-        for move in range(GoGame.get_action_size(self.state)):
-            if not valid_moves[move]:
-                # Invalid move (0)
-                Qs.append(0)
-                continue
-            Qs.append(self.latest_q(move))
+        qs = []
+        for child in self.canon_children:
+            if child is None:
+                qs.append(0)
+            else:
+                qs.append(montecarlo.invert_val(child.latest_value()))
 
-        return np.array(Qs)
-
-    def backup(self, parent_q):
-        '''
-        Description:
-            Recursively increases the number visited by 1 and increase the
-            q value increment from this node up to the root node.
-        '''
-        self.visits += 1
-        if isinstance(self.parent, Node):
-            self.parent.move_visits[self.lastaction] += 1
-            self.parent.post_qsums[self.lastaction] += parent_q
-            self.parent.backup(montecarlo.invert_qval(parent_q))
+        return np.array(qs)
 
     def __str__(self):
-        return '{} {}H {}V {}N'.format(np.sum(self.state[[0, 1]], axis=0), self.height, self.value,
+        return '{} {}H {}V {}N'.format(np.sum(self.state[[0, 1]], axis=0), self.height, self.prior_value,
                                        np.sum(self.move_visits))

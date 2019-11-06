@@ -11,7 +11,7 @@ class MyTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.random_policy = policies.Random()
         self.greedy_policy = policies.MCTS('Greedy', policies.greedy_val_func, num_searches=0, temp=0)
-        self.greedymct_pi = policies.MCTS('MCT', policies.greedy_val_func, num_searches=16, temp=0)
+        self.greedymct_pi = policies.MCTS('MCT', policies.greedy_val_func, num_searches=4, temp=0)
         self.go_env = gym.make('gym_go:go-v0', size=4)
         self.basedir = 'plots/'
 
@@ -20,7 +20,7 @@ class MyTestCase(unittest.TestCase):
     def test_starting_mct_search(self):
         state = self.go_env.reset()
         self.greedymct_pi.reset(state)
-        self.greedymct_pi(state)
+        self.greedymct_pi(state, 0)
         metrics.plot_mct(self.greedymct_pi.tree, self.basedir + 'basic_mcts.pdf', max_layers=8, max_branch=8)
 
     def test_rand_mct_search(self):
@@ -33,7 +33,7 @@ class MyTestCase(unittest.TestCase):
             self.go_env.step(a)
         state = self.go_env.get_canonical_state()
         self.greedymct_pi.reset(state)
-        self.greedymct_pi(state)
+        self.greedymct_pi(state, 0)
 
         metrics.plot_mct(self.greedymct_pi.tree, self.basedir + 'rand_mcts.pdf', max_layers=8, max_branch=8)
 

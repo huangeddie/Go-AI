@@ -23,15 +23,37 @@ def greedy_val_func(states):
             elif black_area < white_area:
                 val = 0
             else:
-                val = 0
+                val = 0.5
         else:
             val = (black_area - white_area + board_area) / (2 * board_area)
         vals.append(val)
     vals = np.array(vals, dtype=np.float)
     return vals[:, np.newaxis]
 
+def smart_greedy_val_func(states):
+    if len(states) <= 0:
+        return np.array([])
+    board_area = GoGame.get_action_size(states[0]) - 1
 
-def pytorch_to_numpy(model, logits):
+    vals = []
+    for state in states:
+        black_area, white_area = GoGame.get_areas(state)
+        blacklibs, whitelibs = GoGame.get_num_liberties(state)
+        if GoGame.get_game_ended(state):
+            if black_area > white_area:
+                val = 1
+            elif black_area < white_area:
+                val = 0
+            else:
+                val = 0.5
+        else:
+            val = (black_area + blacklibs - white_area - whitelibs + 2 * board_area) / (4 * board_area)
+        vals.append(val)
+    vals = np.array(vals, dtype=np.float)
+    return vals[:, np.newaxis]
+
+
+def pytorch_to_numpy(model, sigmoid):
     """
     Note: For now everything is assumed to be on CPU
     :param model:
@@ -43,10 +65,9 @@ def pytorch_to_numpy(model, logits):
         with torch.no_grad():
             states = torch.from_numpy(states).type(torch.FloatTensor)
             state_vals = model(states)
-            if logits:
-                pass
-            else:
+            if sigmoid:
                 state_vals = torch.sigmoid(state_vals)
+
             return state_vals.cpu().numpy()
 
     return val_func
@@ -148,7 +169,7 @@ class MCTS(Policy):
             self.pytorch_model = val_func
             logging.info("Saved Pytorch model")
             logging.info("Created Numpy value function from Pytorch model")
-            val_func = pytorch_to_numpy(val_func, logits=False)
+            val_func = pytorch_to_numpy(val_func, sigmoid=True)
 
         self.val_func = val_func
         self.num_searches = num_searches
@@ -202,4 +223,5 @@ class MCTS(Policy):
 
 RAND_PI = Random()
 GREEDY_PI = MCTS('Greedy', greedy_val_func, num_searches=0)
+SMART_GREEDY_PI = MCTS('Smart Greedy', smart_greedy_val_func, num_searches=0)
 HUMAN_PI = Human()

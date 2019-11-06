@@ -5,8 +5,8 @@ from sklearn.preprocessing import normalize
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
-def invert_qval(qval):
-    return 1 - qval
+def invert_val(val):
+    return 1 - val
 
 
 def canonical_winning(canonical_state):
@@ -36,7 +36,7 @@ def batch_canonical_children_states(states):
     return canonical_next_states
 
 
-def qval_from_stateval(states, val_func):
+def qs_from_stateval(states, val_func):
     """
     :param states:
     :param val_func:
@@ -57,7 +57,7 @@ def qval_from_stateval(states, val_func):
                 terminal = GoGame.get_game_ended(canonical_next_state)
                 winning = canonical_winning(canonical_next_state)
                 oppo_val = (1 - terminal) * canonical_next_vals[curr_idx].item() + (terminal) * winning
-                qval = invert_qval(oppo_val)
+                qval = invert_val(oppo_val)
                 Qs.append(qval)
                 curr_idx += 1
             else:

@@ -3,19 +3,41 @@ import unittest
 import gym
 
 from go_ai import game, policies
+from go_ai.models import value_models
+import utils
+import torch
 
 
 class MyTestCase(unittest.TestCase):
     def setUp(self) -> None:
         board_size = 5
-        self.greedy_mct_policy = policies.MCTS('MCTGreedy', policies.greedy_val_func, num_searches=board_size ** 2,
+        self.greedy_mct_policy = policies.MCTS('MCTGreedy', policies.greedy_val_func, num_searches=8,
                                                temp=0)
+
         self.go_env = gym.make('gym_go:go-v0', size=board_size)
 
-        self.num_games = 128
+        self.num_games = 256
+
+    def test_mctcheck_vs_check(self):
+        args = utils.hyperparameters()
+        checkpoint_model = value_models.ValueNet(9, 9)
+        checkpoint_model.load_state_dict(torch.load(args.check_path))
+        check = policies.MCTS('Checkpoint', checkpoint_model, 0, args.temp, args.tempsteps)
+        mct_check = policies.MCTS('Checkpoint', checkpoint_model, 4, args.temp, args.tempsteps)
+
+        self.go_env = gym.make('gym_go:go-v0', size=9)
+        win_rate, _ = game.play_games(self.go_env, mct_check, check, False, self.num_games)
+        print(win_rate)
+        self.assertGreaterEqual(win_rate, 0.6)
+
 
     def test_greed_vs_greed(self):
         win_rate, _ = game.play_games(self.go_env, policies.GREEDY_PI, policies.GREEDY_PI, False, self.num_games)
+        print(win_rate)
+        self.assertAlmostEqual(win_rate, 0.5, delta=0.1)
+
+    def test_smartgreed_vs_greed(self):
+        win_rate, _ = game.play_games(self.go_env, policies.SMART_GREEDY_PI, policies.GREEDY_PI, False, self.num_games)
         print(win_rate)
         self.assertAlmostEqual(win_rate, 0.5, delta=0.1)
 
@@ -55,7 +77,7 @@ class MyTestCase(unittest.TestCase):
     def test_mct_vs_greed(self):
         win_rate, _ = game.play_games(self.go_env, self.greedy_mct_policy, policies.GREEDY_PI, False, self.num_games)
         print(win_rate)
-        self.assertGreaterEqual(win_rate, 0.8)
+        self.assertGreaterEqual(win_rate, 0.6)
 
     def test_greed_vs_mct(self):
         win_rate, _ = game.play_games(self.go_env, policies.GREEDY_PI, self.greedy_mct_policy, False, self.num_games)

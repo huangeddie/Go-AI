@@ -22,7 +22,6 @@ class MCTree:
         canonical_state_val = val_func(canonical_state[np.newaxis])[0].item()
 
         self.root = Node(None, canonical_state_val, canonical_state)
-        assert not self.root.visited()
 
         assert canonical_state.shape[1] == canonical_state.shape[2]
         self.board_size = canonical_state.shape[1]
@@ -44,29 +43,23 @@ class MCTree:
         num_search = 0
         if num_searches <= 0:
             # Avoid making nodes and stuff
-            qvals, _ = montecarlo.qval_from_stateval(rootstate[np.newaxis], self.val_func)
+            qvals, _ = montecarlo.qs_from_stateval(rootstate[np.newaxis], self.val_func)
             qvals = qvals[0]
         else:
-            if not self.root.cached_children():
-                self.cache_children(self.root)
+            if self.root.is_leaf():
+                self.make_children(self.root)
 
-            while num_search < num_searches:
+            for _ in range(num_searches):
                 curr_node = self.root
-                # keep going down the tree with the best move
                 assert isinstance(curr_node, Node)
-                while not curr_node.terminal and curr_node.visited():
+                while not curr_node.is_leaf():
                     curr_node, move = self.select_best_child(curr_node)
+
+                assert curr_node.is_leaf()
                 if not curr_node.terminal:
-                    curr_node, move = self.select_best_child(curr_node)
-                if curr_node.height % 2 == 1 and not curr_node.terminal:
-                    # We want to end on our turn
-                    curr_node, move = self.select_best_child(curr_node)
+                    self.make_children(curr_node)
 
-                curr_node.parent.backup(curr_node.value)
-                curr_node.visits += 1
-
-                # increment search counter
-                num_search += 1
+                self.visit_ancestry(curr_node)
 
             qvals = self.root.latest_qs()
 
@@ -81,29 +74,23 @@ class MCTree:
             U = U_CONST * P / (1 + N), where P is action value.
             forward_func action probs
         """
-        if not node.cached_children():
-            self.cache_children(node)
+        assert not node.is_leaf()
 
         valid_moves = GoGame.get_valid_moves(node.state)
         invalid_values = (1 - valid_moves) * np.finfo(np.float).min
 
         Qs = node.latest_qs()
-        prior_qs = node.prior_qs()
-        prior_pi = montecarlo.exp_temp(prior_qs, 1, valid_moves)
-
-        assert np.sum(prior_pi) > 0
 
         N = node.move_visits
         all_visits = np.sum(N)
-        upper_confidence_bound = Qs + u_const * prior_pi * np.sqrt(all_visits) / (1 + N)
+        upper_confidence_bound = Qs + u_const * np.sqrt(all_visits) / (1 + N)
         best_move = np.argmax(upper_confidence_bound + invalid_values)
 
         return node.canon_children[best_move], best_move
 
-    def cache_children(self, node):
+    def make_children(self, node):
         """
-        Caches children for analysis by the forward function.
-        Cached children have zero visit count, N = 0
+        Makes children for analysis by the forward function.
         :param node:
         :return:
         """
@@ -112,11 +99,26 @@ class MCTree:
 
         valid_move_idcs = GoGame.get_valid_moves(node.state)
         valid_move_idcs = np.argwhere(valid_move_idcs > 0).flatten()
-        batch_qvals, batch_canonical_children = montecarlo.qval_from_stateval(node.state[np.newaxis], self.val_func)
+
+        batch_qvals, batch_canonical_children = montecarlo.qs_from_stateval(node.state[np.newaxis], self.val_func)
+        node.canon_children = np.empty(node.actionsize, dtype=object)
 
         for idx, move in enumerate(valid_move_idcs):
-            # Our qval is the negative state value of the canonical child
-            Node((node, move), montecarlo.invert_qval(batch_qvals[0][move].item()), batch_canonical_children[idx])
+            # Child's state val is the inverted q value of the parent
+            Node((node, move), montecarlo.invert_val(batch_qvals[0][move].item()), batch_canonical_children[idx])
+
+
+    def visit_ancestry(self, node):
+        curr_node = node
+        curr_node.visits += 1
+        while curr_node.parent is not None:
+            parent = curr_node.parent
+
+            actiontook = curr_node.actiontook
+            parent.move_visits[actiontook] += 1
+            parent.visits += 1
+
+            curr_node = curr_node.parent
 
     def step(self, action):
         '''
@@ -125,7 +127,7 @@ class MCTree:
         expand it.
         '''
         state = self.root.state
-        if self.root.cached_children():
+        if not self.root.is_leaf():
             canon_child = self.root.canon_children[action]
         else:
             childstate = GoGame.get_next_state(state, action)
