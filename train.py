@@ -8,7 +8,7 @@ from mpi4py import MPI
 
 import utils
 from go_ai import policies, game, metrics, data
-from go_ai.models import value_models
+from go_ai.models import value_models, actorcritic_model
 
 
 def worker_train(rank: int, args, comm: MPI.Intracomm):
@@ -23,17 +23,25 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         replay_data = data.load_replaydata(args.episodes_dir, rank)
 
     # Model
-    curr_model = value_models.ValueNet(args.boardsize)
-    checkpoint_model = value_models.ValueNet(args.boardsize)
+    if args.agent == 'mcts':
+        curr_model = value_models.ValueNet(args.boardsize)
+        checkpoint_model = value_models.ValueNet(args.boardsize)
+    elif args.agent == 'ac':
+        curr_model = actorcritic_model.ActorCriticNet(args.boardsize)
+        checkpoint_model = actorcritic_model.ActorCriticNet(args.boardsize)
 
     # Load parameters from disk
     curr_model.load_state_dict(torch.load(args.check_path))
     checkpoint_model.load_state_dict(torch.load(args.check_path))
-    optim = torch.optim.Adam(curr_model.parameters(), 1e-3) if rank == 0 else None
+    optim = torch.optim.Adam(curr_model.parameters(), args.learning_rate) if rank == 0 else None
 
     # Policies
-    curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
-    checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
+    if args.agent == 'mcts':
+        curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
+        checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
+    elif args.agent == 'ac':
+        curr_pi = policies.ActorCritic('Current', curr_model)
+        checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
 
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize)
@@ -42,8 +50,8 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     starttime = datetime.now()
     replay_len = 0
     check_winrate, rand_winrate, greedy_winrate = 0, 0, 0,
-    pred_acc, pred_loss = 0, 0
-    utils.parallel_out(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tTEMP\tC_WR\tR_WR\tG_WR")
+    pred_acc, pred_loss, actor_acc, actor_loss = 0, 0, 0, 0,
+    utils.parallel_out(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tACT_ACC\tA_LOSS\tTEMP\tC_WR\tR_WR\tG_WR")
     for iteration in range(args.iterations):
         # Log a Sample Trajectory
         if rank == 0 and args.demotraj_path is not None:
@@ -75,8 +83,13 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
 
             # Optimize
             utils.parallel_err(rank, 'Optimizing on worker 0...')
-            pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, args.batchsize)
-            utils.parallel_err(rank, f'Optimized: {100*pred_acc:.1f}% {pred_loss:.3f}L')
+            if args.agent == 'mcts':
+                pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, args.batchsize)
+                actor_acc = 0
+                actor_loss = 0
+            elif args.agent == 'ac':
+                pred_acc, pred_loss, actor_acc, actor_loss = actorcritic_model.optimize(curr_model, train_data, optim, args.batchsize)
+            utils.parallel_err(rank, f'Optimized: {100*pred_acc:.1f}% {pred_loss:.3f}L {100*actor_acc:.1f}% {actor_loss:.3f}L')
 
             torch.save(curr_model.state_dict(), args.tmp_path)
         comm.Barrier()
@@ -123,9 +136,10 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         # Print iteration summary
         currtime = datetime.now()
         delta = currtime - starttime
-        iter_info = f"{str(delta).split('.')[0]}\t{iteration}\t{replay_len:07d}\t{100 * pred_acc:.1f}" \
-                    f"\t{pred_loss:.3f}\t{curr_pi.temp:.4f}\t{100 * check_winrate:.1f}\t{100 * rand_winrate:.1f}" \
-                    f"\t{100 * greedy_winrate:.1f}"
+        iter_info = f"{str(delta).split('.')[0]}\t{iteration}\t{replay_len:07d}" \
+                    f"\t{100 * pred_acc:.1f}\t{pred_loss:.3f}\t{100 * actor_acc:.1f}" \
+                    f"\t{actor_loss:.3f}\t{curr_pi.temp:.4f}\t{100 * check_winrate:.1f}" \
+                    f"\t{100 * rand_winrate:.1f}\t{100 * greedy_winrate:.1f}"
         utils.parallel_out(rank, iter_info)
 
 

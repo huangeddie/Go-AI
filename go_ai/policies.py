@@ -2,6 +2,7 @@ import logging
 
 import gym
 import numpy as np
+import torch
 
 from go_ai.montecarlo import tree, exp_temp
 from utils import *
@@ -47,7 +48,7 @@ def pytorch_to_numpy(model, logits):
                 pass
             else:
                 state_vals = torch.sigmoid(state_vals)
-            return state_vals.cpu().numpy()
+            return state_vals.detach().numpy()
 
     return val_func
 
@@ -198,6 +199,25 @@ class MCTS(Policy):
 
     def __str__(self):
         return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.4f}T]-{self.name}"
+
+
+class ActorCritic(Policy):
+    def __init__(self, name, network):
+        super(ActorCritic, self).__init__(name, temp=0)
+        self.pytorch_model = network
+
+    def __call__(self, state, step=None):
+        """
+        :param state: Current state to act on
+        :param step: Parameter used for getting the temperature
+        :return: Action probabilities
+        """
+        self.pytorch_model.eval()
+        state_tensor = torch.from_numpy(state[np.newaxis]).type(torch.FloatTensor)
+        policy_scores, _ = self.pytorch_model(state_tensor)
+        pi = torch.nn.functional.softmax(policy_scores, dim=1)
+        pi = pi.detach().numpy()[0]
+        return pi
 
 
 RAND_PI = Random()

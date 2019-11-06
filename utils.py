@@ -7,7 +7,7 @@ from mpi4py import MPI
 from tqdm import tqdm
 
 from go_ai import data
-from go_ai.models import value_models
+from go_ai.models import value_models, actorcritic_model
 import time
 
 
@@ -20,6 +20,7 @@ def hyperparameters():
 
     parser.add_argument('--temp', type=float, default=1 / 32, help='initial temperature')
     parser.add_argument('--tempsteps', type=float, default=8, help='first k steps to apply temperature to pi')
+    parser.add_argument('--learning-rate', type=float, default=1e-3, help='learning rate for optimizer')
 
     parser.add_argument('--batchsize', type=int, default=64, help='batch size')
     parser.add_argument('--replaysize', type=int, default=400000, help='replay memory size')
@@ -34,6 +35,8 @@ def hyperparameters():
     parser.add_argument('--check-path', type=str, default='checkpoints/checkpoint.pt', help='model path for checkpoint')
     parser.add_argument('--tmp-path', type=str, default='checkpoints/tmp.pt', help='model path for temp model')
     parser.add_argument('--demotraj-path', type=str, help='path for sample trajectory')
+    
+    parser.add_argument('--agent', type=str, choices=['mcts', 'ac'], default='mcts', help='type of agent/model')
 
     return parser.parse_args()
 
@@ -77,7 +80,10 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             episodes_dir = args.episodes_dir
             data.clear_episodes_dir(episodes_dir)
             # Set parameters
-            new_model = value_models.ValueNet(args.boardsize)
+            if args.agent == 'mcts':
+                new_model = value_models.ValueNet(args.boardsize)
+            elif args.agent == 'ac':
+                new_model = actorcritic_model.ActorCriticNet(args.boardsize)
             torch.save(new_model.state_dict(), args.check_path)
     parallel_err(rank, "Using checkpoint: {}".format(args.checkpoint))
     comm.Barrier()
