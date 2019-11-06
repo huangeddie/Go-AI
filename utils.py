@@ -19,7 +19,7 @@ def hyperparameters():
     parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches')
 
     parser.add_argument('--temp', type=float, default=1 / 32, help='initial temperature')
-    parser.add_argument('--tempsteps', type=float, default=16, help='first k steps to apply temperature to pi')
+    parser.add_argument('--tempsteps', type=float, default=8, help='first k steps to apply temperature to pi')
     parser.add_argument('--learning-rate', type=float, default=1e-3, help='learning rate for optimizer')
 
     parser.add_argument('--batchsize', type=int, default=64, help='batch size')
@@ -28,7 +28,7 @@ def hyperparameters():
 
     parser.add_argument('--iterations', type=int, default=128, help='iterations')
     parser.add_argument('--episodes', type=int, default=256, help='episodes')
-    parser.add_argument('--evaluations', type=int, default=128, help='episodes')
+    parser.add_argument('--evaluations', type=int, default=256, help='episodes')
     parser.add_argument('--eval-interval', type=int, default=1, help='iterations per evaluation')
 
     parser.add_argument('--episodes-dir', type=str, default='episodes/', help='directory to store episodes')
