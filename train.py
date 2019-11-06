@@ -1,5 +1,4 @@
 import collections
-import random
 from datetime import datetime
 
 import gym
@@ -21,37 +20,38 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     # Load replay data if any
     if args.checkpoint:
         replay_data = data.load_replaydata(args.episodes_dir, rank)
+        utils.parallel_err(rank, 'Loaded replay data')
 
-    # Model
+    # Policies and Model
     if args.agent == 'mcts':
         curr_model = value_models.ValueNet(args.boardsize)
         checkpoint_model = value_models.ValueNet(args.boardsize)
+        curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
+        checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
     elif args.agent == 'ac':
         curr_model = actorcritic_model.ActorCriticNet(args.boardsize)
         checkpoint_model = actorcritic_model.ActorCriticNet(args.boardsize)
+        curr_pi = policies.ActorCritic('Current', curr_model)
+        checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
+    else:
+        raise Exception("Unknown Agent Argument", args.agent)
 
-    # Load parameters from disk
+    # Sync parameters from disk
     curr_model.load_state_dict(torch.load(args.check_path))
     checkpoint_model.load_state_dict(torch.load(args.check_path))
     optim = torch.optim.Adam(curr_model.parameters(), args.learning_rate) if rank == 0 else None
 
-    # Policies
-    if args.agent == 'mcts':
-        curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
-        checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
-    elif args.agent == 'ac':
-        curr_pi = policies.ActorCritic('Current', curr_model)
-        checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
-
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize)
+
+    # Header output
+    utils.parallel_out(rank, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
 
     # Training
     starttime = datetime.now()
     replay_len = 0
     check_winrate, rand_winrate, greedy_winrate = 0, 0, 0,
-    pred_acc, pred_loss, actor_acc, actor_loss = 0, 0, 0, 0,
-    utils.parallel_out(rank, "TIME\tITR\tREPLAY\tACCUR\tLOSS\tACT_ACC\tA_LOSS\tTEMP\tC_WR\tR_WR\tG_WR")
+    crit_acc, crit_loss, act_acc, act_loss = 0, 0, 0, 0,
     for iteration in range(args.iterations):
         # Log a Sample Trajectory
         if rank == 0 and args.demotraj_path is not None:
@@ -59,9 +59,9 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             utils.parallel_err(rank, "Plotted trajectory")
 
         # Play episodes
-        wr, trajectories = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, args.episodes // comm.Get_size())
-        wr = comm.allreduce(wr, op=MPI.SUM) / comm.Get_size()
-        utils.parallel_err(rank, f'W/L distribution: {100 * wr:.1f}')
+        wr, trajectories, avg_gametime = utils.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True,
+                                                             args.episodes)
+        utils.parallel_err(rank, f'{checkpoint_pi} V {checkpoint_pi} | {avg_gametime:.1f}S/GAME, {100 * wr:.1f}% WIN')
         replay_data.extend(trajectories)
 
         # Write episodes
@@ -69,27 +69,18 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         comm.Barrier()
         utils.parallel_err(rank, 'Wrote all replay data to disk')
 
-
         # Optimize
         if rank == 0:
-            all_data = data.load_replaydata(args.episodes_dir)
-            utils.parallel_err(rank, 'Loaded all replay data to worker 0')
-            replay_len = len(all_data)
-            train_data = random.sample(all_data, min(args.trainstep_size, len(all_data)))
-            train_data = data.replaylist_to_numpy(train_data)
-
-            # Save memory
-            del all_data
+            # Sample data as batches
+            trainadata, replay_len = data.sample_replaydata(args.episodes_dir, args.trainstep_size, args.batchsize)
 
             # Optimize
             utils.parallel_err(rank, 'Optimizing on worker 0...')
             if args.agent == 'mcts':
-                pred_acc, pred_loss = value_models.optimize(curr_model, train_data, optim, args.batchsize)
-                actor_acc = 0
-                actor_loss = 0
+                crit_acc, crit_loss = value_models.optimize(curr_model, trainadata, optim)
+                act_acc, act_loss = 0, 0
             elif args.agent == 'ac':
-                pred_acc, pred_loss, actor_acc, actor_loss = actorcritic_model.optimize(curr_model, train_data, optim, args.batchsize)
-            utils.parallel_err(rank, f'Optimized: {100*pred_acc:.1f}% {pred_loss:.3f}L {100*actor_acc:.1f}% {actor_loss:.3f}L')
+                crit_acc, crit_loss, act_acc, act_loss = actorcritic_model.optimize(curr_model, trainadata, optim)
 
             torch.save(curr_model.state_dict(), args.tmp_path)
         comm.Barrier()
@@ -102,9 +93,9 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             # See how this new model compares
             for opponent in [checkpoint_pi, policies.RAND_PI, policies.GREEDY_PI]:
                 # Play some games
-                wr, _ = game.play_games(go_env, curr_pi, opponent, False, args.evaluations // comm.Get_size())
-                wr = comm.allreduce(wr, op=MPI.SUM) / comm.Get_size()
-                utils.parallel_err(rank, f"{curr_pi} V {opponent} - {100 * wr:.3f}")
+                wr, _, avg_gametime = utils.parallel_play(comm, go_env, curr_pi, opponent, False,
+                                                                     args.evaluations)
+                utils.parallel_err(rank, f'{curr_pi} V {opponent} | {avg_gametime:.1f}S/GAME, {100 * wr:.1f}% WIN')
 
                 # Do stuff based on the opponent we faced
                 if opponent == checkpoint_pi:
@@ -136,10 +127,10 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         # Print iteration summary
         currtime = datetime.now()
         delta = currtime - starttime
-        iter_info = f"{str(delta).split('.')[0]}\t{iteration}\t{replay_len:07d}" \
-                    f"\t{100 * pred_acc:.1f}\t{pred_loss:.3f}\t{100 * actor_acc:.1f}" \
-                    f"\t{actor_loss:.3f}\t{curr_pi.temp:.4f}\t{100 * check_winrate:.1f}" \
-                    f"\t{100 * rand_winrate:.1f}\t{100 * greedy_winrate:.1f}"
+        iter_info = f"{str(delta).split('.')[0]}\t{iteration:02d}\t{replay_len:07d}\t" \
+                    f"{100 * crit_acc:04.1f}\t{crit_loss:04.3f}\t" \
+                    f"{100 * act_acc:04.1f}\t{act_loss:04.3f}\t" \
+                    f"{100 * check_winrate:04.1f}\t{100 * rand_winrate:04.1f}\t{100 * greedy_winrate:04.1f}"
         utils.parallel_out(rank, iter_info)
 
 
@@ -152,6 +143,7 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     world_size = int(comm.Get_size())
 
-    utils.parallel_err(rank, f'{world_size} Workers, Board Size {args.boardsize}, Temp {args.temp:.4f}')
+    utils.parallel_err(rank, f"{world_size} Workers, Board Size {args.boardsize}, Model '{args.agent}', "
+                             f'Temp {args.temp:.4f}')
 
     worker_train(rank, args, comm)

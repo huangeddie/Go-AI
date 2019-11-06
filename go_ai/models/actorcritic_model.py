@@ -76,18 +76,11 @@ class CriticWrapper(nn.Module):
         self.net.train()
 
 
-def optimize(model, replay_data, optimizer, batch_size):
-    N = len(replay_data[0])
-    for component in replay_data:
-        assert len(component) == N
-
-    batched_data = [np.array_split(component, N // batch_size) for component in replay_data]
-    batched_data = list(zip(*batched_data))
-
+def optimize(model, batched_data, optimizer):
     model.train()
     critic_running_loss = 0
     critic_running_acc = 0
-    pbar = tqdm(batched_data, desc="Optimizing critic", leave=False)
+    pbar = tqdm(batched_data, desc="Optimizing critic", leave=True)
     for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(pbar, 1):
         # Augment
         states = data.batch_random_symmetries(states)
@@ -106,29 +99,27 @@ def optimize(model, replay_data, optimizer, batch_size):
         critic_running_acc += torch.mean((pred_wins == wins).type(torch.FloatTensor)).item()
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * critic_running_acc / i, critic_running_loss / i))
-    pbar.close()
 
-    val_func = policies.pytorch_to_numpy(CriticWrapper(model), logits=False)
-    
+    val_func = policies.pytorch_to_numpy(CriticWrapper(model), sigmoid=True)
+
     actor_running_loss = 0
     actor_running_acc = 0
     batches = 0
-    pbar = tqdm(batched_data, desc="Optimizing actor", leave=False)
+    pbar = tqdm(batched_data, desc="Optimizing actor", leave=True)
     for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(pbar, 1):
         # Augment
         states = data.batch_random_symmetries(states)
         invalid_values = data.batch_invalid_values(states)
 
         states = torch.from_numpy(states).type(torch.FloatTensor)
-        wins = torch.from_numpy(wins[:, np.newaxis]).type(torch.FloatTensor)
 
         optimizer.zero_grad()
         policy_scores, _ = model(states)
-        
-        qvals = montecarlo.qval_from_stateval(states, val_func)[0]
+
+        qvals = montecarlo.qs_from_stateval(states, val_func)[0]
         qvals += invalid_values
         greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1)).type(torch.LongTensor)
-        
+
         loss = model.actor_criterion(policy_scores, greedy_actions)
         if (loss > 1000).any():
             print('Big loss!')
@@ -139,14 +130,13 @@ def optimize(model, replay_data, optimizer, batch_size):
             print('policy_scores[greedy]: ', greedy_scores)
         loss.backward()
         optimizer.step()
-        
+
         pred_actions = torch.argmax(policy_scores, dim=1)
         actor_running_loss += loss.item()
         actor_running_acc += torch.mean((pred_actions == greedy_actions).type(torch.FloatTensor)).item()
         batches = i
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * actor_running_acc / i, actor_running_loss / i))
-    pbar.close()
-    
+
     return (critic_running_acc / batches, critic_running_loss / batches,
-        actor_running_acc / batches, actor_running_loss / batches)
+            actor_running_acc / batches, actor_running_loss / batches)

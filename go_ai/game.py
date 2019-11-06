@@ -8,10 +8,13 @@ GoVars = go_env.govars
 GoGame = go_env.gogame
 
 
-def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Policy, get_traj, episodes):
+def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Policy, get_traj, episodes, progress=True):
     replay_data = []
     wins = 0
-    pbar = tqdm(range(1, episodes + 1), desc="{} vs. {}".format(first_policy, second_policy), leave=False)
+    if progress:
+        pbar = tqdm(range(1, episodes + 1), desc="{} vs. {}".format(first_policy, second_policy), leave=True)
+    else:
+        pbar = range(1, episodes + 1)
     for i in pbar:
         go_env.reset()
         if i % 2 == 0:
@@ -21,7 +24,8 @@ def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Po
             w = 1 - w
         wins += w
         replay_data.extend(traj)
-        pbar.set_postfix_str("{:.1f}%".format(100 * wins / i))
+        if isinstance(pbar, tqdm):
+            pbar.set_postfix_str("{:.1f}%".format(100 * wins / i))
 
     return wins / episodes, replay_data
 

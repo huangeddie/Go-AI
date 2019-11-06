@@ -6,7 +6,7 @@ import torch
 from mpi4py import MPI
 from tqdm import tqdm
 
-from go_ai import data
+from go_ai import data, game
 from go_ai.models import value_models, actorcritic_model
 import time
 
@@ -40,6 +40,24 @@ def hyperparameters():
 
     return parser.parse_args()
 
+def parallel_play(comm, go_env, pi1, pi2, gettraj, episodes):
+    """
+    Plays games in parallel
+    :param comm:
+    :param go_env:
+    :param pi1:
+    :param pi2:
+    :param gettraj:
+    :param episodes:
+    :return:
+    """
+    timestart = time.time()
+    worker_episodes = episodes // comm.Get_size()
+    winrate, traj = game.play_games(go_env, pi1, pi2, gettraj, worker_episodes, progress=False)
+    winrate = comm.allreduce(winrate, op=MPI.SUM) / comm.Get_size()
+    timeend = time.time()
+    duration = timeend - timestart
+    return winrate, traj, duration / worker_episodes
 
 def sync_checkpoint(rank, comm: MPI.Intracomm, newcheckpoint_pi, check_path, other_pi):
     if rank == 0:

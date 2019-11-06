@@ -3,10 +3,12 @@ import pickle
 
 import gym
 import numpy as np
+import random
 
 go_env = gym.make('gym_go:go-v0', size=0)
 GoVars = go_env.govars
 GoGame = go_env.gogame
+
 
 
 def batch_invalid_moves(states):
@@ -14,9 +16,9 @@ def batch_invalid_moves(states):
     Returns 1's where moves are invalid and 0's where moves are valid
     """
     assert len(states.shape) == 4
-    batch_size = states.shape[0]
+    batchsize = states.shape[0]
     board_size = states.shape[2]
-    invalid_moves = states[:, GoVars.INVD_CHNL].reshape((batch_size, -1))
+    invalid_moves = states[:, GoVars.INVD_CHNL].reshape((batchsize, -1))
     invalid_moves = np.insert(invalid_moves, board_size ** 2, 0, axis=1)
     return invalid_moves
 
@@ -78,6 +80,28 @@ def load_replaydata(episodes_dir, worker_rank=None):
                 worker_data = pickle.load(f)
                 all_data.extend(worker_data)
     return all_data
+
+def sample_replaydata(episodes_dir, request_size, batchsize):
+    """
+    :param episodes_dir:
+    :param request_size:
+    :param batchsize:
+    :return: Batches of sample data, len of total data that was sampled
+    """
+    all_data = load_replaydata(episodes_dir)
+    replay_len = len(all_data)
+    sample_data = random.sample(all_data, min(request_size, replay_len))
+    sample_data = replaylist_to_numpy(sample_data)
+
+    sample_size = len(sample_data[0])
+    for component in sample_data:
+        assert len(component) == sample_size
+
+    batched_sampledata = [np.array_split(component, sample_size // batchsize) for component in sample_data]
+    batched_sampledata = list(zip(*batched_sampledata))
+
+    return batched_sampledata, replay_len
+
 
 
 def save_replaydata(worker_rank, replay_data, episodes_dir):
