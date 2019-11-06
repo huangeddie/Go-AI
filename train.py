@@ -59,6 +59,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             utils.parallel_err(rank, "Plotted trajectory")
 
         # Play episodes
+        utils.parallel_err(rank, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}')
         wr, trajectories, avg_gametime = utils.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True,
                                                              args.episodes)
         utils.parallel_err(rank, f'{checkpoint_pi} V {checkpoint_pi} | {avg_gametime:.1f}S/GAME, {100 * wr:.1f}% WIN')
@@ -93,6 +94,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             # See how this new model compares
             for opponent in [checkpoint_pi, policies.RAND_PI, policies.GREEDY_PI]:
                 # Play some games
+                utils.parallel_err(rank, f'Pitting {curr_pi} V {opponent}')
                 wr, _, avg_gametime = utils.parallel_play(comm, go_env, curr_pi, opponent, False,
                                                                      args.evaluations)
                 utils.parallel_err(rank, f'{curr_pi} V {opponent} | {avg_gametime:.1f}S/GAME, {100 * wr:.1f}% WIN')
