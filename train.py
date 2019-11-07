@@ -6,7 +6,7 @@ import torch
 from mpi4py import MPI
 
 import utils
-from go_ai import policies, game, metrics, data
+from go_ai import policies, metrics, data
 from go_ai.models import value_model, actorcritic_model
 
 
@@ -91,7 +91,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                 # Play some games
                 utils.parallel_err(rank, f'Pitting {curr_pi} V {opponent}')
                 wr, _, avg_gametime = utils.parallel_play(comm, go_env, curr_pi, opponent, False,
-                                                                     args.evaluations)
+                                                          args.evaluations)
                 utils.parallel_err(rank, f'{curr_pi} V {opponent} | {avg_gametime:.1f}S/GAME, {100 * wr:.1f}% WIN')
 
                 # Do stuff based on the opponent we faced

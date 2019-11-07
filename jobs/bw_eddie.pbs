@@ -1,0 +1,13 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=16:xk
+#PBS -l walltime=12:00:00
+#PBS -N go_ai
+#PBS -e checkpoints/log.txt
+#PBS -o checkpoints/stats.txt
+#PBS -q cs
+module load python/2.0.1
+
+cd $PBS_O_WORKDIR
+echo -n >checkpoints/stats.txt
+echo -n >checkpoints/log.txt
+mpiexec -n 64 -bind-to core python3.6 train.py --boardsize=9 --episodesdir=/u/training/tra184/scratch/ --checkpoint=True
