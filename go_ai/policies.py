@@ -2,7 +2,6 @@ import logging
 
 import gym
 import numpy as np
-import torch
 
 from go_ai.montecarlo import tree, exp_temp
 from utils import *
@@ -56,13 +55,13 @@ def smart_greedy_val_func(states):
 
 def pytorch_to_numpy(model, sigmoid):
     """
-    Note: For now everything is assumed to be on CPU
     :param model:
     :return: The numpy equivalent of the pytorch value model
     """
 
     def val_func(states):
         dtype = next(model.parameters()).type()
+        print(dtype)
         model.eval()
         with torch.no_grad():
             states = torch.from_numpy(states).type(dtype)
@@ -168,8 +167,6 @@ class MCTS(Policy):
         super(MCTS, self).__init__(name, temp, temp_steps)
         if isinstance(val_func, torch.nn.Module):
             self.pytorch_model = val_func
-            logging.info("Saved Pytorch model")
-            logging.info("Created Numpy value function from Pytorch model")
             val_func = pytorch_to_numpy(val_func, sigmoid=True)
 
         self.val_func = val_func
