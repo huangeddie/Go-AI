@@ -4,7 +4,6 @@
 #PBS -N go_ai
 #PBS -e checkpoints/log.txt
 #PBS -o checkpoints/stats.txt
-#PBS -q cs
 module load python/2.0.1
 
 cd $PBS_O_WORKDIR
