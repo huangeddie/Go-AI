@@ -9,4 +9,4 @@ module load python/2.0.1
 cd $PBS_O_WORKDIR
 echo -n >checkpoints/stats.txt
 echo -n >checkpoints/log.txt
-aprun -n 16 -bind-to core python3.6 train.py --boardsize=9 --episodesdir=/u/training/tra184/scratch/ --checkpoint=True
+aprun -n 16 python3.6 train.py --boardsize=9 --episodesdir=/u/training/tra184/scratch/ --checkpoint=True
