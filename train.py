@@ -17,11 +17,6 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     # Set parameters and episode data on disk
     utils.sync_data(rank, comm, args)
 
-    # Load replay data if any
-    if args.checkpoint:
-        replay_data = data.load_replaydata(args.episodesdir, rank)
-        utils.parallel_err(rank, 'Loaded replay data')
-
     # Policies and Model
     if args.agent == 'mcts':
         curr_model = value_model.ValueNet(args.boardsize)
