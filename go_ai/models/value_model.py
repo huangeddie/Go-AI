@@ -81,7 +81,7 @@ class ValueNet(nn.Module):
 def optimize(model: torch.nn.Module, batched_data, optimizer):
 
     model.train()
-    dtype = next(model.parameters()).dtype
+    dtype = next(model.parameters()).type()
     running_loss = 0
     running_acc = 0
     batches = 0

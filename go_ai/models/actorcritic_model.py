@@ -78,7 +78,7 @@ class CriticWrapper(nn.Module):
 
 def optimize(model, batched_data, optimizer):
     model.train()
-    dtype = next(model.parameters()).dtype
+    dtype = next(model.parameters()).type()
     critic_running_loss = 0
     critic_running_acc = 0
     pbar = tqdm(batched_data, desc="Optimizing critic", leave=True)
