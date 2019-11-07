@@ -3,7 +3,7 @@ import unittest
 import gym
 
 from go_ai import game, policies
-from go_ai.models import value_models
+from go_ai.models import value_model
 import utils
 import torch
 
@@ -20,8 +20,8 @@ class MyTestCase(unittest.TestCase):
 
     def test_mctcheck_vs_check(self):
         args = utils.hyperparameters()
-        checkpoint_model = value_models.ValueNet(9, 9)
-        checkpoint_model.load_state_dict(torch.load(args.check_path))
+        checkpoint_model = value_model.ValueNet(9, 9)
+        checkpoint_model.load_state_dict(torch.load(args.checkpath))
         check = policies.MCTS('Checkpoint', checkpoint_model, 0, args.temp, args.tempsteps)
         mct_check = policies.MCTS('Checkpoint', checkpoint_model, 4, args.temp, args.tempsteps)
 

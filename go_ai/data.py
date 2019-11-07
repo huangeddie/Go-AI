@@ -63,32 +63,32 @@ def replaylist_to_numpy(replay_mem):
     return states, actions, next_states, rewards, terminals, wins
 
 
-def load_replaydata(episodes_dir, worker_rank=None):
+def load_replaydata(episodesdir, worker_rank=None):
     """
     Loads replay data from a directory.
-    :param episodes_dir:
+    :param episodesdir:
     :param worker_rank: If specified, loads only that specific worker's data. Otherwise it loads all data from all workers
     :return:
     """
     all_data = []
-    files = os.listdir(episodes_dir)
+    files = os.listdir(episodesdir)
     for file in files:
         if '.pickle' in file:
             if worker_rank is not None and str(worker_rank) not in file:
                 continue
-            with open(episodes_dir + file, 'rb') as f:
+            with open(episodesdir + file, 'rb') as f:
                 worker_data = pickle.load(f)
                 all_data.extend(worker_data)
     return all_data
 
-def sample_replaydata(episodes_dir, request_size, batchsize):
+def sample_replaydata(episodesdir, request_size, batchsize):
     """
-    :param episodes_dir:
+    :param episodesdir:
     :param request_size:
     :param batchsize:
     :return: Batches of sample data, len of total data that was sampled
     """
-    all_data = load_replaydata(episodes_dir)
+    all_data = load_replaydata(episodesdir)
     replay_len = len(all_data)
     sample_data = random.sample(all_data, min(request_size, replay_len))
     sample_data = replaylist_to_numpy(sample_data)
@@ -104,14 +104,14 @@ def sample_replaydata(episodes_dir, request_size, batchsize):
 
 
 
-def save_replaydata(worker_rank, replay_data, episodes_dir):
-    outpath = os.path.join(episodes_dir, "worker_{}.pickle".format(worker_rank))
+def save_replaydata(worker_rank, replay_data, episodesdir):
+    outpath = os.path.join(episodesdir, "worker_{}.pickle".format(worker_rank))
     with open(outpath, 'wb') as f:
         pickle.dump(replay_data, f)
 
 
-def clear_episodes_dir(episodes_dir):
-    episode_files = os.listdir(episodes_dir)
+def clear_episodesdir(episodesdir):
+    episode_files = os.listdir(episodesdir)
     for item in episode_files:
         if item.endswith(".pickle"):
-            os.remove(os.path.join(episodes_dir, item))
+            os.remove(os.path.join(episodesdir, item))

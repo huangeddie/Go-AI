@@ -7,7 +7,7 @@ from mpi4py import MPI
 
 import utils
 from go_ai import policies, game, metrics, data
-from go_ai.models import value_models, actorcritic_model
+from go_ai.models import value_model, actorcritic_model
 
 
 def worker_train(rank: int, args, comm: MPI.Intracomm):
@@ -19,13 +19,13 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
 
     # Load replay data if any
     if args.checkpoint:
-        replay_data = data.load_replaydata(args.episodes_dir, rank)
+        replay_data = data.load_replaydata(args.episodesdir, rank)
         utils.parallel_err(rank, 'Loaded replay data')
 
     # Policies and Model
     if args.agent == 'mcts':
-        curr_model = value_models.ValueNet(args.boardsize)
-        checkpoint_model = value_models.ValueNet(args.boardsize)
+        curr_model = value_model.ValueNet(args.boardsize)
+        checkpoint_model = value_model.ValueNet(args.boardsize)
         curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
         checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
     elif args.agent == 'ac':
@@ -37,9 +37,9 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         raise Exception("Unknown Agent Argument", args.agent)
 
     # Sync parameters from disk
-    curr_model.load_state_dict(torch.load(args.check_path))
-    checkpoint_model.load_state_dict(torch.load(args.check_path))
-    optim = torch.optim.Adam(curr_model.parameters(), args.learning_rate) if rank == 0 else None
+    curr_model.load_state_dict(torch.load(args.checkpath))
+    checkpoint_model.load_state_dict(torch.load(args.checkpath))
+    optim = torch.optim.Adam(curr_model.parameters(), args.lr) if rank == 0 else None
 
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize)
@@ -54,8 +54,8 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     crit_acc, crit_loss, act_acc, act_loss = 0, 0, 0, 0,
     for iteration in range(args.iterations):
         # Log a Sample Trajectory
-        if rank == 0 and args.demotraj_path is not None:
-            metrics.plot_traj_fig(go_env, checkpoint_pi, args.demotraj_path)
+        if rank == 0 and args.trajpath is not None:
+            metrics.plot_traj_fig(go_env, checkpoint_pi, args.trajpath)
             utils.parallel_err(rank, "Plotted trajectory")
 
         # Play episodes
@@ -66,28 +66,28 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         replay_data.extend(trajectories)
 
         # Write episodes
-        data.save_replaydata(rank, replay_data, args.episodes_dir)
+        data.save_replaydata(rank, replay_data, args.episodesdir)
         comm.Barrier()
         utils.parallel_err(rank, 'Wrote all replay data to disk')
 
         # Optimize
         if rank == 0:
             # Sample data as batches
-            trainadata, replay_len = data.sample_replaydata(args.episodes_dir, args.trainstep_size, args.batchsize)
+            trainadata, replay_len = data.sample_replaydata(args.episodesdir, args.trainsize, args.batchsize)
 
             # Optimize
             utils.parallel_err(rank, 'Optimizing on worker 0...')
             if args.agent == 'mcts':
-                crit_acc, crit_loss = value_models.optimize(curr_model, trainadata, optim)
+                crit_acc, crit_loss = value_model.optimize(curr_model, trainadata, optim)
                 act_acc, act_loss = 0, 0
             elif args.agent == 'ac':
                 crit_acc, crit_loss, act_acc, act_loss = actorcritic_model.optimize(curr_model, trainadata, optim)
 
-            torch.save(curr_model.state_dict(), args.tmp_path)
+            torch.save(curr_model.state_dict(), args.tmppath)
         comm.Barrier()
 
         # Update model from worker 0's optimization
-        curr_model.load_state_dict(torch.load(args.tmp_path))
+        curr_model.load_state_dict(torch.load(args.tmppath))
 
         # Model Evaluation
         if (iteration + 1) % args.eval_interval == 0:
@@ -105,7 +105,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
 
                     # Sync checkpoint
                     if check_winrate > 0.55:
-                        utils.sync_checkpoint(rank, comm, newcheckpoint_pi=curr_pi, check_path=args.check_path,
+                        utils.sync_checkpoint(rank, comm, newcheckpoint_pi=curr_pi, checkpath=args.checkpath,
                                               other_pi=checkpoint_pi)
                         utils.parallel_err(rank, f"Accepted new checkpoint")
 
@@ -113,7 +113,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                         replay_data.clear()
                         utils.parallel_err(rank, "Cleared replay data")
                     elif check_winrate < 0.4:
-                        utils.sync_checkpoint(rank, comm, newcheckpoint_pi=checkpoint_pi, check_path=args.check_path,
+                        utils.sync_checkpoint(rank, comm, newcheckpoint_pi=checkpoint_pi, checkpath=args.checkpath,
                                               other_pi=curr_pi)
                         # Break out of comparing to other models since we know it's bad
                         utils.parallel_err(rank, f"Rejected new checkpoint")
