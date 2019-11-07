@@ -53,7 +53,7 @@ def parallel_play(comm, go_env, pi1, pi2, gettraj, episodes):
     """
     timestart = time.time()
     worker_episodes = episodes // comm.Get_size()
-    single_worker = comm.Get_size() == 1
+    single_worker = comm.Get_size() <= 1
     winrate, traj = game.play_games(go_env, pi1, pi2, gettraj, worker_episodes, progress=single_worker)
     winrate = comm.allreduce(winrate, op=MPI.SUM) / comm.Get_size()
     timeend = time.time()
