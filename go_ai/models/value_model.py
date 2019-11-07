@@ -78,9 +78,10 @@ class ValueNet(nn.Module):
         return x
 
 
-def optimize(model, batched_data, optimizer):
+def optimize(model: torch.nn.Module, batched_data, optimizer):
 
     model.train()
+    dtype = next(model.parameters()).dtype
     running_loss = 0
     running_acc = 0
     batches = 0
@@ -89,8 +90,8 @@ def optimize(model, batched_data, optimizer):
         # Augment
         states = data.batch_random_symmetries(states)
 
-        states = torch.from_numpy(states).type(torch.FloatTensor)
-        wins = torch.from_numpy(wins[:, np.newaxis]).type(torch.FloatTensor)
+        states = torch.from_numpy(states).type(dtype)
+        wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
 
         optimizer.zero_grad()
         vals = model(states)

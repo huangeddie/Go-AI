@@ -62,9 +62,10 @@ def pytorch_to_numpy(model, sigmoid):
     """
 
     def val_func(states):
+        dtype = next(model.parameters()).dtype
         model.eval()
         with torch.no_grad():
-            states = torch.from_numpy(states).type(torch.FloatTensor)
+            states = torch.from_numpy(states).type(dtype)
             state_vals = model(states)
             if sigmoid:
                 state_vals = torch.sigmoid(state_vals)

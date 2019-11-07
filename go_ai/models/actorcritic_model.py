@@ -78,6 +78,7 @@ class CriticWrapper(nn.Module):
 
 def optimize(model, batched_data, optimizer):
     model.train()
+    dtype = next(model.parameters()).dtype
     critic_running_loss = 0
     critic_running_acc = 0
     pbar = tqdm(batched_data, desc="Optimizing critic", leave=True)
@@ -85,8 +86,8 @@ def optimize(model, batched_data, optimizer):
         # Augment
         states = data.batch_random_symmetries(states)
 
-        states = torch.from_numpy(states).type(torch.FloatTensor)
-        wins = torch.from_numpy(wins[:, np.newaxis]).type(torch.FloatTensor)
+        states = torch.from_numpy(states).type(dtype)
+        wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
 
         optimizer.zero_grad()
         _, vals = model(states)
@@ -96,7 +97,7 @@ def optimize(model, batched_data, optimizer):
 
         pred_wins = (torch.sigmoid(vals) > 0.5).type(vals.dtype)
         critic_running_loss += loss.item()
-        critic_running_acc += torch.mean((pred_wins == wins).type(torch.FloatTensor)).item()
+        critic_running_acc += torch.mean((pred_wins == wins).type(dtype)).item()
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * critic_running_acc / i, critic_running_loss / i))
 
@@ -111,7 +112,7 @@ def optimize(model, batched_data, optimizer):
         states = data.batch_random_symmetries(states)
         invalid_values = data.batch_invalid_values(states)
 
-        states = torch.from_numpy(states).type(torch.FloatTensor)
+        states = torch.from_numpy(states).type(dtype)
 
         optimizer.zero_grad()
         policy_scores, _ = model(states)
@@ -133,7 +134,7 @@ def optimize(model, batched_data, optimizer):
 
         pred_actions = torch.argmax(policy_scores, dim=1)
         actor_running_loss += loss.item()
-        actor_running_acc += torch.mean((pred_actions == greedy_actions).type(torch.FloatTensor)).item()
+        actor_running_acc += torch.mean((pred_actions == greedy_actions).type(dtype)).item()
         batches = i
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * actor_running_acc / i, actor_running_loss / i))
