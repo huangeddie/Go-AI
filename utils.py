@@ -18,7 +18,7 @@ def hyperparameters():
     parser.add_argument('--boardsize', type=int, help='board size')
     parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches')
 
-    parser.add_argument('--temp', type=float, default=1 / 32, help='initial temperature')
+    parser.add_argument('--temp', type=float, default=1 / 64, help='initial temperature')
     parser.add_argument('--tempsteps', type=float, default=8, help='first k steps to apply temperature to pi')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 
