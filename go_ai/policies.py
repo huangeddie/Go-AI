@@ -61,7 +61,7 @@ def pytorch_to_numpy(model, sigmoid):
 
     def val_func(states):
         dtype = next(model.parameters()).type()
-        print(dtype)
+        print(dtype, len(states))
         model.eval()
         with torch.no_grad():
             states = torch.from_numpy(states).type(dtype)
