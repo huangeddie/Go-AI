@@ -69,7 +69,7 @@ def pytorch_to_numpy(model, sigmoid):
             state_vals = model(states)
             if sigmoid:
                 state_vals = torch.sigmoid(state_vals)
-            return state_vals.detach().numpy()
+            return state_vals.detach().cpu().numpy()
 
     return val_func
 
