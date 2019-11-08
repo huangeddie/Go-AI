@@ -6,7 +6,7 @@ import torch
 from mpi4py import MPI
 
 import utils
-from go_ai import policies, metrics, data
+from go_ai import policies, metrics, data, game
 from go_ai.models import value_model, actorcritic_model
 
 
@@ -79,7 +79,18 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                 crit_acc, crit_loss, act_acc, act_loss = actorcritic_model.optimize(curr_model, trainadata, optim)
 
             torch.save(curr_model.state_dict(), args.tmppath)
+            utils.parallel_err(rank, 'Optimized')
+        else:
+            # Other workers play some more games in the meantime
+            utils.parallel_err(rank - 1, 'Workers i > 0 Self-playing')
+            # Can't use parallel play because worker 0 can't participate
+            _, traj = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, args.episodes, progress=False)
+            replay_data.extend(traj)
+            # Write episodes
+            data.save_replaydata(rank, replay_data, args.episodesdir)
+
         comm.Barrier()
+        utils.parallel_err(rank, 'Finished additional self-playing')
 
         # Update model from worker 0's optimization
         curr_model.load_state_dict(torch.load(args.tmppath))
