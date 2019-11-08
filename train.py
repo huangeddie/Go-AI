@@ -35,7 +35,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     curr_model.load_state_dict(torch.load(args.checkpath))
     checkpoint_model.load_state_dict(torch.load(args.checkpath))
     if torch.cuda.is_available() and comm.Get_size() <= 1:
-        # curr_model.cuda()
+        curr_model.cuda()
         checkpoint_model.cuda()
         utils.parallel_err(rank, 'Using GPU')
     optim = torch.optim.Adam(curr_model.parameters(), args.lr) if rank == 0 else None
