@@ -70,7 +70,7 @@ def pytorch_to_numpy(model, sigmoid):
             if sigmoid:
                 state_vals = torch.sigmoid(state_vals)
             end = time.time()
-            print(f'{end - start:.1f}S')
+            print(f'{end - start:.4f}S')
             return state_vals.detach().cpu().numpy()
 
     return val_func
