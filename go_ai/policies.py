@@ -5,6 +5,7 @@ import numpy as np
 
 from go_ai.montecarlo import tree, exp_temp
 from utils import *
+import time
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -60,14 +61,16 @@ def pytorch_to_numpy(model, sigmoid):
     """
 
     def val_func(states):
+        start = time.time()
         dtype = next(model.parameters()).type()
-        print(dtype, len(states))
         model.eval()
         with torch.no_grad():
             states = torch.from_numpy(states).type(dtype)
             state_vals = model(states)
             if sigmoid:
                 state_vals = torch.sigmoid(state_vals)
+            end = time.time()
+            print(f'{end - start:.1f}S')
             return state_vals.detach().cpu().numpy()
 
     return val_func
