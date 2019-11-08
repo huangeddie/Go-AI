@@ -69,7 +69,7 @@ class ValueNet(nn.Module):
             nn.Linear(fc_h, 1)
         )
 
-        self.criterion = nn.BCEWithLogitsLoss()
+        self.criterion = nn.MSELoss()
 
     def forward(self, x):
         x = self.convs(x)

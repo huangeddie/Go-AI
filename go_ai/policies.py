@@ -5,7 +5,6 @@ import numpy as np
 
 from go_ai.montecarlo import tree, exp_temp
 from utils import *
-import time
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -30,6 +29,7 @@ def greedy_val_func(states):
         vals.append(val)
     vals = np.array(vals, dtype=np.float)
     return vals[:, np.newaxis]
+
 
 def smart_greedy_val_func(states):
     if len(states) <= 0:
@@ -61,7 +61,6 @@ def pytorch_to_numpy(model, sigmoid):
     """
 
     def val_func(states):
-        start = time.time()
         dtype = next(model.parameters()).type()
         model.eval()
         with torch.no_grad():
@@ -69,8 +68,6 @@ def pytorch_to_numpy(model, sigmoid):
             state_vals = model(states)
             if sigmoid:
                 state_vals = torch.sigmoid(state_vals)
-            end = time.time()
-            print(f'{end - start:.4f}S')
             return state_vals.detach().cpu().numpy()
 
     return val_func
