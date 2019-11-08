@@ -94,8 +94,8 @@ def optimize(model: torch.nn.Module, batched_data, optimizer):
         wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
 
         optimizer.zero_grad()
-        vals = model(states)
-        pred_wins = (torch.sigmoid(vals) > 0.5).type(vals.dtype)
+        vals = torch.sigmoid(model(states))
+        pred_wins = (vals > 0.5).type(vals.dtype)
         loss = model.criterion(vals, wins)
         loss.backward()
         optimizer.step()
