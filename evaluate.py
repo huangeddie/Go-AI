@@ -58,4 +58,4 @@ if os.path.exists('checkpoints/stats.txt'):
 
 # Sample trajectory and plot prior qvals
 metrics.plot_traj_fig(go_env, checkpoint_pi, f'checkpoints/atraj_{checkpoint_pi.temp:.4f}.pdf')
-print("Plotted sample trajectory")
+print(f"Plotted sample trajectory with temp {args.temp}")
