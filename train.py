@@ -84,7 +84,8 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             # Other workers play some more games in the meantime
             utils.parallel_err(rank - 1, 'Workers i > 0 Self-playing')
             # Can't use parallel play because worker 0 can't participate
-            _, traj = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, args.episodes, progress=False)
+            _, traj = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, args.episodes // comm.Get_size(),
+                                      progress=False)
             replay_data.extend(traj)
             # Write episodes
             data.save_replaydata(rank, replay_data, args.episodesdir)
