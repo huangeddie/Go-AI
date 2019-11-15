@@ -101,7 +101,7 @@ def optimize(model, batched_data, optimizer):
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * critic_running_acc / i, critic_running_loss / i))
 
-    val_func = policies.pytorch_to_numpy(CriticWrapper(model), sigmoid=True)
+    val_func = policies.pytorch_to_numpy(CriticWrapper(model))
 
     actor_running_loss = 0
     actor_running_acc = 0

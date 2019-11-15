@@ -6,8 +6,8 @@ import torch
 from mpi4py import MPI
 
 import utils
-from go_ai import policies, metrics, data, game
-from go_ai.models import value_model, actorcritic_model
+from go_ai import policies, data, game
+from go_ai.models import value, actorcritic
 
 
 def worker_train(rank: int, args, comm: MPI.Intracomm):
@@ -19,13 +19,13 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
 
     # Policies and Model
     if args.agent == 'mcts':
-        curr_model = value_model.ValueNet(args.boardsize)
-        checkpoint_model = value_model.ValueNet(args.boardsize)
+        curr_model = value.ValueNet(args.boardsize)
+        checkpoint_model = value.ValueNet(args.boardsize)
         curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
         checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
     elif args.agent == 'ac':
-        curr_model = actorcritic_model.ActorCriticNet(args.boardsize)
-        checkpoint_model = actorcritic_model.ActorCriticNet(args.boardsize)
+        curr_model = actorcritic.ActorCriticNet(args.boardsize)
+        checkpoint_model = actorcritic.ActorCriticNet(args.boardsize)
         curr_pi = policies.ActorCritic('Current', curr_model)
         checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
     else:
@@ -48,11 +48,6 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     check_winrate, rand_winrate, greedy_winrate = 0, 0, 0,
     crit_acc, crit_loss, act_acc, act_loss = 0, 0, 0, 0,
     for iteration in range(args.iterations):
-        # Log a Sample Trajectory
-        if rank == 0 and args.trajpath is not None:
-            metrics.plot_traj_fig(go_env, checkpoint_pi, args.trajpath)
-            utils.parallel_err(rank, "Plotted trajectory")
-
         # Play episodes
         utils.parallel_err(rank, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}')
         wr, trajectories, avg_gametime = utils.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True,
@@ -73,10 +68,10 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             # Optimize
             utils.parallel_err(rank, 'Optimizing on worker 0...')
             if args.agent == 'mcts':
-                crit_acc, crit_loss = value_model.optimize(curr_model, trainadata, optim)
+                crit_acc, crit_loss = value.optimize(curr_model, trainadata, optim)
                 act_acc, act_loss = 0, 0
             elif args.agent == 'ac':
-                crit_acc, crit_loss, act_acc, act_loss = actorcritic_model.optimize(curr_model, trainadata, optim)
+                crit_acc, crit_loss, act_acc, act_loss = actorcritic.optimize(curr_model, trainadata, optim)
 
             torch.save(curr_model.state_dict(), args.tmppath)
             utils.parallel_err(rank, 'Optimized')
@@ -117,8 +112,8 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                         utils.parallel_err(rank, f"Accepted new checkpoint")
 
                         # Clear episodes
-                        replay_data.clear()
-                        utils.parallel_err(rank, "Cleared replay data")
+                        # replay_data.clear()
+                        # utils.parallel_err(rank, "Cleared replay data")
                     elif check_winrate < 0.4:
                         utils.sync_checkpoint(rank, comm, newcheckpoint_pi=checkpoint_pi, checkpath=args.checkpath,
                                               other_pi=curr_pi)

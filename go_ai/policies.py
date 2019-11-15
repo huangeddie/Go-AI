@@ -2,9 +2,9 @@ import logging
 
 import gym
 import numpy as np
+import torch
 
-from go_ai.montecarlo import tree, exp_temp
-from utils import *
+from go_ai.montecarlo import tree, temperate_pi
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -54,7 +54,7 @@ def smart_greedy_val_func(states):
     return vals[:, np.newaxis]
 
 
-def pytorch_to_numpy(model, sigmoid):
+def pytorch_to_numpy(model):
     """
     :param model:
     :return: The numpy equivalent of the pytorch value model
@@ -66,8 +66,6 @@ def pytorch_to_numpy(model, sigmoid):
         with torch.no_grad():
             states = torch.from_numpy(states).type(dtype)
             state_vals = model(states)
-            if sigmoid:
-                state_vals = torch.sigmoid(state_vals)
             return state_vals.detach().cpu().numpy()
 
     return val_func
@@ -167,7 +165,7 @@ class MCTS(Policy):
         super(MCTS, self).__init__(name, temp, temp_steps)
         if isinstance(val_func, torch.nn.Module):
             self.pytorch_model = val_func
-            val_func = pytorch_to_numpy(val_func, sigmoid=True)
+            val_func = pytorch_to_numpy(val_func)
 
         self.val_func = val_func
         self.num_searches = num_searches
@@ -195,9 +193,9 @@ class MCTS(Policy):
 
         assert step is not None
         if step < self.temp_steps:
-            pi = exp_temp(qvals, self.temp, valid_moves)
+            pi = temperate_pi(qvals, self.temp, valid_moves)
         else:
-            pi = exp_temp(qvals, 0, valid_moves)
+            pi = temperate_pi(qvals, 0, valid_moves)
         return pi
 
     def step(self, action):

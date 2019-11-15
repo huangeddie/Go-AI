@@ -6,6 +6,7 @@ import go_ai.game
 from go_ai import data, montecarlo, policies
 from go_ai.montecarlo import tree
 import queue
+from tqdm import tqdm
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -20,7 +21,7 @@ def matplot_format(state):
     return state.transpose(1, 2, 0)[:, :, [0, 1, 4]].astype(np.float)
 
 
-def plot_move_distr(title, move_distr, valid_moves, scalar=None):
+def plot_move_distr(title, move_distr, valid_moves, vmin, vmax ,scalar=None):
     """
 
     :param title:
@@ -40,7 +41,7 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None):
               + '\n{:.3f}L '.format(np.min(valid_values) if len(valid_values) > 0 else 0)
               + '{:.3f}H '.format(np.max(valid_values) if len(valid_values) > 0 else 0)
               + '{:.3f}P'.format(pass_val))
-    plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)), vmin=0, vmax=1)
+    plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)), vmin=vmin, vmax=vmax)
 
 
 def action_1d_to_2d(action_1d, board_width):
@@ -69,18 +70,22 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     board_size = states[0].shape[1]
 
     move_probs = []
-    for step, (state, prev_action) in enumerate(zip(states, taken_actions)):
+    state_vals = []
+    qvals = []
+    for step, (state, prev_action) in tqdm(enumerate(zip(states, taken_actions)), desc='Heat Maps'):
         if step == 0:
             policy.reset(state)
         pi = policy(state, step)
         move_probs.append(pi)
         policy.step(prev_action)
 
-    state_vals = None
-    qvals = None
-    if isinstance(policy, policies.MCTS):
-        state_vals = policy.val_func(states)
-        qvals, _ = montecarlo.qs_from_stateval(states, policy.val_func)
+        if isinstance(policy, policies.MCTS):
+            state_val = policy.val_func(state[np.newaxis])[0]
+            qs, _ = montecarlo.qs_from_stateval(state[np.newaxis], policy.val_func)
+            qs = qs[0]
+
+            state_vals.append(state_val)
+            qvals.append(qs)
 
     valid_moves = data.batch_valid_moves(states)
 
@@ -88,7 +93,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     num_cols = 3 if isinstance(policy, policies.MCTS) else 2
 
     fig = plt.figure(figsize=(num_cols * 2.5, num_states * 2))
-    for i in range(num_states):
+    for i in tqdm(range(num_states), desc='Plots'):
         curr_col = 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
@@ -101,7 +106,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
                 board_title += 'Action Taken: {}\n'.format(action_took)
         else:
             board_title = 'Initial Board\n'
-        board_title += '{:.0f}R {}T, {}W'.format(rewards[i - 1], terminals[i], wins[i])
+        board_title += '{:.0f}R {}T, {}W'.format(rewards[i], terminals[i], wins[i])
 
         plt.title(board_title)
         plt.imshow(matplot_format(states[i]))
@@ -109,11 +114,11 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
 
         if isinstance(policy, policies.MCTS):
             plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-            plot_move_distr('Q Vals', qvals[i], valid_moves[i], scalar=state_vals[i].item())
+            plot_move_distr('Q Vals', qvals[i], valid_moves[i], vmin=-1, vmax=1, scalar=state_vals[i].item())
             curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-        plot_move_distr('Model', move_probs[i], valid_moves[i])
+        plot_move_distr('Model', move_probs[i], valid_moves[i], vmin=0, vmax=1)
         curr_col += 1
 
     plt.tight_layout()

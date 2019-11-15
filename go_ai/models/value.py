@@ -66,7 +66,7 @@ class ValueNet(nn.Module):
             nn.Linear(fc_h, fc_h),
             nn.BatchNorm1d(fc_h),
             nn.ReLU(),
-            nn.Linear(fc_h, 1)
+            nn.Linear(fc_h, 1),
         )
 
         self.criterion = nn.MSELoss()
@@ -75,18 +75,16 @@ class ValueNet(nn.Module):
         x = self.convs(x)
         x = torch.flatten(x, start_dim=1)
         x = self.fcs(x)
+        x = torch.tanh(x)
         return x
 
 
 def optimize(model: torch.nn.Module, batched_data, optimizer):
-
     model.train()
     dtype = next(model.parameters()).type()
     running_loss = 0
     running_acc = 0
-    batches = 0
-    pbar = tqdm(batched_data, desc="Optimizing", leave=True)
-    for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(pbar, 1):
+    for states, actions, next_states, rewards, terminals, wins in batched_data:
         # Augment
         states = data.batch_random_symmetries(states)
 
@@ -94,16 +92,13 @@ def optimize(model: torch.nn.Module, batched_data, optimizer):
         wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
 
         optimizer.zero_grad()
-        vals = torch.sigmoid(model(states))
-        pred_wins = (vals > 0.5).type(vals.dtype)
+        vals = model(states)
+        pred_wins = torch.sign(vals)
         loss = model.criterion(vals, wins)
         loss.backward()
         optimizer.step()
 
         running_loss += loss.item()
         running_acc += torch.mean((pred_wins == wins).type(wins.dtype)).item()
-        batches = i
 
-        pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * running_acc / i, running_loss / i))
-
-    return running_acc / batches, running_loss / batches
+    return running_acc / len(batched_data), running_loss / len(batched_data)

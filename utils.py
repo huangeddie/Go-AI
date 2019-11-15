@@ -7,7 +7,7 @@ from mpi4py import MPI
 from tqdm import tqdm
 
 from go_ai import data, game
-from go_ai.models import value_model, actorcritic_model
+from go_ai.models import value, actorcritic
 import time
 
 
@@ -18,7 +18,7 @@ def hyperparameters():
     parser.add_argument('--boardsize', type=int, help='board size')
     parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches')
 
-    parser.add_argument('--temp', type=float, default=1 / 64, help='initial temperature')
+    parser.add_argument('--temp', type=float, default=1 / 12, help='initial temperature')
     parser.add_argument('--tempsteps', type=float, default=8, help='first k steps to apply temperature to pi')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 
@@ -34,8 +34,7 @@ def hyperparameters():
     parser.add_argument('--episodesdir', type=str, default='episodes/', help='directory to store episodes')
     parser.add_argument('--checkpath', type=str, default='checkpoints/checkpoint.pt', help='model path for checkpoint')
     parser.add_argument('--tmppath', type=str, default='checkpoints/tmp.pt', help='model path for temp model')
-    parser.add_argument('--trajpath', type=str, help='path for sample trajectory')
-    
+
     parser.add_argument('--agent', type=str, choices=['mcts', 'ac'], default='mcts', help='type of agent/model')
 
     return parser.parse_args()
@@ -88,6 +87,7 @@ def parallel_err(rank, s):
     """
     if rank == 0:
         tqdm.write(f"{time.strftime('%H:%M:%S', time.localtime())}\t{s}", file=sys.stderr)
+        sys.stderr.flush()
 
 
 def sync_data(rank, comm: MPI.Intracomm, args):
@@ -100,9 +100,9 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             data.clear_episodesdir(episodesdir)
             # Set parameters
             if args.agent == 'mcts':
-                new_model = value_model.ValueNet(args.boardsize)
+                new_model = value.ValueNet(args.boardsize)
             elif args.agent == 'ac':
-                new_model = actorcritic_model.ActorCriticNet(args.boardsize)
+                new_model = actorcritic.ActorCriticNet(args.boardsize)
             torch.save(new_model.state_dict(), args.checkpath)
     parallel_err(rank, "Using checkpoint: {}".format(args.checkpoint))
     comm.Barrier()

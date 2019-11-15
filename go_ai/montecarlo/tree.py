@@ -40,7 +40,6 @@ class MCTree:
         '''
         rootstate = self.root.state
 
-        num_search = 0
         if num_searches <= 0:
             # Avoid making nodes and stuff
             qvals, _ = montecarlo.qs_from_stateval(rootstate[np.newaxis], self.val_func)

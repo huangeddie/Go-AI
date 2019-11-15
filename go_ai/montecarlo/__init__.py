@@ -6,7 +6,7 @@ GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
 def invert_val(val):
-    return 1 - val
+    return -val
 
 
 def canonical_winning(canonical_state):
@@ -78,22 +78,14 @@ def greedy_pi(qvals, valid_moves):
     return pi
 
 
-def exp_temp(qvals, temp, valid_moves):
+def temperate_pi(qvals, temp, valid_moves):
     if temp <= 0:
         # Max Qs
         pi = greedy_pi(qvals, valid_moves)
     else:
-        expq = np.exp(qvals)
+        expq = np.exp(qvals - np.max(qvals))
         expq *= valid_moves
         amp_qs = expq[np.newaxis] ** (1 / temp)
-        if np.isnan(amp_qs).any():
-            pi = greedy_pi(qvals, valid_moves)
-        else:
-            pi = normalize(amp_qs, norm='l1')[0]
-            if np.count_nonzero(pi) == 0:
-                # Incase we amplify so much, everything is zero due to floating point error
-                # Max Qs
-                pi = greedy_pi(qvals, valid_moves)
+        pi = normalize(amp_qs, norm='l1')[0]
 
-    assert (pi[valid_moves == 0] == 0).all(), (qvals, pi, valid_moves)
     return pi
