@@ -74,7 +74,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                 crit_acc, crit_loss, act_acc, act_loss = actorcritic.optimize(curr_model, trainadata, optim)
 
             torch.save(curr_model.state_dict(), args.tmppath)
-            utils.parallel_err(rank, 'Optimized')
+            utils.parallel_err(rank, f'Optimized | {crit_acc * 100 :.1f}% {crit_loss:.3f}L')
         else:
             # Other workers play some more games in the meantime
             utils.parallel_err(rank - 1, 'Workers i > 0 Self-playing')
