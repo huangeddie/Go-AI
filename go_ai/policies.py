@@ -21,11 +21,11 @@ def greedy_val_func(states):
             if black_area > white_area:
                 val = 1
             elif black_area < white_area:
-                val = 0
+                val = -1
             else:
-                val = 0.5
+                val = 0
         else:
-            val = (black_area - white_area + board_area) / (2 * board_area)
+            val = (black_area - white_area) / (board_area)
         vals.append(val)
     vals = np.array(vals, dtype=np.float)
     return vals[:, np.newaxis]
@@ -44,11 +44,11 @@ def smart_greedy_val_func(states):
             if black_area > white_area:
                 val = 1
             elif black_area < white_area:
-                val = 0
+                val = -1
             else:
-                val = 0.5
+                val = 0
         else:
-            val = (black_area + blacklibs - white_area - whitelibs + 2 * board_area) / (4 * board_area)
+            val = (black_area + blacklibs - white_area - whitelibs) / (2 * board_area)
         vals.append(val)
     vals = np.array(vals, dtype=np.float)
     return vals[:, np.newaxis]

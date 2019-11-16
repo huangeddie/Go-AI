@@ -148,6 +148,6 @@ if __name__ == '__main__':
     world_size = int(comm.Get_size())
 
     utils.parallel_err(rank, f"{world_size} Workers, Board Size {args.boardsize}, Model '{args.agent}', "
-                             f'Temp {args.temp:.4f}')
+                             f'Temp {args.temp:.4f}, Tempsteps {args.tempsteps}')
 
     worker_train(rank, args, comm)

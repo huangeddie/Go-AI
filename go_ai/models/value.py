@@ -67,6 +67,7 @@ class ValueNet(nn.Module):
             nn.BatchNorm1d(fc_h),
             nn.ReLU(),
             nn.Linear(fc_h, 1),
+            nn.Tanh(),
         )
 
         self.criterion = nn.MSELoss()
@@ -75,7 +76,6 @@ class ValueNet(nn.Module):
         x = self.convs(x)
         x = torch.flatten(x, start_dim=1)
         x = self.fcs(x)
-        x = torch.tanh(x)
         return x
 
 

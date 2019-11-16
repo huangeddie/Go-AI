@@ -14,9 +14,9 @@ def canonical_winning(canonical_state):
     if my_area > opp_area:
         winning = 1
     elif my_area < opp_area:
-        winning = 0
+        winning = -1
     else:
-        winning = 0.5
+        winning = 0
 
     return winning
 
@@ -70,7 +70,7 @@ def qs_from_stateval(states, val_func):
 
 
 def greedy_pi(qvals, valid_moves):
-    expq = np.exp(qvals)
+    expq = np.exp(qvals - np.max(qvals))
     expq *= valid_moves
     max_qs = np.max(expq)
     pi = (expq == max_qs).astype(np.int)
