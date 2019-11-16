@@ -112,8 +112,8 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
                         utils.parallel_err(rank, f"Accepted new checkpoint")
 
                         # Clear episodes
-                        # replay_data.clear()
-                        # utils.parallel_err(rank, "Cleared replay data")
+                        replay_data.clear()
+                        utils.parallel_err(rank, "Cleared replay data")
                     elif check_winrate < 0.4:
                         utils.sync_checkpoint(rank, comm, newcheckpoint_pi=checkpoint_pi, checkpath=args.checkpath,
                                               other_pi=curr_pi)

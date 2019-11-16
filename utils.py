@@ -32,8 +32,8 @@ def hyperparameters():
     parser.add_argument('--eval-interval', type=int, default=1, help='iterations per evaluation')
 
     parser.add_argument('--episodesdir', type=str, default='episodes/', help='directory to store episodes')
-    parser.add_argument('--checkpath', type=str, default='checkpoints/checkpoint.pt', help='model path for checkpoint')
-    parser.add_argument('--tmppath', type=str, default='checkpoints/tmp.pt', help='model path for temp model')
+    parser.add_argument('--checkpath', type=str, default='bin/checkpoint.pt', help='model path for checkpoint')
+    parser.add_argument('--tmppath', type=str, default='bin/tmp.pt', help='model path for temp model')
 
     parser.add_argument('--agent', type=str, choices=['mcts', 'ac'], default='mcts', help='type of agent/model')
 

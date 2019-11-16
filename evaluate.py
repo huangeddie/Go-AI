@@ -28,10 +28,10 @@ elif args.agent == 'ac':
 print("Loaded model")
 
 # Elo
-if os.path.exists('checkpoints/stats.txt'):
+if os.path.exists('bin/stats.txt'):
     rand_elo = 0
     greed_elo = 0
-    df = pd.read_csv('checkpoints/stats.txt', sep='\t')
+    df = pd.read_csv('bin/stats.txt', sep='\t')
 
     # New checkpoints
     checks = df[df['C_WR'] > 55]
@@ -53,9 +53,9 @@ if os.path.exists('checkpoints/stats.txt'):
     plt.plot(seconds / 3600, check_elos)
     plt.xlabel("Hours")
     plt.ylabel("ELO")
-    plt.savefig('checkpoints/elos.pdf')
+    plt.savefig('bin/elos.pdf')
     print("Plotted Elos")
 
 # Sample trajectory and plot prior qvals
-metrics.plot_traj_fig(go_env, checkpoint_pi, f'checkpoints/atraj_{checkpoint_pi.temp:.4f}.pdf')
+metrics.plot_traj_fig(go_env, checkpoint_pi, f'bin/atraj_{checkpoint_pi.temp:.4f}.pdf')
 print(f"Plotted sample trajectory with temp {args.temp}")
