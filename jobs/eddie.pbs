@@ -10,4 +10,4 @@ module load mvapich2/2.3-intel-18.0
 cd $PBS_O_WORKDIR
 echo -n >bin/stats.txt
 echo -n >bin/log.txt
-mpiexec -n 64 -bind-to core python3 train.py --boardsize=9 --temp=0.0625 --tempsteps=32 --checkpoint=True --episodesdir=/home/ezhuang2/scratch/
+mpiexec -n 64 -bind-to core python3 train.py --boardsize=9 --temp=0.125 --tempsteps=32 --checkpoint=True --episodesdir=/home/ezhuang2/scratch/
