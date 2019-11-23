@@ -9,6 +9,7 @@ from tqdm import tqdm
 from go_ai import data, game
 from go_ai.models import value, actorcritic
 import time
+import math
 
 
 def hyperparameters():
@@ -22,9 +23,9 @@ def hyperparameters():
     parser.add_argument('--tempsteps', type=float, default=8, help='first k steps to apply temperature to pi')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 
-    parser.add_argument('--batchsize', type=int, default=64, help='batch size')
+    parser.add_argument('--batchsize', type=int, default=32, help='batch size')
     parser.add_argument('--replaysize', type=int, default=400000, help='max replay memory size')
-    parser.add_argument('--trainsize', type=int, default=1000 * 64, help='train data size for one iteration')
+    parser.add_argument('--trainsize', type=int, default=10000 * 32, help='train data size for one iteration')
 
     parser.add_argument('--iterations', type=int, default=128, help='iterations')
     parser.add_argument('--episodes', type=int, default=256, help='episodes')
@@ -39,7 +40,7 @@ def hyperparameters():
 
     return parser.parse_args()
 
-def parallel_play(comm, go_env, pi1, pi2, gettraj, episodes):
+def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
     """
     Plays games in parallel
     :param comm:
@@ -47,17 +48,23 @@ def parallel_play(comm, go_env, pi1, pi2, gettraj, episodes):
     :param pi1:
     :param pi2:
     :param gettraj:
-    :param episodes:
+    :param req_episodes:
     :return:
     """
+    rank = comm.Get_rank()
+    world_size = comm.Get_size()
+
     timestart = time.time()
-    worker_episodes = episodes // comm.Get_size()
+    worker_episodes = int(math.ceil(req_episodes / world_size))
+    episodes = worker_episodes * world_size
     single_worker = comm.Get_size() <= 1
     winrate, traj = game.play_games(go_env, pi1, pi2, gettraj, worker_episodes, progress=single_worker)
     winrate = comm.allreduce(winrate, op=MPI.SUM) / comm.Get_size()
     timeend = time.time()
     duration = timeend - timestart
-    return winrate, traj, duration / worker_episodes
+    avg_gametime = duration / worker_episodes
+    parallel_err(rank, f'{pi1} V {pi2} | {episodes} GAMES, {avg_gametime:.1f} SEC/GAME, {100 * winrate:.1f}% WIN')
+    return winrate, traj
 
 def sync_checkpoint(rank, comm: MPI.Intracomm, newcheckpoint_pi, checkpath, other_pi):
     if rank == 0:
@@ -67,25 +74,25 @@ def sync_checkpoint(rank, comm: MPI.Intracomm, newcheckpoint_pi, checkpath, othe
     other_pi.pytorch_model.load_state_dict(torch.load(checkpath))
 
 
-def parallel_out(rank, s):
+def parallel_out(rank, s, rep=0):
     """
     Only the first worker prints stuff
     :param rank:
     :param s:
     :return:
     """
-    if rank == 0:
+    if rank == rep:
         print(s, flush=True)
 
 
-def parallel_err(rank, s):
+def parallel_err(rank, s, rep=0):
     """
     Only the first worker prints stuff
     :param rank:
     :param s:
     :return:
     """
-    if rank == 0:
+    if rank == rep:
         tqdm.write(f"{time.strftime('%H:%M:%S', time.localtime())}\t{s}", file=sys.stderr)
         sys.stderr.flush()
 

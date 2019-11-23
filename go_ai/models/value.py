@@ -2,13 +2,14 @@ import gym
 import numpy as np
 import torch
 import torch.nn as nn
-from tqdm import tqdm
+from mpi4py import MPI
 
 from go_ai import data
 
 gymgo = gym.make('gym_go:go-v0', size=0)
 GoGame = gymgo.gogame
 GoVars = gymgo.govars
+
 
 class BasicBlock(nn.Module):
     def __init__(self, inplanes, planes):
@@ -17,7 +18,7 @@ class BasicBlock(nn.Module):
         self.conv1 = nn.Conv2d(inplanes, planes, 3, padding=1)
         self.bn1 = nn.BatchNorm2d(planes)
         self.relu = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv2d(planes, planes,3, padding=1)
+        self.conv2 = nn.Conv2d(planes, planes, 3, padding=1)
         self.bn2 = nn.BatchNorm2d(planes)
 
     def forward(self, x):
@@ -35,10 +36,12 @@ class BasicBlock(nn.Module):
 
         return out
 
+
 class ValueNet(nn.Module):
     """
     ResNet
     """
+
     def __init__(self, boardsize, num_blocks=8, channels=64):
         super().__init__()
 
@@ -79,7 +82,8 @@ class ValueNet(nn.Module):
         return x
 
 
-def optimize(model: torch.nn.Module, batched_data, optimizer):
+def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimizer):
+    world_size = comm.Get_size()
     model.train()
     dtype = next(model.parameters()).type()
     running_loss = 0
@@ -96,9 +100,15 @@ def optimize(model: torch.nn.Module, batched_data, optimizer):
         pred_wins = torch.sign(vals)
         loss = model.criterion(vals, wins)
         loss.backward()
+
+        for params in model.parameters():
+            params.grad = comm.allreduce(params.grad, op=MPI.SUM) / world_size
+
         optimizer.step()
 
         running_loss += loss.item()
         running_acc += torch.mean((pred_wins == wins).type(wins.dtype)).item()
+
+    comm.Barrier()
 
     return running_acc / len(batched_data), running_loss / len(batched_data)

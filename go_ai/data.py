@@ -97,7 +97,8 @@ def sample_replaydata(episodesdir, request_size, batchsize):
     for component in sample_data:
         assert len(component) == sample_size
 
-    batched_sampledata = [np.array_split(component, sample_size // batchsize) for component in sample_data]
+    splits = max(sample_size // batchsize, 1)
+    batched_sampledata = [np.array_split(component, splits) for component in sample_data]
     batched_sampledata = list(zip(*batched_sampledata))
 
     return batched_sampledata, replay_len

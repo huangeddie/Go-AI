@@ -6,13 +6,16 @@ import torch
 from mpi4py import MPI
 
 import utils
-from go_ai import policies, data, game
+from go_ai import policies, data
 from go_ai.models import value, actorcritic
 
 
-def worker_train(rank: int, args, comm: MPI.Intracomm):
+def worker_train(args, comm: MPI.Intracomm):
+    rank = comm.Get_rank()
+    world_size = comm.Get_size()
+
     # Replay data
-    replay_data = collections.deque(maxlen=args.replaysize // comm.Get_size())
+    replay_data = collections.deque(maxlen=args.replaysize // world_size)
 
     # Set parameters and episode data on disk
     utils.sync_data(rank, comm, args)
@@ -34,7 +37,7 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
     # Sync parameters from disk
     curr_model.load_state_dict(torch.load(args.checkpath))
     checkpoint_model.load_state_dict(torch.load(args.checkpath))
-    optim = torch.optim.Adam(curr_model.parameters(), args.lr) if rank == 0 else None
+    optim = torch.optim.Adam(curr_model.parameters(), args.lr)
 
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize)
@@ -44,15 +47,14 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
 
     # Training
     starttime = datetime.now()
-    replay_len = 0
     check_winrate, rand_winrate, greedy_winrate = 0, 0, 0,
     crit_acc, crit_loss, act_acc, act_loss = 0, 0, 0, 0,
     for iteration in range(args.iterations):
         # Play episodes
         utils.parallel_err(rank, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}')
-        wr, trajectories, avg_gametime = utils.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True,
+        wr, trajectories = utils.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True,
                                                              args.episodes)
-        utils.parallel_err(rank, f'{checkpoint_pi} V {checkpoint_pi} | {avg_gametime:.1f}S/GAME, {100 * wr:.1f}% WIN')
+
         replay_data.extend(trajectories)
 
         # Write episodes
@@ -60,33 +62,24 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
         comm.Barrier()
         utils.parallel_err(rank, 'Wrote all replay data to disk')
 
+        # Sample data as batches
+        trainadata, replay_len = data.sample_replaydata(args.episodesdir, args.trainsize // world_size, args.batchsize)
+
         # Optimize
+        utils.parallel_err(rank, f'Optimizing in {len(trainadata)} training steps...')
+        if args.agent == 'mcts':
+            crit_acc, crit_loss = value.optimize(comm, curr_model, trainadata, optim)
+            act_acc, act_loss = 0, 0
+        elif args.agent == 'ac':
+            if rank == 0:
+                crit_acc, crit_loss, act_acc, act_loss = actorcritic.optimize(comm, curr_model, trainadata, optim)
+
+        # Sync model
         if rank == 0:
-            # Sample data as batches
-            trainadata, replay_len = data.sample_replaydata(args.episodesdir, args.trainsize, args.batchsize)
-
-            # Optimize
-            utils.parallel_err(rank, 'Optimizing on worker 0...')
-            if args.agent == 'mcts':
-                crit_acc, crit_loss = value.optimize(curr_model, trainadata, optim)
-                act_acc, act_loss = 0, 0
-            elif args.agent == 'ac':
-                crit_acc, crit_loss, act_acc, act_loss = actorcritic.optimize(curr_model, trainadata, optim)
-
             torch.save(curr_model.state_dict(), args.tmppath)
-            utils.parallel_err(rank, f'Optimized | {crit_acc * 100 :.1f}% {crit_loss:.3f}L')
-        else:
-            # Other workers play some more games in the meantime
-            utils.parallel_err(rank - 1, 'Workers i > 0 Self-playing')
-            # Can't use parallel play because worker 0 can't participate
-            _, traj = game.play_games(go_env, checkpoint_pi, checkpoint_pi, True, args.episodes // comm.Get_size(),
-                                      progress=False)
-            replay_data.extend(traj)
-            # Write episodes
-            data.save_replaydata(rank, replay_data, args.episodesdir)
-
         comm.Barrier()
-        utils.parallel_err(rank, 'Finished additional self-playing')
+
+        utils.parallel_err(rank, f'Optimized | {crit_acc * 100 :.1f}% {crit_loss:.3f}L')
 
         # Update model from worker 0's optimization
         curr_model.load_state_dict(torch.load(args.tmppath))
@@ -97,9 +90,8 @@ def worker_train(rank: int, args, comm: MPI.Intracomm):
             for opponent in [checkpoint_pi, policies.RAND_PI, policies.GREEDY_PI]:
                 # Play some games
                 utils.parallel_err(rank, f'Pitting {curr_pi} V {opponent}')
-                wr, _, avg_gametime = utils.parallel_play(comm, go_env, curr_pi, opponent, False,
+                wr, _ = utils.parallel_play(comm, go_env, curr_pi, opponent, False,
                                                           args.evaluations)
-                utils.parallel_err(rank, f'{curr_pi} V {opponent} | {avg_gametime:.1f}S/GAME, {100 * wr:.1f}% WIN')
 
                 # Do stuff based on the opponent we faced
                 if opponent == checkpoint_pi:
@@ -139,9 +131,8 @@ if __name__ == '__main__':
     # Parallel Setup
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
-    world_size = int(comm.Get_size())
+    world_size = comm.Get_size()
 
-    utils.parallel_err(rank, f"{world_size} Workers, Board Size {args.boardsize}, Model '{args.agent}', "
-                             f'Temp {args.temp:.4f}, Tempsteps {args.tempsteps}')
+    utils.parallel_err(rank, f"{world_size} Workers, {args}")
 
-    worker_train(rank, args, comm)
+    worker_train(args, comm)
