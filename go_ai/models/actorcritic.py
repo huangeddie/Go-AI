@@ -3,7 +3,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-from mpi4py import MPI
 
 from go_ai import data, montecarlo, policies
 
@@ -77,7 +76,7 @@ class CriticWrapper(nn.Module):
         self.net.train()
 
 
-def optimize(comm: MPI.Intracomm, model, batched_data, optimizer):
+def optimize(model, batched_data, optimizer):
     model.train()
     dtype = next(model.parameters()).type()
     critic_running_loss = 0

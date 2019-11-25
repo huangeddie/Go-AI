@@ -3,7 +3,6 @@ import os
 import sys
 
 import torch
-from mpi4py import MPI
 from tqdm import tqdm
 
 from go_ai import data, game
@@ -40,7 +39,7 @@ def hyperparameters():
 
     return parser.parse_args()
 
-def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
+def parallel_play(go_env, pi1, pi2, gettraj, req_episodes):
     """
     Plays games in parallel
     :param comm:
@@ -51,25 +50,23 @@ def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
     :param req_episodes:
     :return:
     """
-    rank = comm.Get_rank()
-    world_size = comm.Get_size()
+    rank = 0
+    world_size = 1
 
     timestart = time.time()
     worker_episodes = int(math.ceil(req_episodes / world_size))
     episodes = worker_episodes * world_size
-    single_worker = comm.Get_size() <= 1
+    single_worker = world_size <= 1
     winrate, traj = game.play_games(go_env, pi1, pi2, gettraj, worker_episodes, progress=single_worker)
-    winrate = comm.allreduce(winrate, op=MPI.SUM) / comm.Get_size()
     timeend = time.time()
     duration = timeend - timestart
     avg_gametime = duration / worker_episodes
     parallel_err(rank, f'{pi1} V {pi2} | {episodes} GAMES, {avg_gametime:.1f} SEC/GAME, {100 * winrate:.1f}% WIN')
     return winrate, traj
 
-def sync_checkpoint(rank, comm: MPI.Intracomm, newcheckpoint_pi, checkpath, other_pi):
+def sync_checkpoint(rank, newcheckpoint_pi, checkpath, other_pi):
     if rank == 0:
         torch.save(newcheckpoint_pi.pytorch_model.state_dict(), checkpath)
-    comm.Barrier()
     # Update other policy
     other_pi.pytorch_model.load_state_dict(torch.load(checkpath))
 
@@ -97,7 +94,7 @@ def parallel_err(rank, s, rep=0):
         sys.stderr.flush()
 
 
-def sync_data(rank, comm: MPI.Intracomm, args):
+def sync_data(rank, args):
     if rank == 0:
         if args.checkpoint:
             assert os.path.exists(args.checkpath)
@@ -112,4 +109,3 @@ def sync_data(rank, comm: MPI.Intracomm, args):
                 new_model = actorcritic.ActorCriticNet(args.boardsize)
             torch.save(new_model.state_dict(), args.checkpath)
     parallel_err(rank, "Using checkpoint: {}".format(args.checkpoint))
-    comm.Barrier()
