@@ -2,7 +2,6 @@ import gym
 import numpy as np
 import torch
 import torch.nn as nn
-from mpi4py import MPI
 
 from go_ai import data
 
@@ -82,8 +81,8 @@ class ValueNet(nn.Module):
         return x
 
 
-def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimizer):
-    world_size = comm.Get_size()
+def optimize(model: torch.nn.Module, batched_data, optimizer):
+    world_size = 1
     model.train()
     dtype = next(model.parameters()).type()
     running_loss = 0
@@ -101,14 +100,9 @@ def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimize
         loss = model.criterion(vals, wins)
         loss.backward()
 
-        for params in model.parameters():
-            params.grad = comm.allreduce(params.grad, op=MPI.SUM) / world_size
-
         optimizer.step()
 
         running_loss += loss.item()
         running_acc += torch.mean((pred_wins == wins).type(wins.dtype)).item()
-
-    comm.Barrier()
 
     return running_acc / len(batched_data), running_loss / len(batched_data)
