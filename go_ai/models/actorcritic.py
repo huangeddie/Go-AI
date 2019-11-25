@@ -40,10 +40,16 @@ class ActorCriticNet(nn.Module):
 
         action_size = GoGame.get_action_size(board_size=board_size)
         self.actor = nn.Sequential(
+            nn.Linear(board_size ** 2, board_size ** 2),
+            nn.BatchNorm1d(board_size ** 2),
+            nn.RelU(),
             nn.Linear(board_size ** 2, action_size),
         )
 
         self.critic = nn.Sequential(
+            nn.Linear(board_size ** 2, board_size ** 2),
+            nn.BatchNorm1d(board_size ** 2),
+            nn.RelU(),
             nn.Linear(board_size ** 2, 1),
             nn.Tanh(),
         )
