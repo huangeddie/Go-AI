@@ -5,4 +5,4 @@
 
 conda activate go_ai_env
 cd /home/raysun2/Go-AI/
-python train.py --boardsize=5 --episodes-dir=/home/raysun2/Go-AI/episodes/ --agent=ac --checkpath /home/raysun2/Go-AI/checkpoints/checkpoint.pt
+python train.py --boardsize=5 --episodesdir=/home/raysun2/Go-AI/episodes/ --agent=ac --checkpath /home/raysun2/Go-AI/checkpoints/checkpoint.pt
