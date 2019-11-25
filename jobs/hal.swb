@@ -2,6 +2,7 @@
 #SBATCH --error="bin/log.err"
 #SBATCH --output="bin/stats.out"
 #SBATCH --partition=cpu
+#SBATCH --time=4320
 
 source /home/raysun2/.bashrc
 conda activate go_ai_env
