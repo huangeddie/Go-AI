@@ -42,14 +42,14 @@ class ActorCriticNet(nn.Module):
         self.actor = nn.Sequential(
             nn.Linear(board_size ** 2, board_size ** 2),
             nn.BatchNorm1d(board_size ** 2),
-            nn.RelU(),
+            nn.ReLU(),
             nn.Linear(board_size ** 2, action_size),
         )
 
         self.critic = nn.Sequential(
             nn.Linear(board_size ** 2, board_size ** 2),
             nn.BatchNorm1d(board_size ** 2),
-            nn.RelU(),
+            nn.ReLU(),
             nn.Linear(board_size ** 2, 1),
             nn.Tanh(),
         )
