@@ -21,7 +21,10 @@ class ActorCriticNet(nn.Module):
             nn.Conv2d(64, 128, 3, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Conv2d(128, 128, 3, padding=1),
+            nn.Conv2d(128, 256, 3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.Conv2d(256, 128, 3, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.Conv2d(128, 64, 3, padding=1),
@@ -40,16 +43,10 @@ class ActorCriticNet(nn.Module):
 
         action_size = GoGame.get_action_size(board_size=board_size)
         self.actor = nn.Sequential(
-            nn.Linear(board_size ** 2, board_size ** 2),
-            nn.BatchNorm1d(board_size ** 2),
-            nn.ReLU(),
             nn.Linear(board_size ** 2, action_size),
         )
 
         self.critic = nn.Sequential(
-            nn.Linear(board_size ** 2, board_size ** 2),
-            nn.BatchNorm1d(board_size ** 2),
-            nn.ReLU(),
             nn.Linear(board_size ** 2, 1),
             nn.Tanh(),
         )
