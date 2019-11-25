@@ -45,10 +45,11 @@ class ActorCriticNet(nn.Module):
 
         self.critic = nn.Sequential(
             nn.Linear(board_size ** 2, 1),
+            nn.Tanh(),
         )
 
         self.actor_criterion = nn.CrossEntropyLoss()
-        self.critic_criterion = nn.BCEWithLogitsLoss()
+        self.critic_criterion = nn.MSELoss()
 
     def forward(self, state):
         invalid_values = data.batch_invalid_values(state)
@@ -95,7 +96,7 @@ def optimize(model, batched_data, optimizer):
         loss.backward()
         optimizer.step()
 
-        pred_wins = (torch.sigmoid(vals) > 0.5).type(vals.dtype)
+        pred_wins = torch.sign(vals)
         critic_running_loss += loss.item()
         critic_running_acc += torch.mean((pred_wins == wins).type(dtype)).item()
 
