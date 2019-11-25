@@ -2,9 +2,7 @@
 #SBATCH --error="bin/log.err"
 #SBATCH --output="bin/stats.out"
 #SBATCH --partition=cpu
-module load anaconda/2018.12-py3.6
-module load openmpi/4.0.0-gcc-4.8.5
 
 conda activate go_ai_env
 cd /home/raysun2/Go-AI/
-python3 train.py --boardsize=5 --episodes-dir=/home/raysun2/Go-AI/episodes/ --agent=ac
+python train.py --boardsize=5 --episodes-dir=/home/raysun2/Go-AI/episodes/ --agent=ac --checkpath /home/raysun2/Go-AI/checkpoints/checkpoint.pt
