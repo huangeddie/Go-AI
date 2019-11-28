@@ -42,7 +42,7 @@ def worker_train(args):
     go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
     # Header output
-    utils.parallel_out(rank, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
+    utils.parallel_out(rank, "TIME\t\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
 
     # Training
     starttime = datetime.now()
@@ -114,7 +114,7 @@ def worker_train(args):
         # Print iteration summary
         currtime = datetime.now()
         delta = currtime - starttime
-        iter_info = f"{str(delta).split('.')[0]}\t{iteration:02d}\t{replay_len:07d}\t" \
+        iter_info = f"{str(delta).split('.')[0]}\t\t{iteration:02d}\t{replay_len:07d}\t" \
                     f"{100 * crit_acc:04.1f}\t{crit_loss:04.3f}\t" \
                     f"{100 * act_acc:04.1f}\t{act_loss:04.3f}\t" \
                     f"{100 * check_winrate:04.1f}\t{100 * rand_winrate:04.1f}\t{100 * greedy_winrate:04.1f}"
