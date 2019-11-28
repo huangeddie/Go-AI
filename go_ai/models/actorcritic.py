@@ -5,7 +5,7 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from go_ai import data, montecarlo, policies
-from value import BasicBlock
+from go_ai.models.value import BasicBlock
 
 gymgo = gym.make('gym_go:go-v0', size=0)
 GoGame = gymgo.gogame
