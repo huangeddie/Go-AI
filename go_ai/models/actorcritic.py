@@ -5,6 +5,7 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from go_ai import data, montecarlo, policies
+from value import BasicBlock
 
 gymgo = gym.make('gym_go:go-v0', size=0)
 GoGame = gymgo.gogame
@@ -12,8 +13,66 @@ GoVars = gymgo.govars
 
 
 class ActorCriticNet(nn.Module):
-    def __init__(self, board_size):
+    def __init__(self, board_size, num_blocks=4, channels=64):
         super(ActorCriticNet, self).__init__()
+        # Convolutions
+        convs = [
+            nn.Conv2d(6, channels, 3, padding=1),
+            nn.BatchNorm2d(channels),
+            nn.ReLU()
+        ]
+
+        for i in range(num_blocks):
+            convs.append(BasicBlock(channels, channels))
+
+        convs.extend([
+            nn.Conv2d(channels, 4, 1),
+            nn.BatchNorm2d(4),
+            nn.ReLU(),
+        ])
+
+        self.shared_convs = nn.Sequential(*convs)
+
+        fc_h = 4 * board_size ** 2
+        self.shared_fcs = nn.Sequential(
+            nn.Linear(fc_h, fc_h),
+            nn.BatchNorm1d(fc_h),
+            nn.ReLU(),
+        )
+
+        action_size = GoGame.get_action_size(board_size=board_size)
+        self.actor = nn.Sequential(
+            nn.Linear(fc_h, fc_h),
+            nn.BatchNorm1d(fc_h),
+            nn.ReLU(),
+            nn.Linear(fc_h, action_size),
+        )
+
+        self.critic = nn.Sequential(
+            nn.Linear(fc_h, fc_h),
+            nn.BatchNorm1d(fc_h),
+            nn.ReLU(),
+            nn.Linear(fc_h, 1),
+            nn.Tanh(),
+        )
+
+        self.actor_criterion = nn.CrossEntropyLoss()
+        self.critic_criterion = nn.MSELoss()
+
+    def forward(self, state):
+        invalid_values = data.batch_invalid_values(state)
+        x = self.shared_convs(state)
+        x = torch.flatten(x, start_dim=1)
+        x = self.shared_fcs(x)
+        policy_scores = self.actor(x)
+        policy_scores += invalid_values
+        vals = self.critic(x)
+        return policy_scores, vals
+
+
+class ActorCriticNetConv(nn.Module):
+    def __init__(self, board_size):
+        super(ActorCriticNetConv, self).__init__()
         self.shared_convs = nn.Sequential(
             nn.Conv2d(GoVars.NUM_CHNLS, 64, 3, padding=1),
             nn.BatchNorm2d(64),
