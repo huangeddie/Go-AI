@@ -21,7 +21,12 @@ elif args.agent == 'ac':
     checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
 print("Loaded model")
 
+opponent_model = actorcritic.ActorCriticNetBase(args.boardsize)
+opponent_model.load_state_dict(torch.load('checkpoints/base.pt'))
+opponent = policies.ActorCritic('Base', opponent_model)
+
 # Play
 checkpoint_pi.set_temp(0)
 go_env.reset()
-game.pit(go_env, policies.HUMAN_PI, checkpoint_pi, False)
+wr, _ = utils.parallel_play(go_env, checkpoint_pi, opponent, False, args.evaluations)
+print('Winrate: ', wr)
