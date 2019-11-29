@@ -24,12 +24,12 @@ def hyperparameters():
 
     parser.add_argument('--batchsize', type=int, default=32, help='batch size')
     parser.add_argument('--replaysize', type=int, default=400000, help='max replay memory size')
-    parser.add_argument('--trainsize', type=int, default=10000 * 32, help='train data size for one iteration')
+    parser.add_argument('--trainsize', type=int, default=1000 * 32, help='train data size for one iteration')
 
     parser.add_argument('--iterations', type=int, default=128, help='iterations')
     parser.add_argument('--episodes', type=int, default=256, help='episodes')
     parser.add_argument('--evaluations', type=int, default=256, help='episodes')
-    parser.add_argument('--eval-interval', type=int, default=1, help='iterations per evaluation')
+    parser.add_argument('--eval-interval', type=int, default=2, help='iterations per evaluation')
 
     parser.add_argument('--episodesdir', type=str, default='episodes/', help='directory to store episodes')
     parser.add_argument('--checkpath', type=str, default='bin/checkpoint.pt', help='model path for checkpoint')

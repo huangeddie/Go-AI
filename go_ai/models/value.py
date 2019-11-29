@@ -87,7 +87,7 @@ def optimize(model: torch.nn.Module, batched_data, optimizer):
     dtype = next(model.parameters()).type()
     running_loss = 0
     running_acc = 0
-    for states, actions, next_states, rewards, terminals, wins in batched_data:
+    for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(batched_data, 1):
         # Augment
         states = data.batch_random_symmetries(states)
 
@@ -101,6 +101,11 @@ def optimize(model: torch.nn.Module, batched_data, optimizer):
         loss.backward()
 
         optimizer.step()
+
+        # Sync Parameters
+        if i % 8 == 0:
+            for params in model.parameters():
+                params.data = comm.allreduce(params.data, op=MPI.SUM) / world_size
 
         running_loss += loss.item()
         running_acc += torch.mean((pred_wins == wins).type(wins.dtype)).item()
