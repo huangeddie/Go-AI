@@ -88,7 +88,7 @@ def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimize
     dtype = next(model.parameters()).type()
     running_loss = 0
     running_acc = 0
-    for states, actions, next_states, rewards, terminals, wins in batched_data:
+    for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(batched_data, 1):
         # Augment
         states = data.batch_random_symmetries(states)
 
@@ -101,13 +101,19 @@ def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimize
         loss = model.criterion(vals, wins)
         loss.backward()
 
-        for params in model.parameters():
-            params.grad = comm.allreduce(params.grad, op=MPI.SUM) / world_size
-
         optimizer.step()
+
+        # Sync Parameters
+        if i % 8 == 0:
+            for params in model.parameters():
+                params.data = comm.allreduce(params.data, op=MPI.SUM) / world_size
 
         running_loss += loss.item()
         running_acc += torch.mean((pred_wins == wins).type(wins.dtype)).item()
+
+    # Sync Parameters
+    for params in model.parameters():
+        params.data = comm.allreduce(params.data, op=MPI.SUM) / world_size
 
     comm.Barrier()
 
