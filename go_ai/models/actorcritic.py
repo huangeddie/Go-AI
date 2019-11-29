@@ -113,14 +113,14 @@ def optimize(comm: MPI.Intracomm, model, batched_data, optimizer):
         states = data.batch_random_symmetries(states)
         invalid_values = data.batch_invalid_values(states)
 
+        qvals = montecarlo.qs_from_stateval(states, val_func)[0]
+        qvals += invalid_values
+        greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1)).type(torch.LongTensor)
+
         states = torch.from_numpy(states).type(dtype)
 
         optimizer.zero_grad()
         policy_scores, _ = model(states)
-
-        qvals = montecarlo.qs_from_stateval(states, val_func)[0]
-        qvals += invalid_values
-        greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1)).type(torch.LongTensor)
 
         loss = model.actor_criterion(policy_scores, greedy_actions)
         if (loss > 1000).any():
