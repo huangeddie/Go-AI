@@ -25,12 +25,11 @@ def batch_canonical_children_states(states):
     # Get all children states
     canonical_next_states = []
     for state in states:
-        valid_moves = GoGame.get_valid_moves(state)
-        valid_move_idcs = np.argwhere(valid_moves > 0).flatten()
-        for move in valid_move_idcs:
-            next_state = GoGame.get_next_state(state, move)
-            canonical_next_state = GoGame.get_canonical_form(next_state)
-            canonical_next_states.append(canonical_next_state)
+        children = GoGame.get_children(state)
+        for child in children:
+            canonical_child = GoGame.get_canonical_form(child)
+            canonical_next_states.append(canonical_child)
+
     # Get network responses on children
     canonical_next_states = np.array(canonical_next_states)
     return canonical_next_states
