@@ -55,7 +55,7 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
 
     done = False
 
-    while not go_env.game_ended():
+    while not done:
         # Get turn
         curr_turn = go_env.turn()
 
