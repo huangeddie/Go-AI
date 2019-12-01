@@ -58,9 +58,13 @@ def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
     worker_episodes = int(math.ceil(req_episodes / world_size))
     episodes = worker_episodes * world_size
     single_worker = comm.Get_size() <= 1
+    parallel_err(rank, f'Worker {rank} playing games...', rep=rank)
     winrate, traj = game.play_games(go_env, pi1, pi2, gettraj, worker_episodes, progress=single_worker)
+    parallel_err(rank, f'Worker {rank} finished games', rep=rank)
     winrate = comm.allreduce(winrate, op=MPI.SUM) / comm.Get_size()
-    avg_steps = comm.allreduce(len(traj), op=MPI.SUM) / (episodes)
+    parallel_err(rank, f'Win rate: {winrate}')
+    avg_steps = comm.allreduce(len(traj), op=MPI.SUM) / episodes
+    parallel_err(rank, f'Average steps: {avg_steps}')
     timeend = time.time()
     duration = timeend - timestart
     avg_gametime = duration / worker_episodes
