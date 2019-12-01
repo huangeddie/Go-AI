@@ -60,10 +60,13 @@ def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
     single_worker = comm.Get_size() <= 1
     winrate, traj = game.play_games(go_env, pi1, pi2, gettraj, worker_episodes, progress=single_worker)
     winrate = comm.allreduce(winrate, op=MPI.SUM) / comm.Get_size()
+    avg_steps = comm.allreduce(len(traj), op=MPI.SUM) / (episodes)
     timeend = time.time()
     duration = timeend - timestart
     avg_gametime = duration / worker_episodes
-    parallel_err(rank, f'{pi1} V {pi2} | {episodes} GAMES, {avg_gametime:.1f} SEC/GAME, {100 * winrate:.1f}% WIN')
+
+    parallel_err(rank, f'{pi1} V {pi2} | {episodes} GAMES, {avg_gametime:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
+                       f'{100 * winrate:.1f}% WIN')
     return winrate, traj
 
 def sync_checkpoint(rank, comm: MPI.Intracomm, newcheckpoint_pi, checkpath, other_pi):

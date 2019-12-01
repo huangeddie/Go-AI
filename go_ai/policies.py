@@ -1,10 +1,9 @@
-import logging
-
 import gym
 import numpy as np
 import torch
 
-from go_ai.montecarlo import tree, temperate_pi
+from go_ai import montecarlo
+from go_ai.montecarlo import temperate_pi
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -82,9 +81,9 @@ class Policy:
         self.temp_steps = temp_steps
         self.pytorch_model = None
 
-    def __call__(self, state, step=None):
+    def __call__(self, go_env, step=None):
         """
-        :param state: Go board
+        :param go_env: Go environment
         :param step: the number of steps taken in the game so far
         :return: Action probabilities
         """
@@ -98,23 +97,6 @@ class Policy:
     def set_temp(self, temp):
         self.temp = temp
 
-    def step(self, action):
-        """
-        Helps synchronize the policy with the outside environment.
-        Most policies don't need to implement this function
-        :param action:
-        :return:
-        """
-        pass
-
-    def reset(self, state=None):
-        """
-        Helps synchronize the policy with the outside environment.
-        Most policies don't need to implement this function
-        :return:
-        """
-        pass
-
     def __str__(self):
         return "{} {}".format(self.__class__.__name__, self.name)
 
@@ -123,13 +105,14 @@ class Random(Policy):
     def __init__(self):
         super(Random, self).__init__('Random')
 
-    def __call__(self, state, step=None):
+    def __call__(self, go_env, step=None):
         """
-        :param state:
+        :param go_env:
         :param step:
         :return: Action probabilities
         """
-        valid_moves = GoGame.get_valid_moves(state)
+
+        valid_moves = go_env.get_valid_moves()
         return valid_moves / np.sum(valid_moves)
 
 
@@ -137,19 +120,18 @@ class Human(Policy):
     def __init__(self):
         super(Human, self).__init__('Human')
 
-    def __call__(self, state, step=None):
+    def __call__(self, go_env, step=None):
         """
-        :param state:
+        :param go_env:
         :param step:
         :return: Action probabilities
         """
-        valid_moves = GoGame.get_valid_moves(state)
+        valid_moves = go_env.get_valid_moves()
 
         # Human interface
-        size = state.shape[1]
-        go_env = gym.make('gym_go:go-v0', size=size, state=state)
         while True:
             player_action = go_env.render('human')
+            state = go_env.get_state()
             player_action = GoGame.action_2d_to_1d(player_action, state)
             if valid_moves[player_action] > 0:
                 break
@@ -170,24 +152,20 @@ class MCTS(Policy):
         self.val_func = val_func
         self.num_searches = num_searches
 
-    def __call__(self, state, step=None):
+    def __call__(self, go_env, step=None):
         """
         :param state: Unused variable since we already have the state stored in the tree
         :param step: Parameter used for getting the temperature
         :return:
         """
-        valid_moves = GoGame.get_valid_moves(state)
+        canonical_children, _ = go_env.get_canonical_children()
+        child_vals = self.val_func(canonical_children)
+        canonical_state = go_env.get_canonical_state()
 
-        if not hasattr(self, "tree"):
-            # Invoked the first time you call it
-            self.tree = tree.MCTree(self.val_func, state)
+        batch_qvals = montecarlo.get_batch_qvals(child_vals, canonical_children, [canonical_state])
+        qvals = batch_qvals[0]
 
-        root = self.tree.root.state
-        if not (root == state).all():
-            logging.warning("MCTPolicy {} resetted tree, uncaching all work".format(self.name))
-            self.tree.reset(state)
-        qvals = self.tree.get_qvals(num_searches=self.num_searches)
-
+        valid_moves = go_env.get_valid_moves()
         if np.count_nonzero(qvals) == 0:
             qvals += valid_moves
 
@@ -198,21 +176,6 @@ class MCTS(Policy):
             pi = temperate_pi(qvals, 0, valid_moves)
         return pi
 
-    def step(self, action):
-        """
-        Helps synchronize the policy with the outside environment
-        :param action:
-        :return:
-        """
-        self.tree.step(action)
-
-    def reset(self, state=None):
-        if not hasattr(self, "tree"):
-            assert state is not None
-            # Invoked the first time you call it
-            self.tree = tree.MCTree(self.val_func, state)
-        self.tree.reset(state)
-
     def __str__(self):
         return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.4f}T]-{self.name}"
 
@@ -222,13 +185,14 @@ class ActorCritic(Policy):
         super(ActorCritic, self).__init__(name, temp=0)
         self.pytorch_model = network
 
-    def __call__(self, state, step=None):
+    def __call__(self, go_env, step=None):
         """
-        :param state: Current state to act on
+        :param go_env:
         :param step: Parameter used for getting the temperature
         :return: Action probabilities
         """
         self.pytorch_model.eval()
+        state = go_env.get_canonical_state()
         state_tensor = torch.from_numpy(state[np.newaxis]).type(torch.FloatTensor)
         policy_scores, _ = self.pytorch_model(state_tensor)
         pi = torch.nn.functional.softmax(policy_scores, dim=1)

@@ -48,11 +48,6 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
     num_steps = 0
     state = go_env.get_state()
 
-    # Sync policies to current state
-    black_policy.reset(state)
-    if white_policy != black_policy:
-        white_policy.reset(state)
-
     max_steps = 2 * (go_env.size ** 2)
 
     blackcache = []
@@ -60,7 +55,7 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
 
     done = False
 
-    while not done:
+    while not go_env.game_ended():
         # Get turn
         curr_turn = go_env.turn()
 
@@ -69,22 +64,17 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
 
         # Get an action
         if curr_turn == GoVars.BLACK:
-            action_probs = black_policy(canonical_state, step=num_steps)
+            action_probs = black_policy(go_env, step=num_steps)
             cache = blackcache
         else:
             assert curr_turn == GoVars.WHITE
-            action_probs = white_policy(canonical_state, step=num_steps)
+            action_probs = white_policy(go_env, step=num_steps)
             cache = whitecache
 
         action = GoGame.random_weighted_action(action_probs)
 
         # Execute actions in environment and MCT tree
         next_state, reward, done, _ = go_env.step(action)
-
-        # Sync the policies
-        black_policy.step(action)
-        if white_policy != black_policy:
-            white_policy.step(action)
 
         # End if we've reached max steps
         if num_steps >= max_steps:

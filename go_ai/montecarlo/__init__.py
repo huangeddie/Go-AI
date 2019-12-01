@@ -47,6 +47,12 @@ def qs_from_stateval(states, val_func, group_maps=None):
     canonical_next_states = batch_canonical_children_states(states, group_maps)
     canonical_next_vals = val_func(canonical_next_states)
 
+    batch_qvals = get_batch_qvals(canonical_next_vals, canonical_next_states, states)
+
+    return np.array(batch_qvals), canonical_next_states
+
+
+def get_batch_qvals(canonical_next_vals, canonical_next_states, states):
     curr_idx = 0
     batch_qvals = []
     for state in states:
@@ -65,9 +71,8 @@ def qs_from_stateval(states, val_func, group_maps=None):
                 Qs.append(0)
 
         batch_qvals.append(Qs)
-
     assert curr_idx == len(canonical_next_vals), (curr_idx, len(canonical_next_vals))
-    return np.array(batch_qvals), canonical_next_states
+    return batch_qvals
 
 
 def greedy_pi(qvals, valid_moves):

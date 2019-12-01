@@ -51,9 +51,8 @@ def worker_train(args, comm: MPI.Intracomm):
     crit_acc, crit_loss, act_acc, act_loss = 0, 0, 0, 0,
     for iteration in range(args.iterations):
         # Play episodes
-        utils.parallel_err(rank, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}')
-        wr, trajectories = utils.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True,
-                                                             args.episodes)
+        utils.parallel_err(rank, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
+        wr, trajectories = utils.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True, args.episodes)
 
         replay_data.extend(trajectories)
 
@@ -91,7 +90,7 @@ def worker_train(args, comm: MPI.Intracomm):
                 # Play some games
                 utils.parallel_err(rank, f'Pitting {curr_pi} V {opponent}')
                 wr, _ = utils.parallel_play(comm, go_env, curr_pi, opponent, False,
-                                                          args.evaluations)
+                                            args.evaluations)
 
                 # Do stuff based on the opponent we faced
                 if opponent == checkpoint_pi:
