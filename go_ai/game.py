@@ -12,6 +12,7 @@ GoGame = go_env.gogame
 def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Policy, get_traj, episodes,
                progress=True):
     replay_data = []
+    all_steps = []
     wins = 0
     if progress:
         pbar = tqdm(range(1, episodes + 1), desc="{} vs. {}".format(first_policy, second_policy), leave=True)
@@ -20,16 +21,17 @@ def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Po
     for i in pbar:
         go_env.reset()
         if i % 2 == 0:
-            w, traj = pit(go_env, first_policy, second_policy, get_traj=get_traj)
+            w, steps, traj = pit(go_env, first_policy, second_policy, get_traj=get_traj)
         else:
-            w, traj = pit(go_env, second_policy, first_policy, get_traj=get_traj)
+            w, steps, traj = pit(go_env, second_policy, first_policy, get_traj=get_traj)
             w = -w
         wins += int(w == 1)
+        all_steps.append(steps)
         replay_data.extend(traj)
         if isinstance(pbar, tqdm):
             pbar.set_postfix_str("{:.1f}%".format(100 * wins / i))
 
-    return wins / episodes, replay_data
+    return wins / episodes, all_steps, replay_data
 
 
 def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, get_traj=False):
@@ -39,11 +41,14 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
     :param go_env:
     :param black_policy:
     :param white_policy:
-    :return: Whether or not black won {1, 0, -1}, trajectory
-        trajectory is a list of events where each event is of the form
-        (canonical_state, action, canonical_next_state, reward, terminal, win)
+    :return:
+        • Whether or not black won {1, 0, -1}
+        • Number of steps
+        • Trajectory
+            - Trajectory is a list of events where each event is of the form
+            (canonical_state, action, canonical_next_state, reward, terminal, win)
 
-        Trajectory is empty list if get_trajectory is None
+            Trajectory is empty list if get_trajectory is None
     """
     num_steps = 0
     state = go_env.get_state()
@@ -117,4 +122,4 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
     if len(black_mem) == 1 + len(white_mem):
         replay_mem.append(black_mem[-1])
 
-    return black_won, replay_mem
+    return black_won, num_steps, replay_mem
