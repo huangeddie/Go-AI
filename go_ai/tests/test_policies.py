@@ -26,28 +26,28 @@ class MyTestCase(unittest.TestCase):
         mct_check = policies.MCTS('Checkpoint', checkpoint_model, 4, args.temp, args.tempsteps)
 
         self.go_env = gym.make('gym_go:go-v0', size=9)
-        win_rate, _ = game.play_games(self.go_env, mct_check, check, False, self.num_games)
+        win_rate, _, _ = game.play_games(self.go_env, mct_check, check, False, self.num_games)
         print(win_rate)
         self.assertGreaterEqual(win_rate, 0.6)
 
 
     def test_greed_vs_greed(self):
-        win_rate, _ = game.play_games(self.go_env, policies.GREEDY_PI, policies.GREEDY_PI, False, self.num_games)
+        win_rate, _, _ = game.play_games(self.go_env, policies.GREEDY_PI, policies.GREEDY_PI, False, self.num_games)
         print(win_rate)
         self.assertAlmostEqual(win_rate, 0.5, delta=0.1)
 
     def test_smartgreed_vs_greed(self):
-        win_rate, _ = game.play_games(self.go_env, policies.SMART_GREEDY_PI, policies.GREEDY_PI, False, self.num_games)
+        win_rate, _, _ = game.play_games(self.go_env, policies.SMART_GREEDY_PI, policies.GREEDY_PI, False, self.num_games)
         print(win_rate)
         self.assertAlmostEqual(win_rate, 0.5, delta=0.1)
 
     def test_rand_vs_greed(self):
-        win_rate, _ = game.play_games(self.go_env, policies.RAND_PI, policies.GREEDY_PI, False, self.num_games)
+        win_rate, _, _ = game.play_games(self.go_env, policies.RAND_PI, policies.GREEDY_PI, False, self.num_games)
         print(win_rate)
         self.assertAlmostEqual(win_rate, 0, delta=0.1)
 
     def test_greed_vs_rand(self):
-        win_rate, _ = game.play_games(self.go_env, policies.GREEDY_PI, policies.RAND_PI, False, self.num_games)
+        win_rate, _, _ = game.play_games(self.go_env, policies.GREEDY_PI, policies.RAND_PI, False, self.num_games)
         print(win_rate)
         self.assertAlmostEqual(win_rate, 1, delta=0.1)
 
@@ -65,22 +65,22 @@ class MyTestCase(unittest.TestCase):
             state = self.go_env.get_canonical_state()
 
     def test_mct_vs_rand(self):
-        win_rate, _ = game.play_games(self.go_env, self.greedy_mct_policy, policies.RAND_PI, False, self.num_games)
+        win_rate, _, _ = game.play_games(self.go_env, self.greedy_mct_policy, policies.RAND_PI, False, self.num_games)
         print(win_rate)
         self.assertAlmostEqual(win_rate, 1, delta=0.1)
 
     def test_rand_vs_mct(self):
-        win_rate, _ = game.play_games(self.go_env, policies.RAND_PI, self.greedy_mct_policy, False, self.num_games)
+        win_rate, _, _ = game.play_games(self.go_env, policies.RAND_PI, self.greedy_mct_policy, False, self.num_games)
         print(win_rate)
         self.assertAlmostEqual(win_rate, 1, delta=0.1)
 
     def test_mct_vs_greed(self):
-        win_rate, _ = game.play_games(self.go_env, self.greedy_mct_policy, policies.GREEDY_PI, False, self.num_games)
+        win_rate, _, _ = game.play_games(self.go_env, self.greedy_mct_policy, policies.GREEDY_PI, False, self.num_games)
         print(win_rate)
         self.assertGreaterEqual(win_rate, 0.6)
 
     def test_greed_vs_mct(self):
-        win_rate, _ = game.play_games(self.go_env, policies.GREEDY_PI, self.greedy_mct_policy, False, self.num_games)
+        win_rate, _, _ = game.play_games(self.go_env, policies.GREEDY_PI, self.greedy_mct_policy, False, self.num_games)
         print(win_rate)
         self.assertLessEqual(win_rate, 0.2)
 

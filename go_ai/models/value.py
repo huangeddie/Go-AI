@@ -14,25 +14,19 @@ class BasicBlock(nn.Module):
     def __init__(self, inplanes, planes):
         super().__init__()
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
-        self.conv1 = nn.Conv2d(inplanes, planes, 3, padding=1)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv2d(planes, planes, 3, padding=1)
-        self.bn2 = nn.BatchNorm2d(planes)
+        self.main = nn.Sequential(
+            nn.Conv2d(inplanes, planes, 3, padding=1),
+            nn.BatchNorm2d(planes),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(planes, planes, 3, padding=1),
+            nn.BatchNorm2d(planes),
+        )
 
     def forward(self, x):
         identity = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-
+        out = self.main(x)
         out += identity
-        out = self.relu(out)
-
+        out = torch.relu_(out)
         return out
 
 
@@ -41,7 +35,7 @@ class ValueNet(nn.Module):
     ResNet
     """
 
-    def __init__(self, boardsize, num_blocks=8, channels=64):
+    def __init__(self, boardsize, num_blocks=4, channels=32):
         super().__init__()
 
         # Convolutions

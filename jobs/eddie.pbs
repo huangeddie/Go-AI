@@ -1,6 +1,7 @@
 #!/bin/bash
 #PBS -l nodes=4:ppn=16
 #PBS -l walltime=12:00:00
+#PBS -l naccesspolicy=singleuser
 #PBS -N go_ai
 #PBS -e bin/log.txt
 #PBS -o bin/stats.txt

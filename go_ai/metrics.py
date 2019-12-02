@@ -147,7 +147,7 @@ def plot_traj_fig(go_env, policy: policies.Policy, outpath):
     :return: A plot of the game including the policy's responses to each state
     """
     go_env.reset()
-    _, traj = go_ai.game.pit(go_env, black_policy=policy, white_policy=policy, get_traj=True)
+    _, _, traj = go_ai.game.pit(go_env, black_policy=policy, white_policy=policy, get_traj=True)
     state_responses(policy, traj)
     plt.savefig(outpath)
     plt.close()

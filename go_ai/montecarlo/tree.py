@@ -26,6 +26,7 @@ class MCTree:
         assert canonical_state.shape[1] == canonical_state.shape[2]
         self.board_size = canonical_state.shape[1]
         self.action_size = GoGame.get_action_size(self.root.state)
+        self.rootgroup_map = None
 
     def get_qvals(self, num_searches):
         '''
@@ -42,7 +43,7 @@ class MCTree:
 
         if num_searches <= 0:
             # Avoid making nodes and stuff
-            qvals, _ = montecarlo.qs_from_stateval(rootstate[np.newaxis], self.val_func)
+            qvals, _ = montecarlo.qs_from_stateval(rootstate[np.newaxis], self.val_func, [self.rootgroup_map])
             qvals = qvals[0]
         else:
             if self.root.is_leaf():
@@ -126,12 +127,10 @@ class MCTree:
         expand it.
         '''
         state = self.root.state
-        if not self.root.is_leaf():
-            canon_child = self.root.canon_children[action]
-        else:
-            childstate = GoGame.get_next_state(state, action)
-            canonchildstate = GoGame.get_canonical_form(childstate)
-            canon_child = Node(None, 0, canonchildstate) # State value doesn't matter
+
+        childstate, self.rootgroup_map = GoGame.get_next_state(state, action, self.rootgroup_map)
+        canonchildstate = GoGame.get_canonical_form(childstate)
+        canon_child = Node(None, 0, canonchildstate) # State value doesn't matter
 
         self.root = canon_child
 
@@ -142,7 +141,7 @@ class MCTree:
     def reset(self, state=None):
         if state is None:
             state = GoGame.get_init_board(self.board_size)
-
+        self.rootgroup_map = None
         self.__init__(self.val_func, state)
 
     def __str__(self):

@@ -21,11 +21,12 @@ def canonical_winning(canonical_state):
     return winning
 
 
-def batch_canonical_children_states(states):
+def batch_canonical_children_states(states, group_maps):
     # Get all children states
+    assert len(states) == len(group_maps)
     canonical_next_states = []
-    for state in states:
-        children = GoGame.get_children(state)
+    for state, group_map in zip(states, group_maps):
+        children, _ = GoGame.get_children(state, group_map)
         for child in children:
             canonical_child = GoGame.get_canonical_form(child)
             canonical_next_states.append(canonical_child)
@@ -35,16 +36,23 @@ def batch_canonical_children_states(states):
     return canonical_next_states
 
 
-def qs_from_stateval(states, val_func):
+def qs_from_stateval(states, val_func, group_maps=None):
     """
     :param states:
     :param val_func:
     :return: qvals of children of every state (batch size x children state vals)
     """
-
-    canonical_next_states = batch_canonical_children_states(states)
+    if group_maps is None:
+        group_maps = [None for _ in range(len(states))]
+    canonical_next_states = batch_canonical_children_states(states, group_maps)
     canonical_next_vals = val_func(canonical_next_states)
 
+    batch_qvals = get_batch_qvals(canonical_next_vals, canonical_next_states, states)
+
+    return np.array(batch_qvals), canonical_next_states
+
+
+def get_batch_qvals(canonical_next_vals, canonical_next_states, states):
     curr_idx = 0
     batch_qvals = []
     for state in states:
@@ -63,9 +71,8 @@ def qs_from_stateval(states, val_func):
                 Qs.append(0)
 
         batch_qvals.append(Qs)
-
     assert curr_idx == len(canonical_next_vals), (curr_idx, len(canonical_next_vals))
-    return np.array(batch_qvals), canonical_next_states
+    return batch_qvals
 
 
 def greedy_pi(qvals, valid_moves):

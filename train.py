@@ -52,7 +52,7 @@ def worker_train(args):
         # Play episodes
         utils.parallel_err(rank, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}')
         wr, trajectories = utils.parallel_play(go_env, checkpoint_pi, checkpoint_pi, True,
-                                                             args.episodes)
+                                               args.episodes)
 
         replay_data.extend(trajectories)
 
@@ -61,7 +61,8 @@ def worker_train(args):
         utils.parallel_err(rank, 'Wrote all replay data to disk')
 
         # Sample data as batches
-        trainadata, replay_len = data.sample_replaydata(args.episodesdir, args.trainsize // world_size, args.batchsize)
+        trainadata, replay_len = data.sample_replaydata(comm, args.episodesdir, args.trainsize // world_size,
+                                                        args.batchsize)
 
         # Optimize
         utils.parallel_err(rank, f'Optimizing in {len(trainadata)} training steps...')
@@ -88,7 +89,7 @@ def worker_train(args):
                 # Play some games
                 utils.parallel_err(rank, f'Pitting {curr_pi} V {opponent}')
                 wr, _ = utils.parallel_play(go_env, curr_pi, opponent, False,
-                                                          args.evaluations)
+                                            args.evaluations)
 
                 # Do stuff based on the opponent we faced
                 if opponent == checkpoint_pi:

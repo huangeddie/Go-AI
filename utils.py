@@ -23,7 +23,7 @@ def hyperparameters():
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 
     parser.add_argument('--batchsize', type=int, default=32, help='batch size')
-    parser.add_argument('--replaysize', type=int, default=400000, help='max replay memory size')
+    parser.add_argument('--replaysize', type=int, default=200000, help='max replay memory size')
     parser.add_argument('--trainsize', type=int, default=1000 * 32, help='train data size for one iteration')
 
     parser.add_argument('--iterations', type=int, default=128, help='iterations')
@@ -53,15 +53,21 @@ def parallel_play(go_env, pi1, pi2, gettraj, req_episodes):
     rank = 0
     world_size = 1
 
-    timestart = time.time()
     worker_episodes = int(math.ceil(req_episodes / world_size))
     episodes = worker_episodes * world_size
     single_worker = world_size <= 1
-    winrate, traj = game.play_games(go_env, pi1, pi2, gettraj, worker_episodes, progress=single_worker)
+
+    timestart = time.time()
+    winrate, steps, traj = game.play_games(go_env, pi1, pi2, gettraj, worker_episodes, progress=single_worker)
     timeend = time.time()
+
     duration = timeend - timestart
-    avg_gametime = duration / worker_episodes
-    parallel_err(rank, f'{pi1} V {pi2} | {episodes} GAMES, {avg_gametime:.1f} SEC/GAME, {100 * winrate:.1f}% WIN')
+    avg_time = comm.allreduce(duration / worker_episodes, op=MPI.SUM) / world_size
+    winrate = comm.allreduce(winrate, op=MPI.SUM) / world_size
+    avg_steps = comm.allreduce(sum(steps), op=MPI.SUM) / episodes
+
+    parallel_err(rank, f'{pi1} V {pi2} | {episodes} GAMES, {avg_time:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
+                       f'{100 * winrate:.1f}% WIN')
     return winrate, traj
 
 def sync_checkpoint(rank, newcheckpoint_pi, checkpath, other_pi):
