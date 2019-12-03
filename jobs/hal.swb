@@ -1,11 +1,12 @@
 #!/bin/bash
-#SBATCh --job-name="base_heur"
-#SBATCH --error="bin/log_baseheur.err"
-#SBATCH --output="bin/base_heur.out"
+#SBATCH --job-name="test"
+#SBATCH --error="bin/log_test.err"
+#SBATCH --output="bin/test.out"
 #SBATCH --partition=cpu
 #SBATCH --time=4320
 
 source /home/raysun2/.bashrc
 conda activate go_ai_env
 cd /home/raysun2/Go-AI/
-python train.py --boardsize=9 --episodesdir=/home/raysun2/Go-AI/episodes/ --agent=ac --checkpath /home/raysun2/Go-AI/checkpoints/base_heur.pt --tmppath bin/tmp_baseheur.pt
+NAME="test"
+python train.py --boardsize=9 --episodesdir=/home/raysun2/Go-AI/episodes/${NAME}/ --checkpath /home/raysun2/Go-AI/checkpoints/${NAME}.pt --tmppath bin/tmp_${NAME}.pt --agent ac
