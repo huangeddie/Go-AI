@@ -39,7 +39,7 @@ def worker_train(args):
     optim = torch.optim.Adam(curr_model.parameters(), args.lr)
 
     # Environment
-    go_env = gym.make('gym_go:go-v0', size=args.boardsize)
+    go_env = gym.make('gym_go:go-v0', size=args.boardsize, reward_method='heuristic')
 
     # Header output
     utils.parallel_out(rank, "TIME\t\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
