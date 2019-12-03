@@ -12,7 +12,7 @@ GoGame = gymgo.gogame
 GoVars = gymgo.govars
 
 
-class ActorCriticNet(nn.Module):
+class ActorCriticNetBlocks(nn.Module):
     def __init__(self, board_size, num_blocks=4, channels=64):
         super().__init__()
         # Convolutions
@@ -124,7 +124,7 @@ class ActorCriticNetConv(nn.Module):
         return policy_scores, vals
 
 
-class ActorCriticNetBase(nn.Module):
+class ActorCriticNet(nn.Module):
     def __init__(self, board_size):
         super().__init__()
         self.shared_convs = nn.Sequential(
