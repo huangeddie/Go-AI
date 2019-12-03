@@ -63,7 +63,7 @@ def parallel_play(go_env, pi1, pi2, gettraj, req_episodes):
 
     duration = timeend - timestart
     avg_time = duration / worker_episodes
-    avg_steps = steps / episodes
+    avg_steps = sum(steps) / episodes
 
     parallel_err(rank, f'{pi1} V {pi2} | {episodes} GAMES, {avg_time:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
                        f'{100 * winrate:.1f}% WIN')

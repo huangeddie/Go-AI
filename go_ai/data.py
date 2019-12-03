@@ -99,6 +99,7 @@ def sample_replaydata(episodesdir, request_size, batchsize):
         replay_len = None
         sample_data = None
 
+    sample_data = sample_data[0]
     sample_data = replaylist_to_numpy(sample_data)
 
     sample_size = len(sample_data[0])
