@@ -1,15 +1,14 @@
 import os
 import pickle
+import random
 
 import gym
 import numpy as np
-import random
 from mpi4py import MPI
 
 go_env = gym.make('gym_go:go-v0', size=0)
 GoVars = go_env.govars
 GoGame = go_env.gogame
-
 
 
 def batch_invalid_moves(states):
@@ -82,6 +81,7 @@ def load_replaydata(episodesdir, worker_rank=None):
                 all_data.extend(worker_data)
     return all_data
 
+
 def sample_replaydata(comm: MPI.Intracomm, episodesdir, request_size, batchsize):
     """
     :param episodesdir:
@@ -113,7 +113,6 @@ def sample_replaydata(comm: MPI.Intracomm, episodesdir, request_size, batchsize)
     batched_sampledata = list(zip(*batched_sampledata))
 
     return batched_sampledata, replay_len
-
 
 
 def save_replaydata(worker_rank, replay_data, episodesdir):
