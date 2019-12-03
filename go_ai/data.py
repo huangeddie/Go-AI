@@ -88,8 +88,8 @@ def sample_replaydata(episodesdir, request_size, batchsize):
     :param batchsize:
     :return: Batches of sample data, len of total data that was sampled
     """
-    rank = comm.Get_rank()
-    world_size = comm.Get_size()
+    rank = 0
+    world_size = 1
     if rank == 0:
         all_data = load_replaydata(episodesdir)
         replay_len = len(all_data)
@@ -99,8 +99,6 @@ def sample_replaydata(episodesdir, request_size, batchsize):
         replay_len = None
         sample_data = None
 
-    replay_len = comm.bcast(replay_len, root=0)
-    sample_data = comm.scatter(sample_data, root=0)
     sample_data = replaylist_to_numpy(sample_data)
 
     sample_size = len(sample_data[0])

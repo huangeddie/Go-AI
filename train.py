@@ -61,7 +61,7 @@ def worker_train(args):
         utils.parallel_err(rank, 'Wrote all replay data to disk')
 
         # Sample data as batches
-        trainadata, replay_len = data.sample_replaydata(comm, args.episodesdir, args.trainsize // world_size,
+        trainadata, replay_len = data.sample_replaydata(args.episodesdir, args.trainsize // world_size,
                                                         args.batchsize)
 
         # Optimize

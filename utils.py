@@ -62,9 +62,8 @@ def parallel_play(go_env, pi1, pi2, gettraj, req_episodes):
     timeend = time.time()
 
     duration = timeend - timestart
-    avg_time = comm.allreduce(duration / worker_episodes, op=MPI.SUM) / world_size
-    winrate = comm.allreduce(winrate, op=MPI.SUM) / world_size
-    avg_steps = comm.allreduce(sum(steps), op=MPI.SUM) / episodes
+    avg_time = duration / worker_episodes
+    avg_steps = steps / episodes
 
     parallel_err(rank, f'{pi1} V {pi2} | {episodes} GAMES, {avg_time:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
                        f'{100 * winrate:.1f}% WIN')
