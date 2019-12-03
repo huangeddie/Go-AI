@@ -119,7 +119,13 @@ def sample_replaydata(comm: MPI.Intracomm, episodesdir, request_size, batchsize)
 def save_replaydata(worker_rank, replay_data, episodesdir):
     outpath = os.path.join(episodesdir, "worker_{}.pickle".format(worker_rank))
     with open(outpath, 'wb') as f:
-        pickle.dump(replay_data, f)
+        success = False
+        while not success:
+            try:
+                pickle.dump(replay_data, f)
+                success = True
+            except:
+                pass
 
 
 def clear_episodesdir(episodesdir):
