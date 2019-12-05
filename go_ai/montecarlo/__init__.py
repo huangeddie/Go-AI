@@ -9,34 +9,25 @@ def invert_val(val):
     return -val
 
 
-def canonical_winning(canonical_state):
-    my_area, opp_area = GoGame.get_areas(canonical_state)
-    if my_area > opp_area:
-        winning = 1
-    elif my_area < opp_area:
-        winning = -1
-    else:
-        winning = 0
-
-    return winning
+def qs_from_valfunc(state, val_func, group_map=None):
+    canonical_children, _ = GoGame.get_canonical_children(state, group_map)
+    child_vals = val_func(np.array(canonical_children))
+    qvals = vals_to_qs(child_vals, state)
+    return qvals, canonical_children
 
 
-def batch_canonical_children_states(states, group_maps):
-    # Get all children states
-    assert len(states) == len(group_maps)
-    canonical_next_states = []
-    for state, group_map in zip(states, group_maps):
-        children, _ = GoGame.get_children(state, group_map)
-        for child in children:
-            canonical_child = GoGame.get_canonical_form(child)
-            canonical_next_states.append(canonical_child)
+def vals_to_qs(canonical_childvals, state):
+    valid_moves = GoGame.get_valid_moves(state)
+    action_size = GoGame.get_action_size(state)
+    qvals = np.zeros(action_size)
+    for child_idx, action in enumerate(np.argwhere(valid_moves)):
+        child_val = canonical_childvals[child_idx]
+        qvals[action] = invert_val(child_val)
 
-    # Get network responses on children
-    canonical_next_states = np.array(canonical_next_states)
-    return canonical_next_states
+    return qvals
 
 
-def qs_from_stateval(states, val_func, group_maps=None):
+def batchqs_from_valfunc(states, val_func, group_maps=None):
     """
     :param states:
     :param val_func:
@@ -44,35 +35,14 @@ def qs_from_stateval(states, val_func, group_maps=None):
     """
     if group_maps is None:
         group_maps = [None for _ in range(len(states))]
-    canonical_next_states = batch_canonical_children_states(states, group_maps)
-    canonical_next_vals = val_func(canonical_next_states)
-
-    batch_qvals = get_batch_qvals(canonical_next_vals, canonical_next_states, states)
-
-    return np.array(batch_qvals), canonical_next_states
-
-
-def get_batch_qvals(canonical_next_vals, canonical_next_states, states):
-    curr_idx = 0
     batch_qvals = []
-    for state in states:
-        valid_moves = GoGame.get_valid_moves(state)
-        Qs = []
-        for move in range(GoGame.get_action_size(state)):
-            if valid_moves[move]:
-                canonical_next_state = canonical_next_states[curr_idx]
-                terminal = GoGame.get_game_ended(canonical_next_state)
-                winning = canonical_winning(canonical_next_state)
-                oppo_val = (1 - terminal) * canonical_next_vals[curr_idx].item() + (terminal) * winning
-                qval = invert_val(oppo_val)
-                Qs.append(qval)
-                curr_idx += 1
-            else:
-                Qs.append(0)
+    batch_canon_children = []
+    for state, group_map in zip(states, group_maps):
+        qvals, canonical_children = qs_from_valfunc(state, val_func, group_map)
+        batch_qvals.append(qvals)
+        batch_canon_children.append(canonical_children)
 
-        batch_qvals.append(Qs)
-    assert curr_idx == len(canonical_next_vals), (curr_idx, len(canonical_next_vals))
-    return batch_qvals
+    return np.array(batch_qvals), batch_canon_children
 
 
 def greedy_pi(qvals, valid_moves):

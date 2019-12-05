@@ -55,17 +55,29 @@ def smart_greedy_val_func(states):
 
 def pytorch_to_numpy(model):
     """
+    Automatically turns terminal states into 1, 0, -1 based on win status
     :param model:
     :return: The numpy equivalent of the pytorch value model
     """
 
     def val_func(states):
+        """
+        :param states: Numpy batch of states
+        :return:
+        """
         dtype = next(model.parameters()).type()
         model.eval()
         with torch.no_grad():
             states = torch.from_numpy(states).type(dtype)
             state_vals = model(states)
-            return state_vals.detach().cpu().numpy()
+            vals = state_vals.detach().cpu().numpy()
+
+        # Check for terminals
+        for i, state in enumerate(states):
+            if GoGame.get_game_ended(state):
+                vals[i] = GoGame.get_winning(state)
+
+        return vals
 
     return val_func
 
@@ -158,22 +170,41 @@ class MCTS(Policy):
         :param step: Parameter used for getting the temperature
         :return:
         """
-        canonical_children, _ = go_env.get_canonical_children()
+
+        canonical_children, child_groupmaps = go_env.get_canonical_children()
         child_vals = self.val_func(canonical_children)
         canonical_state = go_env.get_canonical_state()
 
-        batch_qvals = montecarlo.get_batch_qvals(child_vals, canonical_children, [canonical_state])
-        qvals = batch_qvals[0]
+        qvals = montecarlo.vals_to_qs(child_vals, canonical_state)
 
-        valid_moves = go_env.get_valid_moves()
+        # Search on grandchildren layer
+        if self.num_searches > 0:
+            best_children_idcs = np.argsort(child_vals.flatten())
+        else:
+            best_children_idcs = []
+        valid_indicators = go_env.get_valid_moves()
+        valid_moves = np.argwhere(valid_indicators).flatten()
+        assert len(valid_moves) == len(child_vals)
+        for child_idx in best_children_idcs:
+            child = canonical_children[child_idx]
+            if GoGame.get_game_ended(child):
+                continue
+            action_to_child = valid_moves[child_idx]
+            child_groupmap = child_groupmaps[child_idx]
+            grandchildren, _ = GoGame.get_canonical_children(child, child_groupmap)
+            grand_vals = self.val_func(grandchildren)
+            # Assume opponent would take action that minimizes our value
+            new_childval = np.min(grand_vals)
+            qvals[action_to_child] = np.mean([qvals[action_to_child], new_childval])
+
         if np.count_nonzero(qvals) == 0:
-            qvals += valid_moves
+            qvals += valid_indicators
 
         assert step is not None
         if step < self.temp_steps:
-            pi = temperate_pi(qvals, self.temp, valid_moves)
+            pi = temperate_pi(qvals, self.temp, valid_indicators)
         else:
-            pi = temperate_pi(qvals, 0, valid_moves)
+            pi = temperate_pi(qvals, 0, valid_indicators)
         return pi
 
     def __str__(self):

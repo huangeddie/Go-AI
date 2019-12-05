@@ -113,7 +113,7 @@ def optimize(comm: MPI.Intracomm, model, batched_data, optimizer):
         states = data.batch_random_symmetries(states)
         invalid_values = data.batch_invalid_values(states)
 
-        qvals = montecarlo.qs_from_stateval(states, val_func)[0]
+        qvals = montecarlo.batchqs_from_valfunc(states, val_func)[0]
         qvals += invalid_values
         greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1)).type(torch.LongTensor)
 
