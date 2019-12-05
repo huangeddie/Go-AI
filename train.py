@@ -39,6 +39,11 @@ def worker_train(args, comm: MPI.Intracomm):
     checkpoint_model.load_state_dict(torch.load(args.checkpath))
     optim = torch.optim.Adam(curr_model.parameters(), args.lr)
 
+    # Device
+    device = torch.device(args.device)
+    curr_model.to(device)
+    checkpoint_model.to(device)
+
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 

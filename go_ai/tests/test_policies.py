@@ -1,11 +1,11 @@
 import unittest
 
 import gym
+import torch
 
+import utils
 from go_ai import game, policies
 from go_ai.models import value
-import utils
-import torch
 
 
 class MyTestCase(unittest.TestCase):
@@ -23,20 +23,17 @@ class MyTestCase(unittest.TestCase):
         curr_model = value.ValueNet(9)
         curr_model.load_state_dict(torch.load('../../bin/checkpoint.pt'))
 
-        mct_pi = policies.MCTS('MCT', curr_model, num_searches=100, temp=0.03125, temp_steps=24)
+        mct_pi = policies.MCTS('MCT', curr_model, num_searches=4, temp=0.03125, temp_steps=24)
         val_pi = policies.MCTS('MCT', curr_model, num_searches=0, temp=0.03125, temp_steps=24)
 
         win_rate, _, _ = game.play_games(self.go_env, mct_pi, val_pi, False, self.num_games)
         print(win_rate)
         self.assertGreaterEqual(win_rate, 0.6)
 
-
-
     def test_mct_vs_greed(self):
         win_rate, _, _ = game.play_games(self.go_env, self.greedy_mct_policy, policies.GREEDY_PI, False, self.num_games)
         print(win_rate)
         self.assertGreaterEqual(win_rate, 0.6)
-
 
     def test_greed_vs_rand(self):
         win_rate, _, _ = game.play_games(self.go_env, policies.GREEDY_PI, policies.RAND_PI, False, self.num_games)
@@ -61,7 +58,8 @@ class MyTestCase(unittest.TestCase):
         self.assertAlmostEqual(win_rate, 0.5, delta=0.1)
 
     def test_smartgreed_vs_greed(self):
-        win_rate, _, _ = game.play_games(self.go_env, policies.SMART_GREEDY_PI, policies.GREEDY_PI, False, self.num_games)
+        win_rate, _, _ = game.play_games(self.go_env, policies.SMART_GREEDY_PI, policies.GREEDY_PI, False,
+                                         self.num_games)
         print(win_rate)
         self.assertAlmostEqual(win_rate, 0.5, delta=0.1)
 

@@ -38,6 +38,8 @@ def hyperparameters():
 
     parser.add_argument('--agent', type=str, choices=['mcts', 'ac'], default='mcts', help='type of agent/model')
 
+    parser.add_argument('--device', type=str, choices=['cpu', 'cuda'], default='cpu', help='device for pytorch models')
+
     return parser.parse_args()
 
 def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
