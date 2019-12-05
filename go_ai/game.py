@@ -29,7 +29,7 @@ def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Po
         all_steps.append(steps)
         replay_data.extend(traj)
         if isinstance(pbar, tqdm):
-            pbar.set_postfix_str("{:.1f}%".format(100 * wins / i))
+            pbar.set_postfix_str("{:.1f}% WIN".format(100 * wins / i))
 
     return wins / episodes, all_steps, replay_data
 
