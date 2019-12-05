@@ -98,9 +98,8 @@ def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimize
         optimizer.step()
 
         # Sync Parameters
-        if i % 8 == 0:
-            for params in model.parameters():
-                params.data = comm.allreduce(params.data, op=MPI.SUM) / world_size
+        for params in model.parameters():
+            params.data = comm.allreduce(params.data, op=MPI.SUM) / world_size
 
         running_loss += loss.item()
         running_acc += torch.mean((pred_wins == wins).type(wins.dtype)).item()
