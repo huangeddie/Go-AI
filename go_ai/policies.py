@@ -68,8 +68,8 @@ def pytorch_to_numpy(model):
         dtype = next(model.parameters()).type()
         model.eval()
         with torch.no_grad():
-            states = torch.from_numpy(states).type(dtype)
-            state_vals = model(states)
+            tensor_states = torch.from_numpy(states).type(dtype)
+            state_vals = model(tensor_states)
             vals = state_vals.detach().cpu().numpy()
 
         # Check for terminals
