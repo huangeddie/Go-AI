@@ -25,7 +25,7 @@ elif args.agent == 'ac':
     checkpoint_model = actorcritic.ActorCriticNet(args.boardsize)
     checkpoint_model.load_state_dict(torch.load(args.checkpath))
     checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
-print("Loaded model")
+print(f"Loaded model {checkpoint_pi} from {args.checkpath}")
 
 # Elo
 if os.path.exists('bin/stats.txt'):

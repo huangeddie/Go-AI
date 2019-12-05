@@ -72,17 +72,15 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     move_probs = []
     state_vals = []
     qvals = []
+    go_env = gym.make('gym_go:go-v0', size=states[0].shape[1])
     for step, (state, prev_action) in tqdm(enumerate(zip(states, taken_actions)), desc='Heat Maps'):
-        if step == 0:
-            policy.reset(state)
-        pi = policy(state, step)
+        pi = policy(go_env, step)
         move_probs.append(pi)
-        policy.step(prev_action)
+        go_env.step(prev_action)
 
         if isinstance(policy, policies.MCTS):
             state_val = policy.val_func(state[np.newaxis])[0]
             qs, _ = montecarlo.qs_from_valfunc(state, policy.val_func)
-            qs = qs[0]
 
             state_vals.append(state_val)
             qvals.append(qs)
