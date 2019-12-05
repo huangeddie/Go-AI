@@ -95,11 +95,11 @@ def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimize
         loss = model.criterion(vals, wins)
         loss.backward()
 
-        optimizer.step()
-
-        # Sync Parameters
+        # Sync Gradients
         for params in model.parameters():
-            params.data = comm.allreduce(params.data, op=MPI.SUM) / world_size
+            params.grad.data = comm.allreduce(params.grad.data, op=MPI.SUM) / world_size
+
+        optimizer.step()
 
         running_loss += loss.item()
         running_acc += torch.mean((pred_wins == wins).type(wins.dtype)).item()
