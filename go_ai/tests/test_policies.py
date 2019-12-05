@@ -18,6 +18,20 @@ class MyTestCase(unittest.TestCase):
 
         self.num_games = 256
 
+    def test_mctval_vs_val(self):
+        self.go_env = gym.make('gym_go:go-v0', size=9)
+        curr_model = value.ValueNet(9)
+        curr_model.load_state_dict(torch.load('../../bin/checkpoint.pt'))
+
+        mct_pi = policies.MCTS('MCT', curr_model, num_searches=100, temp=0.03125, temp_steps=24)
+        val_pi = policies.MCTS('MCT', curr_model, num_searches=0, temp=0.03125, temp_steps=24)
+
+        win_rate, _, _ = game.play_games(self.go_env, mct_pi, val_pi, False, self.num_games)
+        print(win_rate)
+        self.assertGreaterEqual(win_rate, 0.6)
+
+
+
     def test_mct_vs_greed(self):
         win_rate, _, _ = game.play_games(self.go_env, self.greedy_mct_policy, policies.GREEDY_PI, False, self.num_games)
         print(win_rate)
