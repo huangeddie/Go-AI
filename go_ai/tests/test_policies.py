@@ -11,7 +11,7 @@ from go_ai.models import value
 class MyTestCase(unittest.TestCase):
     def setUp(self) -> None:
         board_size = 5
-        self.greedy_mct_policy = policies.MCTS('MCTGreedy', policies.greedy_val_func, num_searches=8,
+        self.greedy_mct_policy = policies.MCTS('MCTGreedy', policies.greedy_val_func, num_searches=4,
                                                temp=0)
 
         self.go_env = gym.make('gym_go:go-v0', size=board_size)

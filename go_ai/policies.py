@@ -182,7 +182,7 @@ class MCTS(Policy):
         if self.num_searches > 0:
             valid_moves = np.argwhere(valid_indicators).flatten()
             assert len(valid_moves) == len(child_vals)
-            for i, child_idx in enumerate(np.argsort(-child_vals.flatten())):
+            for i, child_idx in enumerate(np.argsort(child_vals.flatten())):
                 action_to_child = valid_moves[child_idx]
                 if i < self.num_searches:
                     child = canonical_children[child_idx]
