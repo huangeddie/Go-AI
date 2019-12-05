@@ -11,7 +11,7 @@ from go_ai.models import value
 class MyTestCase(unittest.TestCase):
     def setUp(self) -> None:
         board_size = 5
-        self.greedy_mct_policy = policies.MCTS('MCTGreedy', policies.greedy_val_func, num_searches=4,
+        self.greedy_mct_policy = policies.MCTS('MCTGreedy', policies.greedy_val_func, num_searches=8,
                                                temp=0)
 
         self.go_env = gym.make('gym_go:go-v0', size=board_size)
@@ -19,6 +19,10 @@ class MyTestCase(unittest.TestCase):
         self.num_games = 256
 
     def test_mctval_vs_val(self):
+        """
+        Custom test case to test trained models
+        :return:
+        """
         self.go_env = gym.make('gym_go:go-v0', size=9)
         curr_model = value.ValueNet(9)
         curr_model.load_state_dict(torch.load('../../bin/checkpoint.pt'))
