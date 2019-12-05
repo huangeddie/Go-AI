@@ -195,7 +195,7 @@ class MCTS(Policy):
                     new_childval = np.min(grand_vals)
                     qvals[action_to_child] = np.mean([qvals[action_to_child], new_childval])
                 else:
-                    qvals[action_to_child] = -1
+                    pass
 
         if np.count_nonzero(qvals) == 0:
             qvals += valid_indicators
