@@ -81,7 +81,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
 
         if isinstance(policy, policies.MCTS):
             state_val = policy.val_func(state[np.newaxis])[0]
-            qs, _ = montecarlo.batchqs_from_valfunc(state[np.newaxis], policy.val_func)
+            qs, _ = montecarlo.qs_from_valfunc(state, policy.val_func)
             qs = qs[0]
 
             state_vals.append(state_val)

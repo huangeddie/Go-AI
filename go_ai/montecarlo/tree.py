@@ -43,7 +43,7 @@ class MCTree:
 
         if num_searches <= 0:
             # Avoid making nodes and stuff
-            qvals, _ = montecarlo.batchqs_from_valfunc(rootstate[np.newaxis], self.val_func, [self.rootgroup_map])
+            qvals, _ = montecarlo.qs_from_valfunc(rootstate, self.val_func, self.rootgroup_map)
             qvals = qvals[0]
         else:
             if self.root.is_leaf():
@@ -100,12 +100,12 @@ class MCTree:
         valid_move_idcs = GoGame.get_valid_moves(node.state)
         valid_move_idcs = np.argwhere(valid_move_idcs > 0).flatten()
 
-        batch_qvals, batch_canonical_children = montecarlo.batchqs_from_valfunc(node.state[np.newaxis], self.val_func)
+        qvals, canonical_children = montecarlo.qs_from_valfunc(node.state, self.val_func)
         node.canon_children = np.empty(node.actionsize, dtype=object)
 
         for idx, move in enumerate(valid_move_idcs):
             # Child's state val is the inverted q value of the parent
-            Node((node, move), montecarlo.invert_val(batch_qvals[0][move].item()), batch_canonical_children[idx])
+            Node((node, move), montecarlo.invert_val(qvals[move].item()), canonical_children[idx])
 
 
     def visit_ancestry(self, node):
