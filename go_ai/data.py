@@ -93,6 +93,7 @@ def sample_replaydata(comm: MPI.Intracomm, episodesdir, request_size, batchsize)
     rank = comm.Get_rank()
     world_size = comm.Get_size()
     sample_data = None
+    replay_len = None
     for worker in range(world_size):
         if rank == worker:
             all_data = load_replaydata(episodesdir)
