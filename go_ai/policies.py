@@ -196,10 +196,10 @@ class MCTS(Policy):
                 grand_vals = self.val_func(np.array(grandchildren))
                 # Assume opponent would take action that minimizes our value
                 new_childval = np.min(grand_vals)
-                bias_correction = min(new_childval - qvals[action_to_child], bias_correction)
+                bias_correction += new_childval - qvals[action_to_child]
                 qvals[action_to_child] = np.mean([qvals[action_to_child], new_childval])
 
-            assert bias_correction <= 0
+            bias_correction /= self.num_searches
             for child_idx in remaining_child_dcs:
                 # Bias correction
                 action_to_child = valid_moves[child_idx]
