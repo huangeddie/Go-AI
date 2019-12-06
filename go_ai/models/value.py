@@ -104,4 +104,7 @@ def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimize
     for params in model.parameters():
         params.data = comm.allreduce(params.data, op=MPI.SUM) / world_size
 
+    running_acc = comm.allreduce(running_acc, op=MPI.SUM) / world_size
+    running_loss = comm.allreduce(running_loss, op=MPI.SUM) / world_size
+
     return running_acc / len(batched_data), running_loss / len(batched_data)
