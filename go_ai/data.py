@@ -89,21 +89,17 @@ def sample_replaydata(comm: MPI.Intracomm, episodesdir, request_size, batchsize)
     :param batchsize:
     :return: Batches of sample data, len of total data that was sampled
     """
+    # Workers sample data one at a time to avoid memory issues
     rank = comm.Get_rank()
     world_size = comm.Get_size()
-    if rank == 0:
-        all_data = load_replaydata(episodesdir)
-        replay_len = len(all_data)
-        worker_data = []
-        for _ in range(world_size):
+    sample_data = None
+    for worker in range(world_size):
+        if rank == worker:
+            all_data = load_replaydata(episodesdir)
+            replay_len = len(all_data)
             sample_data = random.sample(all_data, min(request_size, replay_len))
-            worker_data.append(sample_data)
-    else:
-        replay_len = None
-        worker_data = None
+        comm.Barrier()
 
-    replay_len = comm.bcast(replay_len, root=0)
-    sample_data = comm.scatter(worker_data, root=0)
     sample_data = replaylist_to_numpy(sample_data)
 
     sample_size = len(sample_data[0])
