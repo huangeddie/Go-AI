@@ -171,7 +171,7 @@ class MCTS(Policy):
         :return:
         """
 
-        canonical_children, child_groupmaps = go_env.get_canonical_children()
+        canonical_children, child_groupmaps = go_env.cache_children(canonical=True)
         child_vals = self.val_func(np.array(canonical_children))
         canonical_state = go_env.get_canonical_state()
 
@@ -182,20 +182,18 @@ class MCTS(Policy):
         if self.num_searches > 0:
             valid_moves = np.argwhere(valid_indicators).flatten()
             assert len(valid_moves) == len(child_vals)
-            for i, child_idx in enumerate(np.argsort(child_vals.flatten())):
+            best_child_idcs = np.argsort(child_vals.flatten())[:self.num_searches]
+            for child_idx in best_child_idcs:
                 action_to_child = valid_moves[child_idx]
-                if i < self.num_searches:
-                    child = canonical_children[child_idx]
-                    if GoGame.get_game_ended(child):
-                        continue
-                    child_groupmap = child_groupmaps[child_idx]
-                    grandchildren, _ = GoGame.get_canonical_children(child, child_groupmap)
-                    grand_vals = self.val_func(np.array(grandchildren))
-                    # Assume opponent would take action that minimizes our value
-                    new_childval = np.min(grand_vals)
-                    qvals[action_to_child] = np.mean([qvals[action_to_child], new_childval])
-                else:
-                    pass
+                child = canonical_children[child_idx]
+                if GoGame.get_game_ended(child):
+                    continue
+                child_groupmap = child_groupmaps[child_idx]
+                grandchildren, _ = GoGame.get_canonical_children(child, child_groupmap)
+                grand_vals = self.val_func(np.array(grandchildren))
+                # Assume opponent would take action that minimizes our value
+                new_childval = np.min(grand_vals)
+                qvals[action_to_child] = np.mean([qvals[action_to_child], new_childval])
 
         if np.count_nonzero(qvals) == 0:
             qvals += valid_indicators
