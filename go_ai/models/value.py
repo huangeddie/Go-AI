@@ -36,7 +36,7 @@ class ValueNet(nn.Module):
     ResNet
     """
 
-    def __init__(self, boardsize, num_blocks=4, channels=32):
+    def __init__(self, boardsize, num_blocks=1, channels=32):
         super().__init__()
 
         # Convolutions
