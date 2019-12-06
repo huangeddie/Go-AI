@@ -94,14 +94,16 @@ def sample_replaydata(comm: MPI.Intracomm, episodesdir, request_size, batchsize)
     if rank == 0:
         all_data = load_replaydata(episodesdir)
         replay_len = len(all_data)
-        sample_data = random.sample(all_data, min(request_size * world_size, replay_len))
-        sample_data = np.array_split(sample_data, world_size)
+        worker_data = []
+        for _ in range(world_size):
+            sample_data = random.sample(all_data, min(request_size, replay_len))
+            worker_data.append(sample_data)
     else:
         replay_len = None
-        sample_data = None
+        worker_data = None
 
     replay_len = comm.bcast(replay_len, root=0)
-    sample_data = comm.scatter(sample_data, root=0)
+    sample_data = comm.scatter(worker_data, root=0)
     sample_data = replaylist_to_numpy(sample_data)
 
     sample_size = len(sample_data[0])
