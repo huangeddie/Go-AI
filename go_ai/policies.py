@@ -47,7 +47,9 @@ def smart_greedy_val_func(states):
             else:
                 val = 0
         else:
-            val = (black_area + blacklibs - white_area - whitelibs) / (2 * board_area)
+            area_val = (black_area - white_area ) / (board_area)
+            libs_val = (blacklibs - whitelibs) / (board_area)
+            val = (6 * area_val + libs_val) / 7
         vals.append(val)
     vals = np.array(vals, dtype=np.float)
     return vals[:, np.newaxis]
