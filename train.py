@@ -22,8 +22,8 @@ def worker_train(args, comm: MPI.Intracomm):
 
     # Policies and Model
     if args.agent == 'mcts':
-        curr_model = value.ValueNet(args.boardsize)
-        checkpoint_model = value.ValueNet(args.boardsize)
+        curr_model = value.ValueNet(args.boardsize, args.resblocks)
+        checkpoint_model = value.ValueNet(args.boardsize, args.resblocks)
         curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
         checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
     elif args.agent == 'ac':
