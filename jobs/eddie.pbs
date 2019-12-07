@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -l nodes=4:ppn=16
+#PBS -l nodes=4:ppn=12
 #PBS -l walltime=12:00:00
 #PBS -l naccesspolicy=singleuser
 #PBS -N go_ai
@@ -11,5 +11,5 @@ module load openmpi/3.1.1-intel-18.0
 cd $PBS_O_WORKDIR
 echo -n >bin/stats.txt
 echo -n >bin/log.txt
-mpiexec -n 64 -report-bindings python3 train.py --boardsize=9 --mcts=8 --temp=0.03125 --tempsteps=30 --episodes=128 \
---evaluations=128 --episodesdir=/home/ezhuang2/scratch/
+mpiexec -n 48 --bind-to core python3 train.py --boardsize=9 --mcts=8 --temp=0.03125 --tempsteps=30 --episodes=192 \
+--evaluations=192 --episodesdir=/home/ezhuang2/scratch/
