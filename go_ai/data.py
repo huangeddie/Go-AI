@@ -99,6 +99,7 @@ def sample_replaydata(comm: MPI.Intracomm, episodesdir, request_size, batchsize)
             all_data = load_replaydata(episodesdir)
             replay_len = len(all_data)
             sample_data = random.sample(all_data, min(request_size, replay_len))
+            del all_data
         comm.Barrier()
 
     sample_data = replaylist_to_numpy(sample_data)
