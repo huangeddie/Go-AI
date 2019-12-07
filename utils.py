@@ -115,7 +115,7 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             data.clear_episodesdir(episodesdir)
             # Set parameters
             if args.agent == 'mcts':
-                new_model = value.ValueNet(args.boardsize)
+                new_model = value.ValueNet(args.boardsize, args.resblocks)
             elif args.agent == 'ac':
                 new_model = actorcritic.ActorCriticNet(args.boardsize)
             torch.save(new_model.state_dict(), args.checkpath)
