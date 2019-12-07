@@ -62,6 +62,9 @@ def temperate_pi(qvals, temp, valid_moves):
         expq = np.exp(qvals - np.max(qvals))
         expq *= valid_moves
         amp_qs = expq[np.newaxis] ** (1 / temp)
+        print(f"qvals: {qvals}")
+        print(f"expq: {expq}")
+        print(f"amp_qs: {amp_qs}")
         pi = normalize(amp_qs, norm='l1')[0]
 
     return pi
