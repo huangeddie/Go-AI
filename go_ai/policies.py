@@ -206,7 +206,7 @@ class MCTS(Policy):
             for child_idx in remaining_child_dcs:
                 # Bias correction
                 action_to_child = valid_moves[child_idx]
-                qvals[action_to_child] += bias_correction
+                qvals[action_to_child] = 0
 
         if np.count_nonzero(qvals) == 0:
             qvals += valid_indicators
