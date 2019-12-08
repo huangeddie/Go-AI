@@ -72,12 +72,13 @@ def pytorch_to_numpy(model):
         with torch.no_grad():
             tensor_states = torch.from_numpy(states).type(dtype)
             state_vals = model(tensor_states)
-            if np.isnan(states).any():
-                print(f"states: {states}")
             if torch.isnan(state_vals).any():
                 print(f"states: {states}")
                 print(f'tensor_states: {tensor_states}')
                 print(f'state_vals: {state_vals}')
+                for p in model.parameters():
+                    print(p)
+                print(f'single: {model(tensor_states[:1])}')
             vals = state_vals.detach().cpu().numpy()
 
         # Check for terminals
