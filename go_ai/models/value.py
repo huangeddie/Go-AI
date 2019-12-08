@@ -17,10 +17,10 @@ class BasicBlock(nn.Module):
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
         self.main = nn.Sequential(
             nn.Conv2d(inplanes, planes, 3, padding=1),
-            nn.BatchNorm2d(planes),
+            # nn.BatchNorm2d(planes),
             nn.ReLU(inplace=True),
             nn.Conv2d(planes, planes, 3, padding=1),
-            nn.BatchNorm2d(planes),
+            # nn.BatchNorm2d(planes),
         )
 
     def forward(self, x):
@@ -42,7 +42,7 @@ class ValueNet(nn.Module):
         # Convolutions
         convs = [
             nn.Conv2d(6, channels, 3, padding=1),
-            nn.BatchNorm2d(channels),
+            # nn.BatchNorm2d(channels),
             nn.ReLU()
         ]
 
@@ -51,7 +51,7 @@ class ValueNet(nn.Module):
 
         convs.extend([
             nn.Conv2d(channels, 4, 1),
-            nn.BatchNorm2d(4),
+            # nn.BatchNorm2d(4),
             nn.ReLU(),
         ])
 
@@ -61,7 +61,7 @@ class ValueNet(nn.Module):
         fc_h = 4 * boardsize ** 2
         self.fcs = nn.Sequential(
             nn.Linear(fc_h, fc_h),
-            nn.BatchNorm1d(fc_h),
+            # nn.BatchNorm1d(fc_h),
             nn.ReLU(),
             nn.Linear(fc_h, 1),
             nn.Tanh(),
