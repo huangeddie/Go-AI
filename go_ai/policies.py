@@ -71,7 +71,9 @@ def pytorch_to_numpy(model):
         model.eval()
         with torch.no_grad():
             tensor_states = torch.from_numpy(states).type(dtype)
+            print(f'tensor states: {tensor_states}')
             state_vals = model(tensor_states)
+            print(f'state vals: {state_vals}')
             vals = state_vals.detach().cpu().numpy()
 
         # Check for terminals

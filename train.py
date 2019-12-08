@@ -39,9 +39,6 @@ def worker_train(args, comm: MPI.Intracomm):
     checkpoint_model.load_state_dict(torch.load(args.checkpath))
     optim = torch.optim.Adam(curr_model.parameters(), args.lr)
 
-    print(curr_model)
-    for p in curr_model.parameters():
-        print(p)
 
     # Device
     device = torch.device(args.device)
