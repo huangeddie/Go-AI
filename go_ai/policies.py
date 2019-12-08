@@ -47,7 +47,7 @@ def smart_greedy_val_func(states):
             else:
                 val = 0
         else:
-            area_val = (black_area - white_area ) / (board_area)
+            area_val = (black_area - white_area) / (board_area)
             libs_val = (blacklibs - whitelibs) / (board_area)
             val = (6 * area_val + libs_val) / 7
         vals.append(val)
@@ -185,9 +185,7 @@ class MCTS(Policy):
             valid_moves = np.argwhere(valid_indicators).flatten()
             assert len(valid_moves) == len(child_vals)
             ordered_child_idcs = np.argsort(child_vals.flatten())
-            bias_correction = 0
             best_child_idcs = ordered_child_idcs[:self.num_searches]
-            remaining_child_dcs = ordered_child_idcs[self.num_searches:]
             for child_idx in best_child_idcs:
                 action_to_child = valid_moves[child_idx]
                 child = canonical_children[child_idx]
@@ -199,14 +197,7 @@ class MCTS(Policy):
                 # Assume opponent would take action that minimizes our value
                 new_childval = np.min(grand_vals)
                 new_qval = np.mean([qvals[action_to_child], new_childval])
-                bias_correction += new_qval - qvals[action_to_child]
                 qvals[action_to_child] = new_qval
-
-            bias_correction /= self.num_searches
-            for child_idx in remaining_child_dcs:
-                # Bias correction
-                action_to_child = valid_moves[child_idx]
-                qvals[action_to_child] = 0
 
         if np.count_nonzero(qvals) == 0:
             qvals += valid_indicators
