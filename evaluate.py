@@ -57,5 +57,5 @@ if os.path.exists('bin/stats.txt'):
     print("Plotted Elos")
 
 # Sample trajectory and plot prior qvals
-metrics.plot_traj_fig(go_env, checkpoint_pi, f'bin/atraj_{checkpoint_pi.temp:.4f}.pdf')
+metrics.plot_traj_fig(go_env, checkpoint_pi, f'bin/atraj_{checkpoint_pi.temp:.2f}.pdf')
 print(f"Plotted sample trajectory with temp {args.temp}")
