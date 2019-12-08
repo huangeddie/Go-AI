@@ -73,8 +73,6 @@ def pytorch_to_numpy(model):
             tensor_states = torch.from_numpy(states).type(dtype)
             state_vals = model(tensor_states)
             vals = state_vals.detach().cpu().numpy()
-            print(f'state vals: {state_vals}')
-            print(f'vals: {vals}')
 
         # Check for terminals
         for i, state in enumerate(states):

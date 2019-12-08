@@ -34,6 +34,10 @@ def worker_train(args, comm: MPI.Intracomm):
     else:
         raise Exception("Unknown Agent Argument", args.agent)
 
+    print(curr_model)
+    for p in curr_model.parameters():
+        print(p)
+
     # Sync parameters from disk
     curr_model.load_state_dict(torch.load(args.checkpath))
     checkpoint_model.load_state_dict(torch.load(args.checkpath))
