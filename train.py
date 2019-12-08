@@ -37,7 +37,7 @@ def worker_train(args, comm: MPI.Intracomm):
     # Sync parameters from disk
     curr_model.load_state_dict(torch.load(args.checkpath))
     checkpoint_model.load_state_dict(torch.load(args.checkpath))
-    optim = torch.optim.Adam(curr_model.parameters(), args.lr)
+    optim = torch.optim.Adam(curr_model.parameters(), args.lr, weight_decay=1e-4)
 
     # Device
     device = torch.device(args.device)
