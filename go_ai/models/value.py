@@ -42,7 +42,7 @@ class ValueNet(nn.Module):
         # Convolutions
         convs = [
             nn.Conv2d(6, channels, 3, padding=1),
-            # nn.BatchNorm2d(channels),
+            nn.BatchNorm2d(channels),
             nn.ReLU()
         ]
 
@@ -51,7 +51,7 @@ class ValueNet(nn.Module):
 
         convs.extend([
             nn.Conv2d(channels, 4, 1),
-            # nn.BatchNorm2d(4),
+            nn.BatchNorm2d(4),
             nn.ReLU(),
         ])
 
@@ -61,7 +61,7 @@ class ValueNet(nn.Module):
         fc_h = 4 * boardsize ** 2
         self.fcs = nn.Sequential(
             nn.Linear(fc_h, fc_h),
-            # nn.BatchNorm1d(fc_h),
+            nn.BatchNorm1d(fc_h),
             nn.ReLU(),
             nn.Linear(fc_h, 1),
             nn.Tanh(),
