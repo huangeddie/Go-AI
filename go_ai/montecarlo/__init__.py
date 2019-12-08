@@ -59,7 +59,8 @@ def temperate_pi(qvals, temp, valid_moves):
         # Max Qs
         pi = greedy_pi(qvals, valid_moves)
     else:
-        scaled_qs = preprocessing.scale(qvals, with_mean=False)
+        scaled_qs = np.zeros(qvals.shape)
+        scaled_qs[np.argwhere(valid_moves)] = preprocessing.scale(qvals[np.argwhere(valid_moves)], with_mean=False)
         expq = np.exp(scaled_qs - np.max(scaled_qs))
         expq *= valid_moves
         amp_qs = expq[np.newaxis] ** (1 / temp)
