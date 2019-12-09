@@ -45,7 +45,7 @@ def worker_train(args, comm: MPI.Intracomm):
     checkpoint_model.to(device)
 
     # Environment
-    go_env = gym.make('gym_go:go-v0', size=args.boardsize)
+    go_env = gym.make('gym_go:go-v0', size=args.boardsize, reward_method=args.reward)
 
     # Header output
     utils.parallel_out(rank, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")

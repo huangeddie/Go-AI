@@ -37,6 +37,7 @@ def hyperparameters():
     parser.add_argument('--tmppath', type=str, default='bin/tmp.pt', help='model path for temp model')
 
     parser.add_argument('--agent', type=str, choices=['mcts', 'ac'], default='mcts', help='type of agent/model')
+    parser.add_argument('--reward', type=str, choices=['real', 'heuristic'], default='real', help='reward system')
     parser.add_argument('--resblocks', type=int, default=4, help='number of basic blocks for resnets')
 
     parser.add_argument('--device', type=str, choices=['cpu', 'cuda'], default='cpu', help='device for pytorch models')
