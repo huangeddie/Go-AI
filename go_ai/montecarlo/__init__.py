@@ -1,5 +1,6 @@
 import gym
 import numpy as np
+from scipy import special
 from sklearn import preprocessing
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
@@ -59,12 +60,9 @@ def temperate_pi(qvals, temp, valid_moves):
         # Max Qs
         pi = greedy_pi(qvals, valid_moves)
     else:
-        scaled_qs = np.zeros(qvals.shape)
+        pi = np.zeros(qvals.shape)
         valid_indcs = np.argwhere(valid_moves)
-        scaled_qs[valid_indcs] = preprocessing.scale(qvals[valid_indcs], with_mean=False)
-        expq = np.exp(scaled_qs - np.max(scaled_qs[valid_indcs]))
-        expq *= valid_moves
-        amp_qs = expq[np.newaxis] ** (1 / temp)
-        pi = preprocessing.normalize(amp_qs, norm='l1')[0]
+        # standardized_qs = preprocessing.scale(qvals[valid_indcs], with_mean=False)
+        pi[valid_indcs] = special.softmax(qvals[valid_indcs] * (1 / temp))
 
     return pi
