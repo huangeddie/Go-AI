@@ -206,7 +206,7 @@ class MCTS(Policy):
         if step < self.temp_steps:
             pi = temperate_pi(qvals, self.temp, valid_indicators)
         else:
-            pi = temperate_pi(qvals, 0, valid_indicators)
+            pi = temperate_pi(qvals, 0.01, valid_indicators)
         return pi
 
     def __str__(self):

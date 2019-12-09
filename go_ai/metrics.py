@@ -21,7 +21,7 @@ def matplot_format(state):
     return state.transpose(1, 2, 0)[:, :, [0, 1, 4]].astype(np.float)
 
 
-def plot_move_distr(title, move_distr, valid_moves, vmin, vmax ,scalar=None):
+def plot_move_distr(title, move_distr, valid_moves, vmin=None, vmax=None ,scalar=None):
     """
 
     :param title:
@@ -112,7 +112,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
 
         if isinstance(policy, policies.MCTS):
             plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-            plot_move_distr('Q Vals', qvals[i], valid_moves[i], vmin=-1, vmax=1, scalar=state_vals[i].item())
+            plot_move_distr('Q Vals', qvals[i], valid_moves[i], scalar=state_vals[i].item())
             curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
