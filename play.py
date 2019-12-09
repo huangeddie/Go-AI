@@ -21,9 +21,9 @@ elif args.agent == 'ac':
     checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
 print("Loaded model")
 
-opponent_model = actorcritic.ActorCriticNetBase(args.boardsize)
-opponent_model.load_state_dict(torch.load('checkpoints/base.pt'))
-opponent = policies.ActorCritic('Base', opponent_model)
+opponent_model = actorcritic.ActorCriticNet(args.boardsize)
+opponent_model.load_state_dict(torch.load('checkpoints2/block_heur.pt'))
+opponent = policies.ActorCritic('Block Heur', opponent_model)
 
 # Play
 checkpoint_pi.set_temp(0)
