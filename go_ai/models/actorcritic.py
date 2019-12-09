@@ -6,6 +6,7 @@ from tqdm import tqdm
 from mpi4py import MPI
 
 from go_ai import data, montecarlo, policies
+from go_ai.models.value import BasicBlock
 
 gymgo = gym.make('gym_go:go-v0', size=0)
 GoGame = gymgo.gogame
@@ -13,43 +14,51 @@ GoVars = gymgo.govars
 
 
 class ActorCriticNet(nn.Module):
-    def __init__(self, board_size):
-        super(ActorCriticNet, self).__init__()
-        self.shared_convs = nn.Sequential(
-            nn.Conv2d(GoVars.NUM_CHNLS, 64, 3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.Conv2d(64, 128, 3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(128, 128, 3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(128, 64, 3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.Conv2d(64, 1, 3, padding=1),
-            nn.BatchNorm2d(1),
-            nn.ReLU(),
-        )
+    def __init__(self, board_size, num_blocks=4, channels=64):
+        super().__init__()
+        # Convolutions
+        convs = [
+            nn.Conv2d(6, channels, 3, padding=1),
+            nn.BatchNorm2d(channels),
+            nn.ReLU()
+        ]
 
+        for i in range(num_blocks):
+            convs.append(BasicBlock(channels, channels))
+
+        convs.extend([
+            nn.Conv2d(channels, 4, 1),
+            nn.BatchNorm2d(4),
+            nn.ReLU(),
+        ])
+
+        self.shared_convs = nn.Sequential(*convs)
+
+        fc_h = 4 * board_size ** 2
         self.shared_fcs = nn.Sequential(
-            nn.Linear(board_size ** 2, board_size ** 2),
-            nn.BatchNorm1d(board_size ** 2),
+            nn.Linear(fc_h, fc_h),
+            nn.BatchNorm1d(fc_h),
             nn.ReLU(),
         )
 
         action_size = GoGame.get_action_size(board_size=board_size)
         self.actor = nn.Sequential(
-            nn.Linear(board_size ** 2, action_size),
+            nn.Linear(fc_h, fc_h),
+            nn.BatchNorm1d(fc_h),
+            nn.ReLU(),
+            nn.Linear(fc_h, action_size),
         )
 
         self.critic = nn.Sequential(
-            nn.Linear(board_size ** 2, 1),
+            nn.Linear(fc_h, fc_h),
+            nn.BatchNorm1d(fc_h),
+            nn.ReLU(),
+            nn.Linear(fc_h, 1),
+            nn.Tanh(),
         )
 
         self.actor_criterion = nn.CrossEntropyLoss()
-        self.critic_criterion = nn.BCEWithLogitsLoss()
+        self.critic_criterion = nn.MSELoss()
 
     def forward(self, state):
         invalid_values = data.batch_invalid_values(state)
@@ -96,7 +105,7 @@ def optimize(comm: MPI.Intracomm, model, batched_data, optimizer):
         loss.backward()
         optimizer.step()
 
-        pred_wins = (torch.sigmoid(vals) > 0.5).type(vals.dtype)
+        pred_wins = torch.sign(vals)
         critic_running_loss += loss.item()
         critic_running_acc += torch.mean((pred_wins == wins).type(dtype)).item()
 
