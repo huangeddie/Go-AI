@@ -63,7 +63,8 @@ class ValueNet(nn.Module):
             nn.Linear(fc_h, fc_h),
             nn.BatchNorm1d(fc_h),
             nn.ReLU(),
-            nn.Linear(fc_h, 1)
+            nn.Linear(fc_h, 1),
+            nn.Tanh(),
         )
 
         self.criterion = nn.MSELoss()
@@ -89,8 +90,7 @@ def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimize
         wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
 
         optimizer.zero_grad()
-        logits = model(states)
-        vals = torch.tanh(logits)
+        vals = model(states)
         pred_wins = torch.sign(vals)
         loss = model.criterion(vals, wins)
         loss.backward()
