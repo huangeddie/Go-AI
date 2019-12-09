@@ -62,7 +62,6 @@ def temperate_pi(qvals, temp, valid_moves):
     else:
         pi = np.zeros(qvals.shape)
         valid_indcs = np.argwhere(valid_moves)
-        standardized_qs = preprocessing.scale(qvals[valid_indcs], with_mean=False)
-        pi[valid_indcs] = special.softmax(standardized_qs * (1 / temp))
+        pi[valid_indcs] = special.softmax(qvals[valid_indcs] * (1 / temp))
 
     return pi
