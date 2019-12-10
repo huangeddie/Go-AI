@@ -27,8 +27,8 @@ class MyTestCase(unittest.TestCase):
         curr_model = value.ValueNet(9)
         curr_model.load_state_dict(torch.load('../../bin/checkpoint.pt'))
 
-        mct_pi = policies.MCTS('MCT', curr_model, num_searches=8, temp=0.03125, temp_steps=24)
-        val_pi = policies.MCTS('MCT', curr_model, num_searches=0, temp=0.03125, temp_steps=24)
+        mct_pi = policies.MCTS('MCT', curr_model, num_searches=8, temp=0.05, temp_steps=24)
+        val_pi = policies.MCTS('MCT', curr_model, num_searches=0, temp=0.05, temp_steps=24)
 
         win_rate, _, _ = game.play_games(self.go_env, mct_pi, val_pi, False, self.num_games)
         print(win_rate)
