@@ -203,13 +203,14 @@ class MCTS(Policy):
                 new_qval = np.mean([curr_qval, new_childval])
                 qvals[action_to_child] = new_qval
 
-            bias_correction = np.mean(biases) / 2
-            for child_idx in remaining_child_idcs:
-                action_to_child = valid_moves[child_idx]
-                child = canonical_children[child_idx]
-                if GoGame.get_game_ended(child):
-                    continue
-                qvals[action_to_child] += bias_correction
+            if len(biases) > 0:
+                bias_correction = np.mean(biases) / 2
+                for child_idx in remaining_child_idcs:
+                    action_to_child = valid_moves[child_idx]
+                    child = canonical_children[child_idx]
+                    if GoGame.get_game_ended(child):
+                        continue
+                    qvals[action_to_child] += bias_correction
 
         if np.count_nonzero(qvals) == 0:
             qvals += valid_indicators
