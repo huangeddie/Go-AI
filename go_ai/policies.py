@@ -187,7 +187,7 @@ class MCTS(Policy):
             ordered_child_idcs = np.argsort(child_vals.flatten())
             best_child_idcs = ordered_child_idcs[:self.num_searches]
             remaining_child_idcs = ordered_child_idcs[self.num_searches:]
-            bias_correction = 0
+            biases = []
             for child_idx in best_child_idcs:
                 action_to_child = valid_moves[child_idx]
                 child = canonical_children[child_idx]
@@ -199,10 +199,11 @@ class MCTS(Policy):
                 # Assume opponent would take action that minimizes our value
                 new_childval = np.min(grand_vals)
                 curr_qval = qvals[action_to_child]
-                bias_correction = min(bias_correction, new_childval - curr_qval)
+                biases.append(new_childval - curr_qval)
                 new_qval = np.mean([curr_qval, new_childval])
                 qvals[action_to_child] = new_qval
 
+            bias_correction = np.mean(biases)
             for child_idx in remaining_child_idcs:
                 action_to_child = valid_moves[child_idx]
                 child = canonical_children[child_idx]
