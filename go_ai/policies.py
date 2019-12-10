@@ -186,6 +186,8 @@ class MCTS(Policy):
             assert len(valid_moves) == len(child_vals)
             ordered_child_idcs = np.argsort(child_vals.flatten())
             best_child_idcs = ordered_child_idcs[:self.num_searches]
+            remaining_child_idcs = ordered_child_idcs[self.num_searches:]
+            bias_correction = 0
             for child_idx in best_child_idcs:
                 action_to_child = valid_moves[child_idx]
                 child = canonical_children[child_idx]
@@ -196,8 +198,17 @@ class MCTS(Policy):
                 grand_vals = self.val_func(np.array(grandchildren))
                 # Assume opponent would take action that minimizes our value
                 new_childval = np.min(grand_vals)
-                new_qval = np.mean([qvals[action_to_child], new_childval])
+                curr_qval = qvals[action_to_child]
+                bias_correction = min(bias_correction, new_childval - curr_qval)
+                new_qval = np.mean([curr_qval, new_childval])
                 qvals[action_to_child] = new_qval
+
+            for child_idx in remaining_child_idcs:
+                action_to_child = valid_moves[child_idx]
+                child = canonical_children[child_idx]
+                if GoGame.get_game_ended(child):
+                    continue
+                qvals[action_to_child] += bias_correction
 
         if np.count_nonzero(qvals) == 0:
             qvals += valid_indicators
