@@ -4,6 +4,7 @@ import torch
 
 from go_ai import montecarlo
 from go_ai.montecarlo import temperate_pi
+from go_ai.models.actorcritic import ActorCriticWrapper
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -55,33 +56,48 @@ def smart_greedy_val_func(states):
     return vals[:, np.newaxis]
 
 
-def pytorch_to_numpy(model):
+def pytorch_to_numpy(model, val=True):
     """
     Automatically turns terminal states into 1, 0, -1 based on win status
-    :param model:
+    :param model: The model to convert
+    :param val: True if value function, False if policy function
     :return: The numpy equivalent of the pytorch value model
     """
+    if val:
+        def func(states):
+            """
+            :param states: Numpy batch of states
+            :return:
+            """
+            dtype = next(model.parameters()).type()
+            model.eval()
+            with torch.no_grad():
+                tensor_states = torch.from_numpy(states).type(dtype)
+                state_vals = model(tensor_states)
+                vals = state_vals.detach().cpu().numpy()
 
-    def val_func(states):
-        """
-        :param states: Numpy batch of states
-        :return:
-        """
-        dtype = next(model.parameters()).type()
-        model.eval()
-        with torch.no_grad():
-            tensor_states = torch.from_numpy(states).type(dtype)
-            state_vals = model(tensor_states)
-            vals = state_vals.detach().cpu().numpy()
+            # Check for terminals
+            for i, state in enumerate(states):
+                if GoGame.get_game_ended(state):
+                    vals[i] = 100 * GoGame.get_winning(state)
 
-        # Check for terminals
-        for i, state in enumerate(states):
-            if GoGame.get_game_ended(state):
-                vals[i] = 100 * GoGame.get_winning(state)
-
-        return vals
-
-    return val_func
+            return vals
+    
+    else:
+        def func(states):
+            """
+            :param states: Numpy batch of states
+            :return:
+            """
+            dtype = next(model.parameters()).type()
+            model.eval()
+            with torch.no_grad():
+                tensor_states = torch.from_numpy(states).type(dtype)
+                policy_scores = model(tensor_states)
+                pi = policy_scores.detach().cpu().numpy()
+            return pi
+    
+    return func
 
 
 class Policy:
@@ -164,6 +180,88 @@ class MCTS(Policy):
             val_func = pytorch_to_numpy(val_func)
 
         self.val_func = val_func
+        self.num_searches = num_searches
+
+    def __call__(self, go_env, **kwargs):
+        """
+        :param state: Unused variable since we already have the state stored in the tree
+        :param step: Parameter used for getting the temperature
+        :return:
+        """
+
+        prior_qs, post_qs = self.mcts_qvals(go_env)
+
+        valid_indicators = go_env.get_valid_moves()
+        step = kwargs['step']
+        if 'get_qs' in kwargs:
+            get_qs = kwargs['get_qs']
+        else:
+            get_qs = False
+
+        assert step is not None
+        if step < self.temp_steps:
+            pi = temperate_pi(post_qs, self.temp, valid_indicators)
+        else:
+            pi = temperate_pi(post_qs, 0.01, valid_indicators)
+
+        if get_qs:
+            return pi, prior_qs, post_qs
+        else:
+            return pi
+
+    def mcts_qvals(self, go_env):
+        canonical_children, child_groupmaps = go_env.cache_children(canonical=True)
+        child_vals = self.val_func(np.array(canonical_children))
+        canonical_state = go_env.get_canonical_state()
+        valid_indicators = go_env.get_valid_moves()
+
+        prior_qs = montecarlo.vals_to_qs(child_vals, canonical_state)
+        post_qs = np.copy(prior_qs)
+
+        # Search on grandchildren layer
+        if self.num_searches > 0:
+            valid_moves = np.argwhere(valid_indicators).flatten()
+            assert len(valid_moves) == len(child_vals)
+            ordered_child_idcs = np.argsort(child_vals.flatten())
+            best_child_idcs = ordered_child_idcs[:self.num_searches]
+            remaining_child_idcs = ordered_child_idcs[self.num_searches:]
+            for child_idx in best_child_idcs:
+                action_to_child = valid_moves[child_idx]
+                child = canonical_children[child_idx]
+                if GoGame.get_game_ended(child):
+                    continue
+                child_groupmap = child_groupmaps[child_idx]
+                grandchildren, _ = GoGame.get_canonical_children(child, child_groupmap)
+                grand_vals = self.val_func(np.array(grandchildren))
+                # Assume opponent would take action that minimizes our value
+                new_childval = np.min(grand_vals)
+                curr_qval = prior_qs[action_to_child]
+                new_qval = np.mean([curr_qval, new_childval])
+                post_qs[action_to_child] = new_qval
+
+            changes = np.sum(post_qs != prior_qs)
+            if changes > 0:
+                bias_correction = np.sum(post_qs - prior_qs) / changes
+
+                for child_idx in remaining_child_idcs:
+                    action_to_child = valid_moves[child_idx]
+                    child = canonical_children[child_idx]
+                    if GoGame.get_game_ended(child):
+                        continue
+                    post_qs[action_to_child] += bias_correction
+
+        return prior_qs, post_qs
+
+    def __str__(self):
+        return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.2f}T]-{self.name}"
+
+
+class MCTSActorCritic(Policy):
+    def __init__(self, name, model, num_searches, temp=0, temp_steps=0):
+        super(MCTSActorCritic, self).__init__(name, temp, temp_steps)
+        self.model = model
+        self.pi_func = pytorch_to_numpy(ActorCriticWrapper(model, 'actor'), val=False)
+        self.val_func = pytorch_to_numpy(ActorCriticWrapper(model, 'critic'))
         self.num_searches = num_searches
 
     def __call__(self, go_env, **kwargs):
