@@ -95,7 +95,7 @@ class Policy:
         self.temp_steps = temp_steps
         self.pytorch_model = None
 
-    def __call__(self, go_env, step=None):
+    def __call__(self, go_env, **kwargs):
         """
         :param go_env: Go environment
         :param step: the number of steps taken in the game so far
@@ -119,7 +119,7 @@ class Random(Policy):
     def __init__(self):
         super(Random, self).__init__('Random')
 
-    def __call__(self, go_env, step=None):
+    def __call__(self, go_env, **kwargs):
         """
         :param go_env:
         :param step:
@@ -134,7 +134,7 @@ class Human(Policy):
     def __init__(self):
         super(Human, self).__init__('Human')
 
-    def __call__(self, go_env, step=None):
+    def __call__(self, go_env, **kwargs):
         """
         :param go_env:
         :param step:
@@ -166,19 +166,41 @@ class MCTS(Policy):
         self.val_func = val_func
         self.num_searches = num_searches
 
-    def __call__(self, go_env, step=None):
+    def __call__(self, go_env, **kwargs):
         """
         :param state: Unused variable since we already have the state stored in the tree
         :param step: Parameter used for getting the temperature
         :return:
         """
 
+        prior_qs, post_qs = self.mcts_qvals(go_env)
+
+        valid_indicators = go_env.get_valid_moves()
+        step = kwargs['step']
+        if 'get_qs' in kwargs:
+            get_qs = kwargs['get_qs']
+        else:
+            get_qs = False
+
+        assert step is not None
+        if step < self.temp_steps:
+            pi = temperate_pi(post_qs, self.temp, valid_indicators)
+        else:
+            pi = temperate_pi(post_qs, 0.01, valid_indicators)
+
+        if get_qs:
+            return pi, prior_qs, post_qs
+        else:
+            return pi
+
+    def mcts_qvals(self, go_env):
         canonical_children, child_groupmaps = go_env.cache_children(canonical=True)
         child_vals = self.val_func(np.array(canonical_children))
         canonical_state = go_env.get_canonical_state()
-
         valid_indicators = go_env.get_valid_moves()
-        qvals = montecarlo.vals_to_qs(child_vals, canonical_state)
+
+        prior_qs = montecarlo.vals_to_qs(child_vals, canonical_state)
+        post_qs = np.copy(prior_qs)
 
         # Search on grandchildren layer
         if self.num_searches > 0:
@@ -187,7 +209,6 @@ class MCTS(Policy):
             ordered_child_idcs = np.argsort(child_vals.flatten())
             best_child_idcs = ordered_child_idcs[:self.num_searches]
             remaining_child_idcs = ordered_child_idcs[self.num_searches:]
-            biases = []
             for child_idx in best_child_idcs:
                 action_to_child = valid_moves[child_idx]
                 child = canonical_children[child_idx]
@@ -198,29 +219,22 @@ class MCTS(Policy):
                 grand_vals = self.val_func(np.array(grandchildren))
                 # Assume opponent would take action that minimizes our value
                 new_childval = np.min(grand_vals)
-                curr_qval = qvals[action_to_child]
-                biases.append(new_childval - curr_qval)
+                curr_qval = prior_qs[action_to_child]
                 new_qval = np.mean([curr_qval, new_childval])
-                qvals[action_to_child] = new_qval
+                post_qs[action_to_child] = new_qval
 
-            if len(biases) > 0:
-                bias_correction = np.mean(biases) / 2
+            changes = np.sum(post_qs != prior_qs)
+            if changes > 0:
+                bias_correction = np.sum(post_qs - prior_qs) / changes
+
                 for child_idx in remaining_child_idcs:
                     action_to_child = valid_moves[child_idx]
                     child = canonical_children[child_idx]
                     if GoGame.get_game_ended(child):
                         continue
-                    qvals[action_to_child] += bias_correction
+                    post_qs[action_to_child] += bias_correction
 
-        if np.count_nonzero(qvals) == 0:
-            qvals += valid_indicators
-
-        assert step is not None
-        if step < self.temp_steps:
-            pi = temperate_pi(qvals, self.temp, valid_indicators)
-        else:
-            pi = temperate_pi(qvals, 0.01, valid_indicators)
-        return pi
+        return prior_qs, post_qs
 
     def __str__(self):
         return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.2f}T]-{self.name}"
@@ -231,7 +245,7 @@ class ActorCritic(Policy):
         super(ActorCritic, self).__init__(name, temp=0)
         self.pytorch_model = network
 
-    def __call__(self, go_env, step=None):
+    def __call__(self, go_env, **kwargs):
         """
         :param go_env:
         :param step: Parameter used for getting the temperature
