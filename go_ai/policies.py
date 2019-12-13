@@ -95,7 +95,8 @@ def pytorch_to_numpy(model, val=True):
             with torch.no_grad():
                 tensor_states = torch.from_numpy(states).type(dtype)
                 policy_scores = model(tensor_states)
-                pi = policy_scores.detach().cpu().numpy()
+                pi = torch.nn.functional.softmax(policy_scores, dim=1)
+                pi = pi.detach().cpu().numpy()
             return pi
     
     return func
