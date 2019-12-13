@@ -304,7 +304,9 @@ class MCTSActorCritic(Policy):
         levels = [[] for d in range(self.depth)]
         for d in range(self.depth):
             prev = levels[d - 1] if d > 0 else [root]
-            prev_states = [n.state for n in prev]
+            for p in prev:
+                p.canon_children = np.empty(p.actionsize, dtype=object)
+            prev_states = [p.state for p in prev]
             pis = self.pi_func(np.array(prev_states))
             for i, p in enumerate(prev):
                 pi = pis[i]
