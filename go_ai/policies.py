@@ -266,7 +266,7 @@ class MCTSActorCritic(Policy):
         i.e. even depth means the last step explores the opponent's
         """
         super(MCTSActorCritic, self).__init__(name, temp=0)
-        self.model = model
+        self.pytorch_model = model
         self.pi_func = pytorch_to_numpy(ActorCriticWrapper(model, 'actor'), val=False)
         self.val_func = pytorch_to_numpy(ActorCriticWrapper(model, 'critic'))
         self.branches = branches
