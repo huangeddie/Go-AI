@@ -294,33 +294,47 @@ class MCTSActorCritic(Policy):
         levels = [[] for d in range(self.depth)]
         for d in range(self.depth):
             prev = levels[d - 1] if d > 0 else [root]
-            # Initialize children for previous level
-            for p in prev:
-                p.canon_children = np.empty(p.actionsize, dtype=object)
-            prev_states = [p.state for p in prev]
-            # Call pi_func on entire level as a batch
-            pis = self.pi_func(np.array(prev_states))
-            for i, p in enumerate(prev):
-                pi = pis[i]
-                # Sample actions from pi without replacement, add children
-                sampled = np.random.choice(len(pi), size=self.branches, replace=False, p=pi)
-                states, groupmaps = GoGame.get_batch_next_states(p.state, sampled)
-                for j in range(len(sampled)):
-                    node = Node((p, sampled[j]), None, states[j])
-                    levels[d].append(node)
+            if not prev:
+                # No nodes in previous layer, all branches terminated
+                break
+            terminals = [n for n in prev if n.terminal]
+            nonterminals = [n for n in prev if not n.terminal]
+
+            # Set prior_value on terminal nodes to winner
+            for n in terminals:
+                n.prior_value = GoGame.get_winning(n.state)
+
+            if nonterminals:
+                # Initialize children for previous level
+                for n in nonterminals:
+                    n.canon_children = np.empty(n.actionsize, dtype=object)
+                # Call pi_func on entire level as a batch
+                prev_states = [n.state for n in nonterminals]
+                pis = self.pi_func(np.array(prev_states))
+                for i, parent in enumerate(nonterminals):
+                    pi = pis[i]
+                    # Do not sample more than the number of valid actions
+                    num_samples = min(self.branches, np.count_nonzero(pi))
+                    # Sample actions from pi without replacement, add children
+                    sampled = np.random.choice(len(pi), size=num_samples, replace=False, p=pi)
+                    states, groupmaps = GoGame.get_batch_next_states(parent.state, sampled)
+                    for j in range(len(sampled)):
+                        node = Node((parent, sampled[j]), None, states[j])
+                        levels[d].append(node)
 
         # Call val_func on leaves
         leaves = levels[-1] if self.depth > 0 else [root]
-        leaf_states = [l.state for l in leaves]
-        vals = self.val_func(np.array(leaf_states))
-        for i, l in enumerate(leaves):
-            l.prior_value = vals[i]
+        if leaves:
+            leaf_states = [l.state for l in leaves]
+            vals = self.val_func(np.array(leaf_states))
+            for i, l in enumerate(leaves):
+                l.prior_value = vals[i]
         # Use Node.latest_qs to propagate qs from leaves
         root_qs = root.latest_qs()
         return root_qs
 
     def __str__(self):
-        return f"{self.__class__.__name__}[{self.branches}B {self.depth}D {self.temp:.2f}T]-{self.name}"
+        return f"{self.__class__.__name__}[{self.branches}B {self.depth}D]-{self.name}"
 
 
 class ActorCritic(Policy):
