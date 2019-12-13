@@ -37,8 +37,10 @@ def hyperparameters():
     parser.add_argument('--episodesdir', type=str, default='episodes/', help='directory to store episodes')
     parser.add_argument('--checkpath', type=str, default='bin/checkpoint.pt', help='model path for checkpoint')
     parser.add_argument('--tmppath', type=str, default='bin/tmp.pt', help='model path for temp model')
+    parser.add_argument('--basepath', type=str, default='bin/base.pt', help='model path for baseline model')
 
     parser.add_argument('--agent', type=str, choices=['mcts', 'ac', 'mcts-ac'], default='mcts', help='type of agent/model')
+    parser.add_argument('--baseagent', type=str, choices=['mcts', 'ac', 'mcts-ac'], default='mcts', help='type of agent/model for baseline')
     parser.add_argument('--reward', type=str, choices=['real', 'heuristic'], default='real', help='reward system')
     parser.add_argument('--resblocks', type=int, default=4, help='number of basic blocks for resnets')
 
