@@ -38,6 +38,10 @@ elif args.baseagent == 'mcts-ac':
     baseline_model = actorcritic.ActorCriticNet(args.boardsize)
     baseline_model.load_state_dict(torch.load(args.basepath))
     baseline_pi = policies.MCTSActorCritic('Baseline', baseline_model, args.branches, args.depth)
+elif args.baseagent == 'rand':
+    baseline_pi = policies.RAND_PI
+elif args.baseagent == 'greedy':
+    baseline_pi = policies.GREEDY_PI
 print('Loaded baseline')
 
 # Play
