@@ -289,7 +289,6 @@ class MCTSActorCritic(Policy):
             return pi
 
     def mcts_qvals(self, go_env):
-        # TODO use group map
         root = Node(None, None, go_env.get_canonical_state())
         levels = [[] for d in range(self.depth)]
         for d in range(self.depth):
@@ -317,9 +316,10 @@ class MCTSActorCritic(Policy):
                     num_samples = min(self.branches, np.count_nonzero(pi))
                     # Sample actions from pi without replacement, add children
                     sampled = np.random.choice(len(pi), size=num_samples, replace=False, p=pi)
-                    states, groupmaps = GoGame.get_batch_next_states(parent.state, sampled)
+                    states, groupmaps = GoGame.get_batch_next_states(
+                        parent.state, sampled, parent.group_map, canonical=True)
                     for j in range(len(sampled)):
-                        node = Node((parent, sampled[j]), None, states[j])
+                        node = Node((parent, sampled[j]), None, states[j], groupmaps[j])
                         levels[d].append(node)
 
         # Call val_func on leaves

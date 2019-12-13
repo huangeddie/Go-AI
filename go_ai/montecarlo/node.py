@@ -5,7 +5,7 @@ from go_ai.montecarlo import GoGame
 
 
 class Node:
-    def __init__(self, parentaction, prior_value, state):
+    def __init__(self, parentaction, prior_value, state, group_map=None):
         '''
         Args:
             parent (?Node): parent Node
@@ -33,6 +33,8 @@ class Node:
         self.canon_children = None
         self.move_visits = np.zeros(self.actionsize)
         self.visits = 0
+
+        self.group_map = group_map
 
     def update_height(self, new_height):
         self.height = new_height
