@@ -324,11 +324,21 @@ class MCTSActorCritic(Policy):
 
         # Call val_func on leaves
         leaves = levels[-1]
+        # If all branches terminated before leaves, skip val_func
         if leaves:
-            leaf_states = [l.state for l in leaves]
+            terminals = [l for l in leaves if l.terminal]
+            nonterminals = [l for l in leaves if not l.terminal]
+            
+            # Set prior_value on terminal leaves to winner
+            for l in terminals:
+                l.prior_value = GoGame.get_winning(l.state)
+
+            # Use val_func on nonterminals
+            leaf_states = [l.state for l in nonterminals]
             vals = self.val_func(np.array(leaf_states))
-            for i, l in enumerate(leaves):
+            for i, l in enumerate(nonterminals):
                 l.prior_value = vals[i].item()
+
         # Use Node.latest_qs to propagate qs from leaves
         root_qs = root.latest_qs()
         return root_qs
