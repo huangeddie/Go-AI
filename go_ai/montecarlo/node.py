@@ -52,7 +52,7 @@ class Node:
             qs = []
             for child in self.canon_children:
                 if child is None:
-                    qs.append(0)
+                    qs.append(montecarlo.MIN_VAL)
                 else:
                     qs.append(montecarlo.invert_val(child.latest_value()))
             max_qval = max(qs)
@@ -77,7 +77,7 @@ class Node:
         qs = []
         for child in self.canon_children:
             if child is None:
-                qs.append(0)
+                qs.append(montecarlo.MIN_VAL)
             else:
                 qs.append(montecarlo.invert_val(child.latest_value()))
 
