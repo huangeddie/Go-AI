@@ -57,7 +57,7 @@ def smart_greedy_val_func(states):
     return vals[:, np.newaxis]
 
 
-def pytorch_to_numpy(model, val=True):
+def pytorch_to_numpy(model, val=True, scale=100):
     """
     Automatically turns terminal states into 1, 0, -1 based on win status
     :param model: The model to convert
@@ -80,7 +80,7 @@ def pytorch_to_numpy(model, val=True):
             # Check for terminals
             for i, state in enumerate(states):
                 if GoGame.get_game_ended(state):
-                    vals[i] = 100 * GoGame.get_winning(state)
+                    vals[i] = scale * GoGame.get_winning(state)
 
             return vals
     
@@ -268,7 +268,7 @@ class MCTSActorCritic(Policy):
         super(MCTSActorCritic, self).__init__(name, temp=0)
         self.pytorch_model = model
         self.pi_func = pytorch_to_numpy(ActorCriticWrapper(model, 'actor'), val=False)
-        self.val_func = pytorch_to_numpy(ActorCriticWrapper(model, 'critic'))
+        self.val_func = pytorch_to_numpy(ActorCriticWrapper(model, 'critic'), scale=1)
         self.branches = branches
         self.depth = depth
 
@@ -326,19 +326,10 @@ class MCTSActorCritic(Policy):
         leaves = levels[-1]
         # If all branches terminated before leaves, skip val_func
         if leaves:
-            terminals = [l for l in leaves if l.terminal]
-            nonterminals = [l for l in leaves if not l.terminal]
-            
-            # Set prior_value on terminal leaves to winner
-            for l in terminals:
-                l.prior_value = GoGame.get_winning(l.state)
-
-            # Use val_func on nonterminals
-            if nonterminals:
-                leaf_states = [l.state for l in nonterminals]
-                vals = self.val_func(np.array(leaf_states))
-                for i, l in enumerate(nonterminals):
-                    l.prior_value = vals[i].item()
+            leaf_states = [l.state for l in leaves]
+            vals = self.val_func(np.array(leaf_states))
+            for i, l in enumerate(leaves):
+                l.prior_value = vals[i].item()
 
         # Use Node.latest_qs to propagate qs from leaves
         root_qs = root.latest_qs()
