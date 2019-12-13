@@ -5,6 +5,7 @@ import torch
 from go_ai import montecarlo
 from go_ai.montecarlo import temperate_pi
 from go_ai.models.actorcritic import ActorCriticWrapper
+from go_ai.montecarlo.node import Node
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -257,12 +258,18 @@ class MCTS(Policy):
 
 
 class MCTSActorCritic(Policy):
-    def __init__(self, name, model, num_searches, temp=0, temp_steps=0):
+    def __init__(self, name, model, branch_degree=2, depth=4, temp=0, temp_steps=0):
+        """
+        :param branch_degree: The number of actions explored by actor at each node.
+        :param depth: The number of steps to explore with actor. Includes opponent,
+        i.e. even depth means the last step explores the opponent's
+        """
         super(MCTSActorCritic, self).__init__(name, temp, temp_steps)
         self.model = model
         self.pi_func = pytorch_to_numpy(ActorCriticWrapper(model, 'actor'), val=False)
         self.val_func = pytorch_to_numpy(ActorCriticWrapper(model, 'critic'))
-        self.num_searches = num_searches
+        self.branch_degree = branch_degree
+        self.depth = depth
 
     def __call__(self, go_env, **kwargs):
         """
@@ -292,50 +299,26 @@ class MCTSActorCritic(Policy):
             return pi
 
     def mcts_qvals(self, go_env):
-        canonical_children, child_groupmaps = go_env.cache_children(canonical=True)
-        child_vals = self.val_func(np.array(canonical_children))
-        canonical_state = go_env.get_canonical_state()
-        valid_indicators = go_env.get_valid_moves()
+        # TODO use group map
+        root = Node(None, None, go_env.get_canonical_state())
+        levels = [[] for d in range(self.depth)]
+        for d in range(self.depth):
+            prev = levels[d - 1] if d > 0 else [root]
+            prev_states = [n.state for n in prev]
+            pis = self.pi_func(np.array(prev_states))
+            for i, p in enumerate(prev):
+                pi = pis[i]
+                sampled = np.random.choice(len(pi), size=self.branch_degree, replace=False, p=pi)
+                for action in sampled:
+                    state = GoGame.get_next_state(prev[i], action)
+                    node = Node((p, action), None, state)
+                    levels[d].append(node)
 
-        prior_qs = montecarlo.vals_to_qs(child_vals, canonical_state)
-        post_qs = np.copy(prior_qs)
-
-        # Search on grandchildren layer
-        if self.num_searches > 0:
-            valid_moves = np.argwhere(valid_indicators).flatten()
-            assert len(valid_moves) == len(child_vals)
-            ordered_child_idcs = np.argsort(child_vals.flatten())
-            best_child_idcs = ordered_child_idcs[:self.num_searches]
-            remaining_child_idcs = ordered_child_idcs[self.num_searches:]
-            for child_idx in best_child_idcs:
-                action_to_child = valid_moves[child_idx]
-                child = canonical_children[child_idx]
-                if GoGame.get_game_ended(child):
-                    continue
-                child_groupmap = child_groupmaps[child_idx]
-                grandchildren, _ = GoGame.get_canonical_children(child, child_groupmap)
-                grand_vals = self.val_func(np.array(grandchildren))
-                # Assume opponent would take action that minimizes our value
-                new_childval = np.min(grand_vals)
-                curr_qval = prior_qs[action_to_child]
-                new_qval = np.mean([curr_qval, new_childval])
-                post_qs[action_to_child] = new_qval
-
-            changes = np.sum(post_qs != prior_qs)
-            if changes > 0:
-                bias_correction = np.sum(post_qs - prior_qs) / changes
-
-                for child_idx in remaining_child_idcs:
-                    action_to_child = valid_moves[child_idx]
-                    child = canonical_children[child_idx]
-                    if GoGame.get_game_ended(child):
-                        continue
-                    post_qs[action_to_child] += bias_correction
-
-        return prior_qs, post_qs
+        # TODO calculate value at leafs
+        return root_qs
 
     def __str__(self):
-        return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.2f}T]-{self.name}"
+        return f"{self.__class__.__name__}[{self.branch_degree}B {self.depth}D {self.temp:.2f}T]-{self.name}"
 
 
 class ActorCritic(Policy):
