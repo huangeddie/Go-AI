@@ -334,10 +334,11 @@ class MCTSActorCritic(Policy):
                 l.prior_value = GoGame.get_winning(l.state)
 
             # Use val_func on nonterminals
-            leaf_states = [l.state for l in nonterminals]
-            vals = self.val_func(np.array(leaf_states))
-            for i, l in enumerate(nonterminals):
-                l.prior_value = vals[i].item()
+            if nonterminals:
+                leaf_states = [l.state for l in nonterminals]
+                vals = self.val_func(np.array(leaf_states))
+                for i, l in enumerate(nonterminals):
+                    l.prior_value = vals[i].item()
 
         # Use Node.latest_qs to propagate qs from leaves
         root_qs = root.latest_qs()
