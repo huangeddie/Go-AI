@@ -309,12 +309,17 @@ class MCTSActorCritic(Policy):
             for i, p in enumerate(prev):
                 pi = pis[i]
                 sampled = np.random.choice(len(pi), size=self.branch_degree, replace=False, p=pi)
-                for action in sampled:
-                    state = GoGame.get_next_state(prev[i], action)
-                    node = Node((p, action), None, state)
+                states = GoGame.get_batch_next_states(p.state, sampled)
+                for j in range(len(sampled)):
+                    node = Node((p, sampled[j]), None, states[j])
                     levels[d].append(node)
 
-        # TODO calculate value at leafs
+        leaves = levels[-1] if self.depth > 0 else [root]
+        leaf_states = [l.state for l in leaves]
+        vals = self.val_func(np.array(leaf_states))
+        for i, l in enumerate(leaves):
+            l.prior_value = vals[i]
+        root_qs = root.latest_qs()
         return root_qs
 
     def __str__(self):
