@@ -323,12 +323,12 @@ class MCTSActorCritic(Policy):
                         levels[d].append(node)
 
         # Call val_func on leaves
-        leaves = levels[-1] if self.depth > 0 else [root]
+        leaves = levels[-1]
         if leaves:
             leaf_states = [l.state for l in leaves]
             vals = self.val_func(np.array(leaf_states))
             for i, l in enumerate(leaves):
-                l.prior_value = vals[i]
+                l.prior_value = vals[i].item()
         # Use Node.latest_qs to propagate qs from leaves
         root_qs = root.latest_qs()
         return root_qs
