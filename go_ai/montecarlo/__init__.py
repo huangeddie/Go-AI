@@ -11,7 +11,7 @@ def invert_val(val):
 
 
 def qs_from_valfunc(state, val_func, group_map=None):
-    canonical_children, _ = GoGame.get_canonical_children(state, group_map)
+    canonical_children, _ = GoGame.get_children(state, group_map, canonical=True)
     child_vals = val_func(np.array(canonical_children))
     qvals = vals_to_qs(child_vals, state)
     return qvals, canonical_children
