@@ -18,8 +18,8 @@ def hyperparameters():
 
     parser.add_argument('--boardsize', type=int, help='board size')
     parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches')
-    parser.add_argument('--branches', type=int, default=2, help='branch degree for searching')
-    parser.add_argument('--depth', type=int, default=4, help='search depth')
+    parser.add_argument('--branches', type=int, default=4, help='branch degree for searching')
+    parser.add_argument('--depth', type=int, default=3, help='search depth')
 
     parser.add_argument('--temp', type=float, default=1 / 10, help='initial temperature')
     parser.add_argument('--tempsteps', type=float, default=8, help='first k steps to apply temperature to pi')

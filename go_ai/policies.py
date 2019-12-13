@@ -259,7 +259,7 @@ class MCTS(Policy):
 
 
 class MCTSActorCritic(Policy):
-    def __init__(self, name, model, branches=2, depth=4):
+    def __init__(self, name, model, branches, depth):
         """
         :param branches: The number of actions explored by actor at each node.
         :param depth: The number of steps to explore with actor. Includes opponent,
