@@ -34,9 +34,9 @@ def worker_train(args, comm: MPI.Intracomm):
             checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
         else:
             curr_pi = policies.MCTSActorCritic('Current', curr_model,
-                args.branch_degree, args.depth, args.temp, args.tempsteps)
+                args.branches, args.depth, args.temp, args.tempsteps)
             checkpoint_pi = policies.MCTSActorCritic('Checkpoint', checkpoint_model,
-                args.branch_degree, args.depth, args.temp, args.tempsteps)
+                args.branches, args.depth, args.temp, args.tempsteps)
     else:
         raise Exception("Unknown Agent Argument", args.agent)
 
