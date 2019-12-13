@@ -9,7 +9,7 @@ class Node:
         '''
         Args:
             parent (?Node): parent Node
-            prior_value (float): the state value of this node
+            prior_value (?float): the state value of this node
             state: state of the game as a numpy array
         '''
         if parentaction is not None:
@@ -55,6 +55,8 @@ class Node:
                     qs.append(montecarlo.invert_val(child.latest_value()))
             max_qval = max(qs)
 
+            if self.prior_value is None:
+                return max_qval
             # Average of prior of max q-val
             return (self.prior_value + max_qval) / 2
 
