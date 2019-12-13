@@ -119,7 +119,7 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             # Set parameters
             if args.agent == 'mcts':
                 new_model = value.ValueNet(args.boardsize, args.resblocks)
-            elif args.agent == 'ac':
+            elif args.agent == 'ac' or args.agent == 'mcts-ac':
                 new_model = actorcritic.ActorCriticNet(args.boardsize)
             torch.save(new_model.state_dict(), args.checkpath)
     parallel_err(rank, "Using checkpoint: {}".format(args.checkpoint))
