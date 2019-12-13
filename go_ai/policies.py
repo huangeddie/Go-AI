@@ -194,7 +194,7 @@ class MCTS(Policy):
             return pi
 
     def mcts_qvals(self, go_env):
-        canonical_children, child_groupmaps = go_env.cache_children(canonical=True)
+        canonical_children, child_groupmaps = go_env.get_children(canonical=True)
         child_vals = self.val_func(np.array(canonical_children))
         canonical_state = go_env.get_canonical_state()
         valid_indicators = go_env.get_valid_moves()
@@ -215,7 +215,7 @@ class MCTS(Policy):
                 if GoGame.get_game_ended(child):
                     continue
                 child_groupmap = child_groupmaps[child_idx]
-                grandchildren, _ = GoGame.get_canonical_children(child, child_groupmap)
+                grandchildren, _ = GoGame.get_children(child, child_groupmap, canonical=True)
                 grand_vals = self.val_func(np.array(grandchildren))
                 # Assume opponent would take action that minimizes our value
                 new_childval = np.min(grand_vals)
