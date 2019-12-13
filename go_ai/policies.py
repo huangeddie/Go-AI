@@ -3,7 +3,7 @@ import numpy as np
 import torch
 
 from go_ai import montecarlo
-from go_ai.montecarlo import temperate_pi
+from go_ai.montecarlo import temperate_pi, greedy_pi
 from go_ai.models.actorcritic import ActorCriticWrapper
 from go_ai.montecarlo.node import Node
 
@@ -259,13 +259,13 @@ class MCTS(Policy):
 
 
 class MCTSActorCritic(Policy):
-    def __init__(self, name, model, branches=2, depth=4, temp=0, temp_steps=0):
+    def __init__(self, name, model, branches=2, depth=4):
         """
         :param branches: The number of actions explored by actor at each node.
         :param depth: The number of steps to explore with actor. Includes opponent,
         i.e. even depth means the last step explores the opponent's
         """
-        super(MCTSActorCritic, self).__init__(name, temp, temp_steps)
+        super(MCTSActorCritic, self).__init__(name, temp=0)
         self.model = model
         self.pi_func = pytorch_to_numpy(ActorCriticWrapper(model, 'actor'), val=False)
         self.val_func = pytorch_to_numpy(ActorCriticWrapper(model, 'critic'))
@@ -279,23 +279,12 @@ class MCTSActorCritic(Policy):
         :return:
         """
 
-        prior_qs, post_qs = self.mcts_qvals(go_env)
+        qs = self.mcts_qvals(go_env)
 
         valid_indicators = go_env.get_valid_moves()
-        step = kwargs['step']
-        if 'get_qs' in kwargs:
-            get_qs = kwargs['get_qs']
-        else:
-            get_qs = False
-
-        assert step is not None
-        if step < self.temp_steps:
-            pi = temperate_pi(post_qs, self.temp, valid_indicators)
-        else:
-            pi = temperate_pi(post_qs, 0.01, valid_indicators)
-
-        if get_qs:
-            return pi, prior_qs, post_qs
+        pi = greedy_pi(qs, valid_indicators)
+        if 'get_qs' in kwargs and kwargs['get_qs']:
+            return pi, qs
         else:
             return pi
 
@@ -315,7 +304,7 @@ class MCTSActorCritic(Policy):
                 pi = pis[i]
                 # Sample actions from pi without replacement, add children
                 sampled = np.random.choice(len(pi), size=self.branches, replace=False, p=pi)
-                states = GoGame.get_batch_next_states(p.state, sampled)
+                states, groupmaps = GoGame.get_batch_next_states(p.state, sampled)
                 for j in range(len(sampled)):
                     node = Node((p, sampled[j]), None, states[j])
                     levels[d].append(node)
