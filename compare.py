@@ -29,15 +29,15 @@ print('Loaded checkpoint')
 if args.baseagent == 'mcts':
     baseline_model = value.ValueNet(args.boardsize)
     baseline_model.load_state_dict(torch.load(args.basepath))
-    baseline_pi = policies.MCTS('baseline', baseline_model, 82, 0)
+    baseline_pi = policies.MCTS('Baseline', baseline_model, 82, 0)
 elif args.baseagent == 'ac':
     baseline_model = actorcritic.ActorCriticNet(args.boardsize)
     baseline_model.load_state_dict(torch.load(args.basepath))
-    baseline_pi = policies.ActorCritic('baseline', baseline_model)
+    baseline_pi = policies.ActorCritic('Baseline', baseline_model)
 elif args.baseagent == 'mcts-ac':
     baseline_model = actorcritic.ActorCriticNet(args.boardsize)
     baseline_model.load_state_dict(torch.load(args.basepath))
-    baseline_pi = policies.MCTSActorCritic('baseline', baseline_model, args.branches, args.depth)
+    baseline_pi = policies.MCTSActorCritic('Baseline', baseline_model, args.branches, args.depth)
 print('Loaded baseline')
 
 # Play
