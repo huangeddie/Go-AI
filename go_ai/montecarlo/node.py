@@ -13,14 +13,14 @@ class Node:
             state: state of the game as a numpy array
         '''
         if parentaction is not None:
-            self.parent = parentaction[0]
-            self.parent.canon_children[parentaction[1]] = self
+            parent = parentaction[0]
+            parent.canon_children[parentaction[1]] = self
             self.actiontook = parentaction[1]
         else:
             self.actiontook = None
-            self.parent = None
+            parent = None
 
-        self.height = self.parent.height + 1 if self.parent is not None else 0
+        self.height = parent.height + 1 if parent is not None else 0
         assert len(state.shape) == 3, (state, state.shape)
         assert state.shape[1] == state.shape[2], (state, state.shape)
 
