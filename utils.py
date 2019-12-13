@@ -18,6 +18,8 @@ def hyperparameters():
 
     parser.add_argument('--boardsize', type=int, help='board size')
     parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches')
+    parser.add_argument('--branches', type=int, default=2, help='branch degree for searching')
+    parser.add_argument('--depth', type=int, default=4, help='search depth')
 
     parser.add_argument('--temp', type=float, default=1 / 10, help='initial temperature')
     parser.add_argument('--tempsteps', type=float, default=8, help='first k steps to apply temperature to pi')
@@ -36,7 +38,7 @@ def hyperparameters():
     parser.add_argument('--checkpath', type=str, default='bin/checkpoint.pt', help='model path for checkpoint')
     parser.add_argument('--tmppath', type=str, default='bin/tmp.pt', help='model path for temp model')
 
-    parser.add_argument('--agent', type=str, choices=['mcts', 'ac'], default='mcts', help='type of agent/model')
+    parser.add_argument('--agent', type=str, choices=['mcts', 'ac', 'mcts-ac'], default='mcts', help='type of agent/model')
     parser.add_argument('--reward', type=str, choices=['real', 'heuristic'], default='real', help='reward system')
     parser.add_argument('--resblocks', type=int, default=4, help='number of basic blocks for resnets')
 

@@ -258,9 +258,9 @@ class MCTS(Policy):
 
 
 class MCTSActorCritic(Policy):
-    def __init__(self, name, model, branch_degree=2, depth=4, temp=0, temp_steps=0):
+    def __init__(self, name, model, branches=2, depth=4, temp=0, temp_steps=0):
         """
-        :param branch_degree: The number of actions explored by actor at each node.
+        :param branches: The number of actions explored by actor at each node.
         :param depth: The number of steps to explore with actor. Includes opponent,
         i.e. even depth means the last step explores the opponent's
         """
@@ -268,7 +268,7 @@ class MCTSActorCritic(Policy):
         self.model = model
         self.pi_func = pytorch_to_numpy(ActorCriticWrapper(model, 'actor'), val=False)
         self.val_func = pytorch_to_numpy(ActorCriticWrapper(model, 'critic'))
-        self.branch_degree = branch_degree
+        self.branches = branches
         self.depth = depth
 
     def __call__(self, go_env, **kwargs):
@@ -308,7 +308,7 @@ class MCTSActorCritic(Policy):
             pis = self.pi_func(np.array(prev_states))
             for i, p in enumerate(prev):
                 pi = pis[i]
-                sampled = np.random.choice(len(pi), size=self.branch_degree, replace=False, p=pi)
+                sampled = np.random.choice(len(pi), size=self.branches, replace=False, p=pi)
                 states = GoGame.get_batch_next_states(p.state, sampled)
                 for j in range(len(sampled)):
                     node = Node((p, sampled[j]), None, states[j])
@@ -323,7 +323,7 @@ class MCTSActorCritic(Policy):
         return root_qs
 
     def __str__(self):
-        return f"{self.__class__.__name__}[{self.branch_degree}B {self.depth}D {self.temp:.2f}T]-{self.name}"
+        return f"{self.__class__.__name__}[{self.branches}B {self.depth}D {self.temp:.2f}T]-{self.name}"
 
 
 class ActorCritic(Policy):

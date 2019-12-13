@@ -26,11 +26,17 @@ def worker_train(args, comm: MPI.Intracomm):
         checkpoint_model = value.ValueNet(args.boardsize, args.resblocks)
         curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
         checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
-    elif args.agent == 'ac':
+    elif args.agent == 'ac' or args.agent == 'mcts-ac':
         curr_model = actorcritic.ActorCriticNet(args.boardsize)
         checkpoint_model = actorcritic.ActorCriticNet(args.boardsize)
-        curr_pi = policies.ActorCritic('Current', curr_model)
-        checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
+        if args.agent == 'ac':
+            curr_pi = policies.ActorCritic('Current', curr_model)
+            checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
+        else:
+            curr_pi = policies.MCTSActorCritic('Current', curr_model,
+                args.branch_degree, args.depth, args.temp, args.tempsteps)
+            checkpoint_pi = policies.MCTSActorCritic('Checkpoint', checkpoint_model,
+                args.branch_degree, args.depth, args.temp, args.tempsteps)
     else:
         raise Exception("Unknown Agent Argument", args.agent)
 
@@ -74,7 +80,7 @@ def worker_train(args, comm: MPI.Intracomm):
         if args.agent == 'mcts':
             crit_acc, crit_loss = value.optimize(comm, curr_model, trainadata, optim)
             act_acc, act_loss = 0, 0
-        elif args.agent == 'ac':
+        elif args.agent == 'ac' or args.agent == 'mcts-ac':
             if rank == 0:
                 crit_acc, crit_loss, act_acc, act_loss = actorcritic.optimize(comm, curr_model, trainadata, optim)
 
