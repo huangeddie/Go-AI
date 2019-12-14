@@ -5,22 +5,22 @@ from go_ai.montecarlo import GoGame
 
 
 class Node:
-    def __init__(self, parentaction, prior_value, state):
+    def __init__(self, parentaction, prior_value, state, group_map=None):
         '''
         Args:
             parent (?Node): parent Node
-            prior_value (float): the state value of this node
+            prior_value (?float): the state value of this node
             state: state of the game as a numpy array
         '''
         if parentaction is not None:
-            self.parent = parentaction[0]
-            self.parent.canon_children[parentaction[1]] = self
+            parent = parentaction[0]
+            parent.canon_children[parentaction[1]] = self
             self.actiontook = parentaction[1]
         else:
             self.actiontook = None
-            self.parent = None
+            parent = None
 
-        self.height = self.parent.height + 1 if self.parent is not None else 0
+        self.height = parent.height + 1 if parent is not None else 0
         assert len(state.shape) == 3, (state, state.shape)
         assert state.shape[1] == state.shape[2], (state, state.shape)
 
@@ -33,6 +33,8 @@ class Node:
         self.canon_children = None
         self.move_visits = np.zeros(self.actionsize)
         self.visits = 0
+
+        self.group_map = group_map
 
     def update_height(self, new_height):
         self.height = new_height
@@ -50,11 +52,13 @@ class Node:
             qs = []
             for child in self.canon_children:
                 if child is None:
-                    qs.append(0)
+                    qs.append(montecarlo.MIN_VAL)
                 else:
                     qs.append(montecarlo.invert_val(child.latest_value()))
             max_qval = max(qs)
 
+            if self.prior_value is None:
+                return max_qval
             # Average of prior of max q-val
             return (self.prior_value + max_qval) / 2
 
@@ -73,7 +77,7 @@ class Node:
         qs = []
         for child in self.canon_children:
             if child is None:
-                qs.append(0)
+                qs.append(montecarlo.MIN_VAL)
             else:
                 qs.append(montecarlo.invert_val(child.latest_value()))
 

@@ -21,18 +21,8 @@ def worker_train(args, comm: MPI.Intracomm):
     utils.sync_data(rank, comm, args)
 
     # Policies and Model
-    if args.agent == 'mcts':
-        curr_model = value.ValueNet(args.boardsize, args.resblocks)
-        checkpoint_model = value.ValueNet(args.boardsize, args.resblocks)
-        curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
-        checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
-    elif args.agent == 'ac':
-        curr_model = actorcritic.ActorCriticNet(args.boardsize)
-        checkpoint_model = actorcritic.ActorCriticNet(args.boardsize)
-        curr_pi = policies.ActorCritic('Current', curr_model)
-        checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
-    else:
-        raise Exception("Unknown Agent Argument", args.agent)
+    curr_model, curr_pi = utils.create_agent(args, 'Current')
+    checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint')
 
     # Sync parameters from disk
     curr_model.load_state_dict(torch.load(args.checkpath))
@@ -74,7 +64,7 @@ def worker_train(args, comm: MPI.Intracomm):
         if args.agent == 'mcts':
             crit_acc, crit_loss = value.optimize(comm, curr_model, trainadata, optim)
             act_acc, act_loss = 0, 0
-        elif args.agent == 'ac':
+        elif args.agent == 'ac' or args.agent == 'mcts-ac':
             if rank == 0:
                 crit_acc, crit_loss, act_acc, act_loss = actorcritic.optimize(comm, curr_model, trainadata, optim)
 

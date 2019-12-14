@@ -71,13 +71,19 @@ class ActorCriticNet(nn.Module):
         return policy_scores, vals
 
 
-class CriticWrapper(nn.Module):
-    def __init__(self, net):
-        super(CriticWrapper, self).__init__()
+class ActorCriticWrapper(nn.Module):
+    def __init__(self, net, mode):
+        super(ActorCriticWrapper, self).__init__()
         self.net = net
+        if mode == 'actor':
+            self.index = 0
+        elif mode == 'critic':
+            self.index = 1
+        else:
+            raise RuntimeError('Invalid mode specified for ActorCriticWrapper')
 
     def forward(self, state):
-        return self.net(state)[1]
+        return self.net(state)[self.index]
 
     def eval(self):
         self.net.eval()
@@ -111,7 +117,7 @@ def optimize(comm: MPI.Intracomm, model, batched_data, optimizer):
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * critic_running_acc / i, critic_running_loss / i))
 
-    val_func = policies.pytorch_to_numpy(CriticWrapper(model))
+    val_func = policies.pytorch_to_numpy(ActorCriticWrapper(model, 'critic'), scale=1)
 
     actor_running_loss = 0
     actor_running_acc = 0

@@ -3,7 +3,9 @@ import numpy as np
 import torch
 
 from go_ai import montecarlo
-from go_ai.montecarlo import temperate_pi
+from go_ai.montecarlo import temperate_pi, greedy_pi
+from go_ai.models.actorcritic import ActorCriticWrapper
+from go_ai.montecarlo.node import Node
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -55,33 +57,49 @@ def smart_greedy_val_func(states):
     return vals[:, np.newaxis]
 
 
-def pytorch_to_numpy(model):
+def pytorch_to_numpy(model, val=True, scale=100):
     """
     Automatically turns terminal states into 1, 0, -1 based on win status
-    :param model:
+    :param model: The model to convert
+    :param val: True if value function, False if policy function
     :return: The numpy equivalent of the pytorch value model
     """
+    if val:
+        def func(states):
+            """
+            :param states: Numpy batch of states
+            :return:
+            """
+            dtype = next(model.parameters()).type()
+            model.eval()
+            with torch.no_grad():
+                tensor_states = torch.from_numpy(states).type(dtype)
+                state_vals = model(tensor_states)
+                vals = state_vals.detach().cpu().numpy()
 
-    def val_func(states):
-        """
-        :param states: Numpy batch of states
-        :return:
-        """
-        dtype = next(model.parameters()).type()
-        model.eval()
-        with torch.no_grad():
-            tensor_states = torch.from_numpy(states).type(dtype)
-            state_vals = model(tensor_states)
-            vals = state_vals.detach().cpu().numpy()
+            # Check for terminals
+            for i, state in enumerate(states):
+                if GoGame.get_game_ended(state):
+                    vals[i] = scale * GoGame.get_winning(state)
 
-        # Check for terminals
-        for i, state in enumerate(states):
-            if GoGame.get_game_ended(state):
-                vals[i] = 100 * GoGame.get_winning(state)
-
-        return vals
-
-    return val_func
+            return vals
+    
+    else:
+        def func(states):
+            """
+            :param states: Numpy batch of states
+            :return:
+            """
+            dtype = next(model.parameters()).type()
+            model.eval()
+            with torch.no_grad():
+                tensor_states = torch.from_numpy(states).type(dtype)
+                policy_scores = model(tensor_states)
+                pi = torch.nn.functional.softmax(policy_scores, dim=1)
+                pi = pi.detach().cpu().numpy()
+            return pi
+    
+    return func
 
 
 class Policy:
@@ -238,6 +256,87 @@ class MCTS(Policy):
 
     def __str__(self):
         return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.2f}T]-{self.name}"
+
+
+class MCTSActorCritic(Policy):
+    def __init__(self, name, model, branches, depth):
+        """
+        :param branches: The number of actions explored by actor at each node.
+        :param depth: The number of steps to explore with actor. Includes opponent,
+        i.e. even depth means the last step explores the opponent's
+        """
+        super(MCTSActorCritic, self).__init__(name, temp=0)
+        self.pytorch_model = model
+        self.pi_func = pytorch_to_numpy(ActorCriticWrapper(model, 'actor'), val=False)
+        self.val_func = pytorch_to_numpy(ActorCriticWrapper(model, 'critic'), scale=1)
+        self.branches = branches
+        self.depth = depth
+
+    def __call__(self, go_env, **kwargs):
+        """
+        :param state: Unused variable since we already have the state stored in the tree
+        :param step: Parameter used for getting the temperature
+        :return:
+        """
+
+        qs = self.mcts_qvals(go_env)
+
+        valid_indicators = go_env.get_valid_moves()
+        pi = greedy_pi(qs, valid_indicators)
+        if 'get_qs' in kwargs and kwargs['get_qs']:
+            return pi, qs
+        else:
+            return pi
+
+    def mcts_qvals(self, go_env):
+        root = Node(None, None, go_env.get_canonical_state())
+        levels = [[] for d in range(self.depth)]
+        for d in range(self.depth):
+            prev = levels[d - 1] if d > 0 else [root]
+            if not prev:
+                # No nodes in previous layer, all branches terminated
+                break
+            terminals = [n for n in prev if n.terminal]
+            nonterminals = [n for n in prev if not n.terminal]
+
+            # Set prior_value on terminal nodes to winner
+            for n in terminals:
+                n.prior_value = GoGame.get_winning(n.state)
+
+            if nonterminals:
+                # Initialize children for previous level
+                for n in nonterminals:
+                    n.canon_children = np.empty(n.actionsize, dtype=object)
+                # Call pi_func on entire level as a batch
+                prev_states = [n.state for n in nonterminals]
+                pis = self.pi_func(np.array(prev_states))
+                for i, parent in enumerate(nonterminals):
+                    pi = pis[i]
+                    # Do not sample more than the number of valid actions
+                    num_samples = min(self.branches, np.count_nonzero(pi))
+                    # Sample actions from pi without replacement, add children
+                    sampled = np.random.choice(len(pi), size=num_samples, replace=False, p=pi)
+                    states, groupmaps = GoGame.get_batch_next_states(
+                        parent.state, sampled, parent.group_map, canonical=True)
+                    for j in range(len(sampled)):
+                        node = Node((parent, sampled[j]), None, states[j], groupmaps[j])
+                        levels[d].append(node)
+
+        # Call val_func on leaves
+        leaves = levels[-1]
+        # If all branches terminated before leaves, skip val_func
+        if leaves:
+            leaf_states = [l.state for l in leaves]
+            vals = self.val_func(np.array(leaf_states))
+            for i, l in enumerate(leaves):
+                l.prior_value = vals[i].item()
+
+        # Use Node.latest_qs to propagate qs from leaves
+        root_qs = root.latest_qs()
+        return root_qs
+
+    def __str__(self):
+        return f"{self.__class__.__name__}[{self.branches}B {self.depth}D]-{self.name}"
 
 
 class ActorCritic(Policy):
