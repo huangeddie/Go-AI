@@ -29,7 +29,7 @@ def hyperparameters():
 
     # Exploration
     parser.add_argument('--temp', type=float, default=1 / 10, help='initial temperature')
-    parser.add_argument('--tempsteps', type=float, default=8, help='first k steps to apply temperature to pi')
+    parser.add_argument('--tempsteps', type=float, default=24, help='first k steps to apply temperature to pi')
 
     # Data Sizes
     parser.add_argument('--batchsize', type=int, default=32, help='batch size')
