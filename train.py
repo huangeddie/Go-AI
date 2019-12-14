@@ -21,22 +21,8 @@ def worker_train(args, comm: MPI.Intracomm):
     utils.sync_data(rank, comm, args)
 
     # Policies and Model
-    if args.agent == 'mcts':
-        curr_model = value.ValueNet(args.boardsize, args.resblocks)
-        checkpoint_model = value.ValueNet(args.boardsize, args.resblocks)
-        curr_pi = policies.MCTS('Current', curr_model, args.mcts, args.temp, args.tempsteps)
-        checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
-    elif args.agent == 'ac' or args.agent == 'mcts-ac':
-        curr_model = actorcritic.ActorCriticNet(args.boardsize)
-        checkpoint_model = actorcritic.ActorCriticNet(args.boardsize)
-        if args.agent == 'ac':
-            curr_pi = policies.ActorCritic('Current', curr_model)
-            checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
-        else:
-            curr_pi = policies.MCTSActorCritic('Current', curr_model, args.branches, args.depth)
-            checkpoint_pi = policies.MCTSActorCritic('Checkpoint', checkpoint_model, args.branches, args.depth)
-    else:
-        raise Exception("Unknown Agent Argument", args.agent)
+    curr_model, curr_pi = utils.create_agent(args, 'Current')
+    checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint')
 
     # Sync parameters from disk
     curr_model.load_state_dict(torch.load(args.checkpath))

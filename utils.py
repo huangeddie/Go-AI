@@ -119,11 +119,8 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             # Clear worker data
             episodesdir = args.episodesdir
             data.clear_episodesdir(episodesdir)
-            # Set parameters
-            if args.agent == 'mcts':
-                new_model = value.ValueNet(args.boardsize, args.resblocks)
-            elif args.agent == 'ac' or args.agent == 'mcts-ac':
-                new_model = actorcritic.ActorCriticNet(args.boardsize)
+            # Save new model
+            new_model, _ = create_agent(args, '')
             torch.save(new_model.state_dict(), args.checkpath)
     parallel_err(rank, "Using checkpoint: {}".format(args.checkpoint))
     comm.Barrier()
@@ -150,5 +147,5 @@ def create_agent(args, name, use_base=False):
         model = None
         pi = policies.HUMAN_PI
     else:
-        raise Exception("Unknown agent argument", args.agent)
+        raise Exception("Unknown agent argument", agent)
     return model, pi
