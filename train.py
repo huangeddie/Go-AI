@@ -11,14 +11,12 @@ from go_ai import policies, data, utils
 from go_ai.models import value, actorcritic
 
 
-def train(comm, args, curr_pi, curr_model, checkpoint_pi):
+def train(comm, args, curr_pi, checkpoint_pi):
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize, reward_method=args.reward)
 
-    # Header output
-    go_ai.parallel.parallel_out(comm, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
-
     # Optimizer
+    curr_model = curr_pi.pytorch_model
     optim = torch.optim.Adam(curr_model.parameters(), args.lr, weight_decay=1e-4)
 
     # Replay data
@@ -29,8 +27,12 @@ def train(comm, args, curr_pi, curr_model, checkpoint_pi):
     tmp_path = os.path.join(args.savedir, 'tmp.pt')
     rank = comm.Get_rank()
     starttime = datetime.now()
-    check_winrate, rand_winrate, greedy_winrate = 0, 0, 0,
+    winrates = collections.defaultdict(float)
     crit_acc, crit_loss, act_acc, act_loss = 0, 0, 0, 0,
+
+    # Header output
+    go_ai.parallel.parallel_out(comm, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
+
     for iteration in range(args.iterations):
         # Play episodes
         go_ai.parallel.parallel_err(comm, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
@@ -72,13 +74,13 @@ def train(comm, args, curr_pi, curr_model, checkpoint_pi):
                 # Play some games
                 go_ai.parallel.parallel_err(comm, f'Pitting {curr_pi} V {opponent}')
                 wr, _ = go_ai.parallel.parallel_play(comm, go_env, curr_pi, opponent, False, args.evaluations)
+                winrates[opponent] = wr
 
                 # Do stuff based on the opponent we faced
                 if opponent == checkpoint_pi:
-                    check_winrate = wr
 
                     # Sync checkpoint
-                    if check_winrate > 0.55:
+                    if wr > 0.55:
                         utils.sync_checkpoint(comm, args, new_pi=curr_pi, old_pi=checkpoint_pi)
                         go_ai.parallel.parallel_err(comm, f"Accepted new checkpoint")
 
@@ -88,10 +90,6 @@ def train(comm, args, curr_pi, curr_model, checkpoint_pi):
                     else:
                         go_ai.parallel.parallel_err(comm, f"Continuing to train candidate checkpoint")
                         break
-                elif opponent == policies.RAND_PI:
-                    rand_winrate = wr
-                elif opponent == policies.GREEDY_PI:
-                    greedy_winrate = wr
 
         # Print iteration summary
         currtime = datetime.now()
@@ -99,7 +97,8 @@ def train(comm, args, curr_pi, curr_model, checkpoint_pi):
         iter_info = f"{str(delta).split('.')[0]}\t{iteration:02d}\t{replay_len:07d}\t" \
                     f"{100 * crit_acc:04.1f}\t{crit_loss:04.3f}\t" \
                     f"{100 * act_acc:04.1f}\t{act_loss:04.3f}\t" \
-                    f"{100 * check_winrate:04.1f}\t{100 * rand_winrate:04.1f}\t{100 * greedy_winrate:04.1f}"
+                    f"{100 * winrates[checkpoint_pi]:04.1f}\t{100 * winrates[policies.RAND_PI]:04.1f}\t" \
+                    f"{100 * winrates[policies.GREEDY_PI]:04.1f}"
         go_ai.parallel.parallel_out(comm, iter_info)
 
 if __name__ == '__main__':
@@ -125,4 +124,4 @@ if __name__ == '__main__':
     checkpoint_model.to(device)
 
     # Train
-    train(comm, args, curr_pi, curr_model, checkpoint_pi)
+    train(comm, args, curr_pi, checkpoint_pi)
