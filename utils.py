@@ -6,7 +6,7 @@ import torch
 from mpi4py import MPI
 from tqdm import tqdm
 
-from go_ai import data, game
+from go_ai import data, game, policies
 from go_ai.models import value, actorcritic
 import time
 import math
@@ -127,3 +127,25 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             torch.save(new_model.state_dict(), args.checkpath)
     parallel_err(rank, "Using checkpoint: {}".format(args.checkpoint))
     comm.Barrier()
+
+
+def create_agent(args, name, use_base=False):
+    agent = args.baseagent if use_base else args.agent
+    if agent == 'mcts':
+        model = value.ValueNet(args.boardsize, args.resblocks)
+        pi = policies.MCTS(name, model, args.mcts, args.temp, args.tempsteps)
+    elif agent == 'ac':
+        model = actorcritic.ActorCriticNet(args.boardsize)
+        pi = policies.ActorCritic(name, model)
+    elif agent == 'mcts-ac':
+        model = actorcritic.ActorCriticNet(args.boardsize)
+        pi = policies.MCTSActorCritic(name, model, args.branches, args.depth)
+    elif agent == 'rand':
+        model = None
+        pi = policies.RAND_PI
+    elif agent == 'greedy':
+        model = None
+        pi = policies.GREEDY_PI
+    else:
+        raise Exception("Unknown agent argument", args.agent)
+    return model, pi
