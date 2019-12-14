@@ -11,21 +11,6 @@ from go_ai.montecarlo import tree
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
-class ModelMetrics:
-    def __init__(self):
-        self.crit_acc = 0
-        self.crit_loss = 0
-        self.act_acc = 0
-        self.act_loss = 0
-
-    def __str__(self):
-        critic = f'C[{self.crit_acc * 100 :.1f}% {self.crit_loss:.3f}L]'
-        actor = f'A[{self.act_acc * 100 :.1f}% {self.act_loss:.3f}L]'
-        return f'{critic} {actor}'
-
-    def __repr__(self):
-        return self.__str__()
-
 def matplot_format(state):
     """
     :param state:

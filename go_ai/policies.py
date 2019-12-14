@@ -3,6 +3,7 @@ import numpy as np
 import torch
 
 from go_ai import montecarlo
+from go_ai.models import pytorch_to_numpy
 from go_ai.montecarlo import temperate_pi, greedy_pi
 from go_ai.models.actorcritic import ActorCriticWrapper
 from go_ai.montecarlo.node import Node
@@ -55,51 +56,6 @@ def smart_greedy_val_func(states):
         vals.append(val)
     vals = np.array(vals, dtype=np.float)
     return vals[:, np.newaxis]
-
-
-def pytorch_to_numpy(model, val=True, scale=100):
-    """
-    Automatically turns terminal states into 1, 0, -1 based on win status
-    :param model: The model to convert
-    :param val: True if value function, False if policy function
-    :return: The numpy equivalent of the pytorch value model
-    """
-    if val:
-        def func(states):
-            """
-            :param states: Numpy batch of states
-            :return:
-            """
-            dtype = next(model.parameters()).type()
-            model.eval()
-            with torch.no_grad():
-                tensor_states = torch.from_numpy(states).type(dtype)
-                state_vals = model(tensor_states)
-                vals = state_vals.detach().cpu().numpy()
-
-            # Check for terminals
-            for i, state in enumerate(states):
-                if GoGame.get_game_ended(state):
-                    vals[i] = scale * GoGame.get_winning(state)
-
-            return vals
-    
-    else:
-        def func(states):
-            """
-            :param states: Numpy batch of states
-            :return:
-            """
-            dtype = next(model.parameters()).type()
-            model.eval()
-            with torch.no_grad():
-                tensor_states = torch.from_numpy(states).type(dtype)
-                policy_scores = model(tensor_states)
-                pi = torch.nn.functional.softmax(policy_scores, dim=1)
-                pi = pi.detach().cpu().numpy()
-            return pi
-    
-    return func
 
 
 class Policy:

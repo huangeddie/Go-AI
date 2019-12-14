@@ -6,6 +6,7 @@ import gym
 import torch
 from mpi4py import MPI
 
+import go_ai.models
 import go_ai.parallel
 from go_ai import policies, data, utils, measurements
 from go_ai.models import value, actorcritic
@@ -42,7 +43,7 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize, reward_method=args.reward)
     tmp_path = os.path.join(args.savedir, 'tmp.pt')
-    metrics = measurements.ModelMetrics()
+    metrics = go_ai.models.ModelMetrics()
     rank = comm.Get_rank()
     curr_model = curr_pi.pytorch_model
 

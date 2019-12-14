@@ -1,5 +1,8 @@
 import torch
 from torch import nn as nn
+import gym
+
+GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
 class BasicBlock(nn.Module):
@@ -20,3 +23,64 @@ class BasicBlock(nn.Module):
         out += identity
         out = torch.relu_(out)
         return out
+
+
+def pytorch_to_numpy(model, val=True, scale=100):
+    """
+    Automatically turns terminal states into 1, 0, -1 based on win status
+    :param model: The model to convert
+    :param val: True if value function, False if policy function
+    :return: The numpy equivalent of the pytorch value model
+    """
+    if val:
+        def func(states):
+            """
+            :param states: Numpy batch of states
+            :return:
+            """
+            dtype = next(model.parameters()).type()
+            model.eval()
+            with torch.no_grad():
+                tensor_states = torch.from_numpy(states).type(dtype)
+                state_vals = model(tensor_states)
+                vals = state_vals.detach().cpu().numpy()
+
+            # Check for terminals
+            for i, state in enumerate(states):
+                if GoGame.get_game_ended(state):
+                    vals[i] = scale * GoGame.get_winning(state)
+
+            return vals
+
+    else:
+        def func(states):
+            """
+            :param states: Numpy batch of states
+            :return:
+            """
+            dtype = next(model.parameters()).type()
+            model.eval()
+            with torch.no_grad():
+                tensor_states = torch.from_numpy(states).type(dtype)
+                policy_scores = model(tensor_states)
+                pi = torch.nn.functional.softmax(policy_scores, dim=1)
+                pi = pi.detach().cpu().numpy()
+            return pi
+
+    return func
+
+
+class ModelMetrics:
+    def __init__(self):
+        self.crit_acc = 0
+        self.crit_loss = 0
+        self.act_acc = 0
+        self.act_loss = 0
+
+    def __str__(self):
+        critic = f'C[{self.crit_acc * 100 :.1f}% {self.crit_loss:.3f}L]'
+        actor = f'A[{self.act_acc * 100 :.1f}% {self.act_loss:.3f}L]'
+        return f'{critic} {actor}'
+
+    def __repr__(self):
+        return self.__str__()

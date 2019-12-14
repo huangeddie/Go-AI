@@ -5,7 +5,8 @@ import torch.nn as nn
 from mpi4py import MPI
 from tqdm import tqdm
 
-from go_ai import data, montecarlo, policies, measurements
+import go_ai.models
+from go_ai import data, montecarlo
 from go_ai.models import BasicBlock
 
 gymgo = gym.make('gym_go:go-v0', size=0)
@@ -116,7 +117,7 @@ def optimize(comm: MPI.Intracomm, model, batched_data, optimizer):
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * critic_running_acc / i, critic_running_loss / i))
 
-    val_func = policies.pytorch_to_numpy(ActorCriticWrapper(model, 'critic'), scale=1)
+    val_func = go_ai.models.pytorch_to_numpy(ActorCriticWrapper(model, 'critic'), scale=1)
 
     actor_running_loss = 0
     actor_running_acc = 0
@@ -154,7 +155,7 @@ def optimize(comm: MPI.Intracomm, model, batched_data, optimizer):
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * actor_running_acc / i, actor_running_loss / i))
 
-    metrics = measurements.ModelMetrics()
+    metrics = go_ai.models.ModelMetrics()
     metrics.crit_acc = critic_running_acc / batches
     metrics.crit_loss = critic_running_loss / batches
     metrics.act_acc = actor_running_acc / batches
