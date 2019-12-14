@@ -35,29 +35,31 @@ def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
     winrate = comm.allreduce(winrate, op=MPI.SUM) / world_size
     avg_steps = comm.allreduce(sum(steps), op=MPI.SUM) / episodes
 
-    parallel_err(rank, f'{pi1} V {pi2} | {episodes} GAMES, {avg_time:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
+    parallel_err(comm, f'{pi1} V {pi2} | {episodes} GAMES, {avg_time:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
                        f'{100 * winrate:.1f}% WIN')
     return winrate, traj
 
 
-def parallel_out(rank, s, rep=0):
+def parallel_out(comm: MPI.Intracomm, s, rep=0):
     """
     Only the first worker prints stuff
     :param rank:
     :param s:
     :return:
     """
+    rank = comm.Get_rank()
     if rank == rep:
         print(s, flush=True)
 
 
-def parallel_err(rank, s, rep=0):
+def parallel_err(comm: MPI.Intracomm, s, rep=0):
     """
     Only the first worker prints stuff
     :param rank:
     :param s:
     :return:
     """
+    rank = comm.Get_rank()
     if rank == rep:
         tqdm.write(f"{time.strftime('%H:%M:%S', time.localtime())}\t{s}", file=sys.stderr)
         sys.stderr.flush()

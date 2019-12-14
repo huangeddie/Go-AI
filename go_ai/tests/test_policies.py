@@ -23,7 +23,7 @@ class MyTestCase(unittest.TestCase):
         :return:
         """
         self.go_env = gym.make('gym_go:go-v0', size=9)
-        curr_model = value.ValueNet(9)
+        curr_model = value.ValueNet(9, num_blocks=4)
         curr_model.load_state_dict(torch.load('../../bin/12_10_2019/checkpoint.pt'))
 
         mct_pi = policies.MCTS('MCT', curr_model, num_searches=8, temp=0.05, temp_steps=24)

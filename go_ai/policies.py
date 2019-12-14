@@ -243,7 +243,7 @@ class MCTS(Policy):
 
             changes = np.sum(post_qs != prior_qs)
             if changes > 0:
-                bias_correction = np.sum(post_qs - prior_qs) / changes
+                bias_correction = np.min(post_qs - prior_qs)
 
                 for child_idx in remaining_child_idcs:
                     action_to_child = valid_moves[child_idx]

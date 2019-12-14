@@ -115,8 +115,9 @@ def sample_replaydata(comm: MPI.Intracomm, episodesdir, request_size, batchsize)
     return batched_sampledata, replay_len
 
 
-def save_replaydata(worker_rank, replay_data, episodesdir):
-    outpath = os.path.join(episodesdir, "worker_{}.pickle".format(worker_rank))
+def save_replaydata(comm: MPI.Intracomm, replay_data, episodesdir):
+    rank = comm.Get_rank()
+    outpath = os.path.join(episodesdir, "worker_{}.pickle".format(rank))
     with open(outpath, 'wb') as f:
         success = False
         while not success:

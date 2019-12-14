@@ -61,7 +61,8 @@ def hyperparameters():
     return parser.parse_args()
 
 
-def sync_checkpoint(rank, comm: MPI.Intracomm, args, new_pi, old_pi):
+def sync_checkpoint(comm: MPI.Intracomm, args, new_pi, old_pi):
+    rank = comm.Get_rank()
     checkpath = os.path.join(args.savedir, 'checkpoint.pt')
     if rank == 0:
         torch.save(new_pi.pytorch_model.state_dict(), checkpath)
@@ -70,7 +71,8 @@ def sync_checkpoint(rank, comm: MPI.Intracomm, args, new_pi, old_pi):
     old_pi.pytorch_model.load_state_dict(torch.load(checkpath))
 
 
-def sync_data(rank, comm: MPI.Intracomm, args):
+def sync_data(comm: MPI.Intracomm, args):
+    rank = comm.Get_rank()
     if rank == 0:
         checkpath = os.path.join(args.savedir, 'checkpoint.pt')
         if args.checkpoint:
@@ -85,7 +87,7 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             if not os.path.exists(args.savedir):
                 os.mkdir(args.savedir)
             torch.save(new_model.state_dict(), checkpath)
-    parallel_err(rank, "Using checkpoint: {}".format(args.checkpoint))
+    parallel_err(comm, "Using checkpoint: {}".format(args.checkpoint))
     comm.Barrier()
 
 
