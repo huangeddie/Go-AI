@@ -17,14 +17,8 @@ args = utils.hyperparameters()
 go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
-if args.agent == 'mcts':
-    checkpoint_model = value.ValueNet(args.boardsize, args.resblocks)
-    checkpoint_model.load_state_dict(torch.load(args.checkpath))
-    checkpoint_pi = policies.MCTS('Checkpoint', checkpoint_model, args.mcts, args.temp, args.tempsteps)
-elif args.agent == 'ac':
-    checkpoint_model = actorcritic.ActorCriticNet(args.boardsize)
-    checkpoint_model.load_state_dict(torch.load(args.checkpath))
-    checkpoint_pi = policies.ActorCritic('Checkpoint', checkpoint_model)
+checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint')
+checkpoint_model.load_state_dict(torch.load(args.checkpath))
 print(f"Loaded model {checkpoint_pi} from {args.checkpath}")
 
 # Elo

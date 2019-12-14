@@ -6,7 +6,7 @@ import torch
 from mpi4py import MPI
 from tqdm import tqdm
 
-from go_ai import data, game
+from go_ai import data, game, policies
 from go_ai.models import value, actorcritic
 import time
 import math
@@ -40,7 +40,7 @@ def hyperparameters():
     parser.add_argument('--basepath', type=str, default='bin/base.pt', help='model path for baseline model')
 
     parser.add_argument('--agent', type=str, choices=['mcts', 'ac', 'mcts-ac'], default='mcts', help='type of agent/model')
-    parser.add_argument('--baseagent', type=str, choices=['mcts', 'ac', 'mcts-ac', 'rand', 'greedy'],
+    parser.add_argument('--baseagent', type=str, choices=['mcts', 'ac', 'mcts-ac', 'rand', 'greedy', 'human'],
         default='rand', help='type of agent/model for baseline')
     parser.add_argument('--reward', type=str, choices=['real', 'heuristic'], default='real', help='reward system')
     parser.add_argument('--resblocks', type=int, default=4, help='number of basic blocks for resnets')
@@ -119,11 +119,33 @@ def sync_data(rank, comm: MPI.Intracomm, args):
             # Clear worker data
             episodesdir = args.episodesdir
             data.clear_episodesdir(episodesdir)
-            # Set parameters
-            if args.agent == 'mcts':
-                new_model = value.ValueNet(args.boardsize, args.resblocks)
-            elif args.agent == 'ac' or args.agent == 'mcts-ac':
-                new_model = actorcritic.ActorCriticNet(args.boardsize)
+            # Save new model
+            new_model, _ = create_agent(args, '')
             torch.save(new_model.state_dict(), args.checkpath)
     parallel_err(rank, "Using checkpoint: {}".format(args.checkpoint))
     comm.Barrier()
+
+
+def create_agent(args, name, use_base=False):
+    agent = args.baseagent if use_base else args.agent
+    if agent == 'mcts':
+        model = value.ValueNet(args.boardsize, args.resblocks)
+        pi = policies.MCTS(name, model, args.mcts, args.temp, args.tempsteps)
+    elif agent == 'ac':
+        model = actorcritic.ActorCriticNet(args.boardsize)
+        pi = policies.ActorCritic(name, model)
+    elif agent == 'mcts-ac':
+        model = actorcritic.ActorCriticNet(args.boardsize)
+        pi = policies.MCTSActorCritic(name, model, args.branches, args.depth)
+    elif agent == 'rand':
+        model = None
+        pi = policies.RAND_PI
+    elif agent == 'greedy':
+        model = None
+        pi = policies.GREEDY_PI
+    elif agent == 'human':
+        model = None
+        pi = policies.HUMAN_PI
+    else:
+        raise Exception("Unknown agent argument", agent)
+    return model, pi
