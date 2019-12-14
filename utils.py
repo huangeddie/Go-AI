@@ -16,7 +16,7 @@ def hyperparameters():
     parser = argparse.ArgumentParser()
     parser.add_argument('--checkpoint', type=bool, default=False, help='continue from checkpoint')
 
-    parser.add_argument('--boardsize', type=int, help='board size')
+    parser.add_argument('--boardsize', type=int, default=9, help='board size')
     parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches')
     parser.add_argument('--branches', type=int, default=4, help='branch degree for searching')
     parser.add_argument('--depth', type=int, default=3, help='search depth')

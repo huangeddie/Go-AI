@@ -3,7 +3,6 @@ import torch
 
 import utils
 from go_ai import policies, game
-from go_ai.models import value, actorcritic
 
 args = utils.hyperparameters()
 

@@ -8,8 +8,7 @@ import pandas as pd
 import torch
 
 import utils
-from go_ai import policies, metrics
-from go_ai.models import value, actorcritic
+from go_ai import metrics, game
 
 args = utils.hyperparameters()
 
@@ -53,3 +52,14 @@ if os.path.exists('bin/stats.txt'):
 # Sample trajectory and plot prior qvals
 metrics.plot_traj_fig(go_env, checkpoint_pi, f'bin/atraj_{checkpoint_pi.temp:.2f}.pdf')
 print(f"Plotted sample trajectory with temp {args.temp}")
+
+# Play against baseline model
+baseline_model, baseline_pi = utils.create_agent(args, 'Baseline', use_base=True)
+if baseline_model:
+    baseline_model.load_state_dict(torch.load(args.basepath))
+print('Loaded baseline')
+
+# Play
+go_env.reset()
+wr, _, _ = game.play_games(go_env, checkpoint_pi, baseline_pi, False, args.evaluations)
+print('Winrate: ', wr)
