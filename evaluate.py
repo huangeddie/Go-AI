@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from go_ai import metrics, game, utils
+from go_ai import measurements, game, utils
 
 args = utils.hyperparameters()
 
@@ -49,7 +49,7 @@ if os.path.exists('bin/stats.txt'):
     print("Plotted Elos")
 
 # Sample trajectory and plot prior qvals
-metrics.plot_traj_fig(go_env, checkpoint_pi, os.path.join(plot_dir, f'atraj_{checkpoint_pi.temp:.2f}.pdf'))
+measurements.plot_traj_fig(go_env, checkpoint_pi, os.path.join(plot_dir, f'atraj_{checkpoint_pi.temp:.2f}.pdf'))
 print(f"Plotted sample trajectory with temp {args.temp}")
 
 # Play against baseline model

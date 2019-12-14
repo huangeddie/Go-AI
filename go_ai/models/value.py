@@ -4,31 +4,12 @@ import torch
 import torch.nn as nn
 from mpi4py import MPI
 
-from go_ai import data
+from go_ai import data, measurements
+from go_ai.models import BasicBlock
 
 gymgo = gym.make('gym_go:go-v0', size=0)
 GoGame = gymgo.gogame
 GoVars = gymgo.govars
-
-
-class BasicBlock(nn.Module):
-    def __init__(self, inplanes, planes):
-        super().__init__()
-        # Both self.conv1 and self.downsample layers downsample the input when stride != 1
-        self.main = nn.Sequential(
-            nn.Conv2d(inplanes, planes, 3, padding=1),
-            nn.BatchNorm2d(planes),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(planes, planes, 3, padding=1),
-            nn.BatchNorm2d(planes),
-        )
-
-    def forward(self, x):
-        identity = x
-        out = self.main(x)
-        out += identity
-        out = torch.relu_(out)
-        return out
 
 
 class ValueNet(nn.Module):
@@ -107,4 +88,8 @@ def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimize
     running_acc = comm.allreduce(running_acc, op=MPI.SUM) / world_size
     running_loss = comm.allreduce(running_loss, op=MPI.SUM) / world_size
 
-    return running_acc / len(batched_data), running_loss / len(batched_data)
+    metrics = measurements.ModelMetrics()
+    metrics.crit_acc = running_acc / len(batched_data)
+    metrics.crit_loss = running_loss / len(batched_data)
+
+    return metrics

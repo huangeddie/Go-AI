@@ -2,16 +2,15 @@ import gym
 import numpy as np
 import torch
 import torch.nn as nn
-from tqdm import tqdm
 from mpi4py import MPI
+from tqdm import tqdm
 
-from go_ai import data, montecarlo, policies
-from go_ai.models.value import BasicBlock
+from go_ai import data, montecarlo, policies, measurements
+from go_ai.models import BasicBlock
 
 gymgo = gym.make('gym_go:go-v0', size=0)
 GoGame = gymgo.gogame
 GoVars = gymgo.govars
-
 
 class ActorCriticNet(nn.Module):
     def __init__(self, board_size, num_blocks=4, channels=64):
@@ -155,5 +154,9 @@ def optimize(comm: MPI.Intracomm, model, batched_data, optimizer):
 
         pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * actor_running_acc / i, actor_running_loss / i))
 
-    return (critic_running_acc / batches, critic_running_loss / batches,
-            actor_running_acc / batches, actor_running_loss / batches)
+    metrics = measurements.ModelMetrics()
+    metrics.crit_acc = critic_running_acc / batches
+    metrics.crit_loss = critic_running_loss / batches
+    metrics.act_acc = actor_running_acc / batches
+    metrics.act_loss = actor_running_loss / batches
+    return metrics
