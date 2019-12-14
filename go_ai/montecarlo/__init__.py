@@ -56,6 +56,15 @@ def greedy_pi(qvals, valid_moves):
     pi = preprocessing.normalize(pi[np.newaxis], norm='l1')[0]
     return pi
 
+def batch_greedy_pi(batch_qvals, batch_valid_moves):
+    expq = np.exp(batch_qvals - np.max(batch_qvals, axis=1, keepdims=True))
+    expq *= batch_valid_moves
+    max_qs = np.max(expq, axis=1, keepdims=True)
+    pi = (expq == max_qs).astype(np.int)
+    pi = preprocessing.normalize(pi, norm='l1')
+    return pi
+
+
 
 def temperate_pi(qvals, temp, valid_moves):
     if temp <= 0:
@@ -63,7 +72,16 @@ def temperate_pi(qvals, temp, valid_moves):
         pi = greedy_pi(qvals, valid_moves)
     else:
         pi = np.zeros(qvals.shape)
-        valid_indcs = np.argwhere(valid_moves)
+        valid_indcs = np.where(valid_moves)
         pi[valid_indcs] = special.softmax(qvals[valid_indcs] * (1 / temp))
+
+    return pi
+
+def batch_temperate_pi(batch_qvals, temp, batch_valid_moves):
+    if temp <= 0:
+        # Max Qs
+        pi = batch_greedy_pi(batch_qvals, batch_valid_moves)
+    else:
+        pi = special.softmax(batch_qvals * (1 / temp), axis=1)
 
     return pi

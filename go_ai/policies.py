@@ -224,6 +224,7 @@ class MCTSActorCritic(Policy):
         """
         super(MCTSActorCritic, self).__init__(name, temp=0)
         self.pytorch_model = model
+        self.pi_func, self.val_func = pytorch_ac_to_numpy(model)
         self.branches = branches
         self.depth = depth
 

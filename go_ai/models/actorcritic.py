@@ -146,7 +146,7 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
         pbar = tqdm(list(zip(qvals, states)), desc="Optimizing actor", leave=True)
         for i, (qvals, states) in enumerate(pbar, 1):
             # Augment
-            greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1)).type(torch.LongTensor)
+            greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1)).type(dtype)
 
             optimizer.zero_grad()
             states = torch.from_numpy(states).type(dtype)
