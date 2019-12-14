@@ -42,9 +42,7 @@ def evaluate(comm, args, curr_pi, checkpoint_pi, winrates):
 def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize, reward_method=args.reward)
-    tmp_path = os.path.join(args.savedir, 'tmp.pt')
     metrics = go_ai.models.ModelMetrics()
-    rank = comm.Get_rank()
     curr_model = curr_pi.pytorch_model
 
     # Play episodes
@@ -68,12 +66,8 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
         metrics = actorcritic.optimize(comm, curr_model, trainadata, optim)
 
     # Sync model
-    if rank == 0:
-        torch.save(curr_model.state_dict(), tmp_path)
-    comm.Barrier()
     go_ai.parallel.parallel_err(comm, f'Optimized | {str(metrics)}')
-    # Update model from worker 0's optimization
-    curr_model.load_state_dict(torch.load(tmp_path))
+
     return metrics, replay_len
 
 

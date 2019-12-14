@@ -8,27 +8,8 @@ GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
 class MCTree:
-    # Environment to call the stateless go logic APIs
 
-    def __init__(self, val_func, state):
-        """
-        :param state: Starting state
-        :param val_func: Takes in a batch of states and returns action
-        probs and state values
-        """
-        canonical_state = GoGame.get_canonical_form(state)
-        self.val_func = val_func
-
-        canonical_state_val = val_func(canonical_state[np.newaxis])[0].item()
-
-        self.root = Node(None, canonical_state_val, canonical_state)
-
-        assert canonical_state.shape[1] == canonical_state.shape[2]
-        self.board_size = canonical_state.shape[1]
-        self.action_size = GoGame.get_action_size(self.root.state)
-        self.rootgroup_map = None
-
-    def get_qvals(self, num_searches):
+    def get_qvals(self, go_env, num_searches, val_func, pi_func):
         '''
         Description:
             Select a child node that maximizes Q + U,
@@ -119,39 +100,3 @@ class MCTree:
             parent.visits += 1
 
             curr_node = curr_node.parent
-
-    def step(self, action):
-        '''
-        Move the root down to a child with action. Throw away all nodes
-        that are not in the child subtree. If such child doesn't exist yet,
-        expand it.
-        '''
-        state = self.root.state
-
-        childstate, self.rootgroup_map = GoGame.get_next_state(state, action, self.rootgroup_map)
-        canonchildstate = GoGame.get_canonical_form(childstate)
-        canon_child = Node(None, 0, canonchildstate) # State value doesn't matter
-
-        self.root = canon_child
-
-        assert isinstance(self.root, Node)
-        self.root.parent = None
-        self.root.update_height(0)
-
-    def reset(self, state=None):
-        if state is None:
-            state = GoGame.get_init_board(self.board_size)
-        self.rootgroup_map = None
-        self.__init__(self.val_func, state)
-
-    def __str__(self):
-        queue = [self.root]
-        str_builder = ''
-        while len(queue) > 0:
-            curr_node = queue.pop(0)
-            for child in curr_node.canon_children:
-                if child is not None:
-                    queue.append(child)
-            str_builder += '{}\n\n'.format(curr_node)
-
-        return str_builder[:-2]

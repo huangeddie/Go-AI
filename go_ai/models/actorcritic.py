@@ -103,7 +103,6 @@ def parallel_get_qvals(comm, batched_data, val_func):
     return all_qvals, all_states
 
 def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer):
-    world_size = comm.Get_size()
     rank = comm.Get_rank()
 
     dtype = next(model.parameters()).type()
@@ -134,9 +133,7 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
             pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * critic_running_acc / i, critic_running_loss / i))
 
     # Sync Parameters
-    comm.Barrier()
-    for params in model.parameters():
-        params.data = comm.allreduce(params.data, op=MPI.SUM) / world_size
+    sync_model(comm, model)
 
     pi_func, val_func = pytorch_ac_to_numpy(model)
     qvals, states = parallel_get_qvals(comm, batched_data, val_func)
@@ -166,9 +163,16 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
 
             pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * actor_running_acc / i, actor_running_loss / i))
 
+    # Sync Parameters
+    sync_model(comm, model)
+
     metrics = go_ai.models.ModelMetrics()
     metrics.crit_acc = critic_running_acc / batches
     metrics.crit_loss = critic_running_loss / batches
     metrics.act_acc = actor_running_acc / batches
     metrics.act_loss = actor_running_loss / batches
     return metrics
+
+def sync_model(comm, model, source=0):
+    for params in model.parameters():
+        params.data = comm.bcast(params.data, source)
