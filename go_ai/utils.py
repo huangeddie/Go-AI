@@ -28,7 +28,7 @@ def hyperparameters():
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 
     # Exploration
-    parser.add_argument('--temp', type=float, default=1 / 10, help='initial temperature')
+    parser.add_argument('--temp', type=float, default=0.1, help='initial temperature')
     parser.add_argument('--tempsteps', type=float, default=24, help='first k steps to apply temperature to pi')
 
     # Data Sizes
