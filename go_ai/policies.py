@@ -3,10 +3,11 @@ import numpy as np
 import torch
 
 from go_ai import montecarlo
-from go_ai.models import pytorch_to_numpy
+from go_ai.models import pytorch_val_to_numpy, pytorch_ac_to_numpy
 from go_ai.montecarlo import temperate_pi, greedy_pi
-from go_ai.models.actorcritic import ActorCriticWrapper
 from go_ai.montecarlo.node import Node
+
+from scipy import special
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -135,7 +136,7 @@ class MCTS(Policy):
         super(MCTS, self).__init__(name, temp, temp_steps)
         if isinstance(val_func, torch.nn.Module):
             self.pytorch_model = val_func
-            val_func = pytorch_to_numpy(val_func)
+            val_func = pytorch_val_to_numpy(val_func)
 
         self.val_func = val_func
         self.num_searches = num_searches
@@ -223,8 +224,6 @@ class MCTSActorCritic(Policy):
         """
         super(MCTSActorCritic, self).__init__(name, temp=0)
         self.pytorch_model = model
-        self.pi_func = pytorch_to_numpy(ActorCriticWrapper(model, 'actor'), val=False)
-        self.val_func = pytorch_to_numpy(ActorCriticWrapper(model, 'critic'), scale=1)
         self.branches = branches
         self.depth = depth
 
@@ -298,7 +297,10 @@ class MCTSActorCritic(Policy):
 class ActorCritic(Policy):
     def __init__(self, name, network):
         super(ActorCritic, self).__init__(name, temp=0)
+        pi_func, val_func = pytorch_ac_to_numpy(network)
         self.pytorch_model = network
+        self.pi_func = pi_func
+        self.val_func = val_func
 
     def __call__(self, go_env, **kwargs):
         """
@@ -306,12 +308,9 @@ class ActorCritic(Policy):
         :param step: Parameter used for getting the temperature
         :return: Action probabilities
         """
-        self.pytorch_model.eval()
         state = go_env.get_canonical_state()
-        state_tensor = torch.from_numpy(state[np.newaxis]).type(torch.FloatTensor)
-        policy_scores, _ = self.pytorch_model(state_tensor)
-        pi = torch.nn.functional.softmax(policy_scores, dim=1)
-        pi = pi.detach().numpy()[0]
+        pi = self.pi_func(state[np.newaxis])[0]
+        pi = special.softmax(pi)
         return pi
 
 

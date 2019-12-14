@@ -1,6 +1,6 @@
+import gym
 import torch
 from torch import nn as nn
-import gym
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -24,48 +24,69 @@ class BasicBlock(nn.Module):
         out = torch.relu_(out)
         return out
 
+def pytorch_ac_to_numpy(model):
+    def critic(states):
+        """
+        :param states: Numpy batch of states
+        :return:
+        """
+        dtype = next(model.parameters()).type()
+        model.eval()
+        with torch.no_grad():
+            tensor_states = torch.from_numpy(states).type(dtype)
+            _, state_vals = model(tensor_states)
+            vals = state_vals.detach().cpu().numpy()
 
-def pytorch_to_numpy(model, val=True, scale=100):
+        # Check for terminals
+        for i, state in enumerate(states):
+            if GoGame.get_game_ended(state):
+                vals[i] = 100 * GoGame.get_winning(state)
+
+        return vals
+
+    def actor(states):
+        """
+        :param states: Numpy batch of states
+        :return:
+        """
+        dtype = next(model.parameters()).type()
+        model.eval()
+        with torch.no_grad():
+            tensor_states = torch.from_numpy(states).type(dtype)
+            pi, _ = model(tensor_states)
+            pi = pi.detach().cpu().numpy()
+
+        return pi
+
+    return actor, critic
+
+
+def pytorch_val_to_numpy(model):
     """
     Automatically turns terminal states into 1, 0, -1 based on win status
     :param model: The model to convert
     :param val: True if value function, False if policy function
     :return: The numpy equivalent of the pytorch value model
     """
-    if val:
-        def func(states):
-            """
-            :param states: Numpy batch of states
-            :return:
-            """
-            dtype = next(model.parameters()).type()
-            model.eval()
-            with torch.no_grad():
-                tensor_states = torch.from_numpy(states).type(dtype)
-                state_vals = model(tensor_states)
-                vals = state_vals.detach().cpu().numpy()
 
-            # Check for terminals
-            for i, state in enumerate(states):
-                if GoGame.get_game_ended(state):
-                    vals[i] = scale * GoGame.get_winning(state)
+    def func(states):
+        """
+        :param states: Numpy batch of states
+        :return:
+        """
+        dtype = next(model.parameters()).type()
+        model.eval()
+        with torch.no_grad():
+            tensor_states = torch.from_numpy(states).type(dtype)
+            state_vals = model(tensor_states)
+            vals = state_vals.detach().cpu().numpy()
 
-            return vals
+        # Check for terminals
+        for i, state in enumerate(states):
+            if GoGame.get_game_ended(state):
+                vals[i] = 100 * GoGame.get_winning(state)
 
-    else:
-        def func(states):
-            """
-            :param states: Numpy batch of states
-            :return:
-            """
-            dtype = next(model.parameters()).type()
-            model.eval()
-            with torch.no_grad():
-                tensor_states = torch.from_numpy(states).type(dtype)
-                policy_scores = model(tensor_states)
-                pi = torch.nn.functional.softmax(policy_scores, dim=1)
-                pi = pi.detach().cpu().numpy()
-            return pi
+        return vals
 
     return func
 

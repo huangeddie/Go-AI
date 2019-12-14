@@ -8,7 +8,7 @@ from mpi4py import MPI
 
 import go_ai.models
 import go_ai.parallel
-from go_ai import policies, data, utils, measurements
+from go_ai import policies, data, utils
 from go_ai.models import value, actorcritic
 
 
@@ -65,8 +65,8 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
     if args.agent == 'mcts':
         metrics = value.optimize(comm, curr_model, trainadata, optim)
     elif args.agent == 'ac' or args.agent == 'mcts-ac':
-        if rank == 0:
-            metrics = actorcritic.optimize(comm, curr_model, trainadata, optim)
+        metrics = actorcritic.optimize(comm, curr_model, trainadata, optim)
+
     # Sync model
     if rank == 0:
         torch.save(curr_model.state_dict(), tmp_path)
@@ -114,7 +114,6 @@ def train(comm, args, curr_pi, checkpoint_pi):
                     f"{100 * winrates[checkpoint_pi]:04.1f}\t{100 * winrates[policies.RAND_PI]:04.1f}\t" \
                     f"{100 * winrates[policies.GREEDY_PI]:04.1f}"
         go_ai.parallel.parallel_out(comm, iter_info)
-
 
 if __name__ == '__main__':
     # Arguments
