@@ -20,6 +20,8 @@ checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint')
 checkpoint_model.load_state_dict(torch.load(args.checkpath))
 print(f"Loaded model {checkpoint_pi} from {args.checkpath}")
 
+plot_dir = 'bin/plots/'
+
 # Elo
 if os.path.exists('bin/stats.txt'):
     rand_elo = 0
@@ -46,11 +48,11 @@ if os.path.exists('bin/stats.txt'):
     plt.plot(seconds / 3600, check_elos)
     plt.xlabel("Hours")
     plt.ylabel("ELO")
-    plt.savefig('bin/elos.pdf')
+    plt.savefig(os.path.join(plot_dir, 'elos.pdf'))
     print("Plotted Elos")
 
 # Sample trajectory and plot prior qvals
-metrics.plot_traj_fig(go_env, checkpoint_pi, f'bin/atraj_{checkpoint_pi.temp:.2f}.pdf')
+metrics.plot_traj_fig(go_env, checkpoint_pi, os.path.join(plot_dir, f'atraj_{checkpoint_pi.temp:.2f}.pdf'))
 print(f"Plotted sample trajectory with temp {args.temp}")
 
 # Play against baseline model
