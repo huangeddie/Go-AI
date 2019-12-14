@@ -6,8 +6,8 @@ import gym
 import torch
 from mpi4py import MPI
 
-import utils
-from go_ai import policies, data
+import go_ai.parallel
+from go_ai import policies, data, utils
 from go_ai.models import value, actorcritic
 
 
@@ -39,7 +39,7 @@ def worker_train(args, comm: MPI.Intracomm):
     go_env = gym.make('gym_go:go-v0', size=args.boardsize, reward_method=args.reward)
 
     # Header output
-    utils.parallel_out(rank, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
+    go_ai.parallel.parallel_out(rank, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
 
     # Training
     starttime = datetime.now()
@@ -47,21 +47,21 @@ def worker_train(args, comm: MPI.Intracomm):
     crit_acc, crit_loss, act_acc, act_loss = 0, 0, 0, 0,
     for iteration in range(args.iterations):
         # Play episodes
-        utils.parallel_err(rank, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
-        wr, trajectories = utils.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True, args.episodes)
+        go_ai.parallel.parallel_err(rank, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
+        wr, trajectories = go_ai.parallel.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True, args.episodes)
 
         replay_data.extend(trajectories)
 
         # Write episodes
         data.save_replaydata(rank, replay_data, args.episodesdir)
         comm.Barrier()
-        utils.parallel_err(rank, 'Wrote all replay data to disk')
+        go_ai.parallel.parallel_err(rank, 'Wrote all replay data to disk')
 
         # Sample data as batches
         trainadata, replay_len = data.sample_replaydata(comm, args.episodesdir, args.trainsize, args.batchsize)
 
         # Optimize
-        utils.parallel_err(rank, f'Optimizing in {len(trainadata)} training steps...')
+        go_ai.parallel.parallel_err(rank, f'Optimizing in {len(trainadata)} training steps...')
         if args.agent == 'mcts':
             crit_acc, crit_loss = value.optimize(comm, curr_model, trainadata, optim)
             act_acc, act_loss = 0, 0
@@ -74,7 +74,7 @@ def worker_train(args, comm: MPI.Intracomm):
             torch.save(curr_model.state_dict(), tmp_path)
         comm.Barrier()
 
-        utils.parallel_err(rank, f'Optimized | {crit_acc * 100 :.1f}% {crit_loss:.3f}L')
+        go_ai.parallel.parallel_err(rank, f'Optimized | {crit_acc * 100 :.1f}% {crit_loss:.3f}L')
 
         # Update model from worker 0's optimization
         curr_model.load_state_dict(torch.load(tmp_path))
@@ -84,9 +84,9 @@ def worker_train(args, comm: MPI.Intracomm):
             # See how this new model compares
             for opponent in [checkpoint_pi, policies.RAND_PI, policies.GREEDY_PI]:
                 # Play some games
-                utils.parallel_err(rank, f'Pitting {curr_pi} V {opponent}')
-                wr, _ = utils.parallel_play(comm, go_env, curr_pi, opponent, False,
-                                            args.evaluations)
+                go_ai.parallel.parallel_err(rank, f'Pitting {curr_pi} V {opponent}')
+                wr, _ = go_ai.parallel.parallel_play(comm, go_env, curr_pi, opponent, False,
+                                                     args.evaluations)
 
                 # Do stuff based on the opponent we faced
                 if opponent == checkpoint_pi:
@@ -94,15 +94,14 @@ def worker_train(args, comm: MPI.Intracomm):
 
                     # Sync checkpoint
                     if check_winrate > 0.55:
-                        utils.sync_checkpoint(rank, comm, newcheckpoint_pi=curr_pi, checkpath=check_path,
-                                              other_pi=checkpoint_pi)
-                        utils.parallel_err(rank, f"Accepted new checkpoint")
+                        utils.sync_checkpoint(rank, comm, args, new_pi=curr_pi, old_pi=checkpoint_pi)
+                        go_ai.parallel.parallel_err(rank, f"Accepted new checkpoint")
 
                         # Clear episodes
                         replay_data.clear()
-                        utils.parallel_err(rank, "Cleared replay data")
+                        go_ai.parallel.parallel_err(rank, "Cleared replay data")
                     else:
-                        utils.parallel_err(rank, f"Continuing to train candidate checkpoint")
+                        go_ai.parallel.parallel_err(rank, f"Continuing to train candidate checkpoint")
                         break
                 elif opponent == policies.RAND_PI:
                     rand_winrate = wr
@@ -116,7 +115,7 @@ def worker_train(args, comm: MPI.Intracomm):
                     f"{100 * crit_acc:04.1f}\t{crit_loss:04.3f}\t" \
                     f"{100 * act_acc:04.1f}\t{act_loss:04.3f}\t" \
                     f"{100 * check_winrate:04.1f}\t{100 * rand_winrate:04.1f}\t{100 * greedy_winrate:04.1f}"
-        utils.parallel_out(rank, iter_info)
+        go_ai.parallel.parallel_out(rank, iter_info)
 
 
 if __name__ == '__main__':
@@ -128,6 +127,6 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     world_size = comm.Get_size()
 
-    utils.parallel_err(rank, f"{world_size} Workers, {args}")
+    go_ai.parallel.parallel_err(rank, f"{world_size} Workers, {args}")
 
     worker_train(args, comm)

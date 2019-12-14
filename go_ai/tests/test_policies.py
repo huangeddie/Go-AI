@@ -3,7 +3,6 @@ import unittest
 import gym
 import torch
 
-import utils
 from go_ai import game, policies
 from go_ai.models import value
 

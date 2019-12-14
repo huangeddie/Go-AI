@@ -1,16 +1,13 @@
 import argparse
+import datetime
 import os
-import sys
 
 import torch
 from mpi4py import MPI
-from tqdm import tqdm
 
-from go_ai import data, game, policies
+from go_ai import data, policies
 from go_ai.models import value, actorcritic
-import time
-import math
-import datetime
+from go_ai.parallel import parallel_err
 
 
 def hyperparameters():
@@ -52,9 +49,10 @@ def hyperparameters():
     parser.add_argument('--basepath', type=str, default=f'bin/{today}/base.pt', help='model path for baseline model')
 
     # Model
-    parser.add_argument('--agent', type=str, choices=['mcts', 'ac', 'mcts-ac'], default='mcts', help='type of agent/model')
+    parser.add_argument('--agent', type=str, choices=['mcts', 'ac', 'mcts-ac'], default='mcts',
+                        help='type of agent/model')
     parser.add_argument('--baseagent', type=str, choices=['mcts', 'ac', 'mcts-ac', 'rand', 'greedy', 'human'],
-        default='rand', help='type of agent/model for baseline')
+                        default='rand', help='type of agent/model for baseline')
     parser.add_argument('--resblocks', type=int, default=4, help='number of basic blocks for resnets')
 
     # Hardware
@@ -62,66 +60,14 @@ def hyperparameters():
 
     return parser.parse_args()
 
-def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
-    """
-    Plays games in parallel
-    :param comm:
-    :param go_env:
-    :param pi1:
-    :param pi2:
-    :param gettraj:
-    :param req_episodes:
-    :return:
-    """
-    rank = comm.Get_rank()
-    world_size = comm.Get_size()
 
-    worker_episodes = int(math.ceil(req_episodes / world_size))
-    episodes = worker_episodes * world_size
-    single_worker = comm.Get_size() <= 1
-
-    timestart = time.time()
-    winrate, steps, traj = game.play_games(go_env, pi1, pi2, gettraj, worker_episodes, progress=single_worker)
-    timeend = time.time()
-
-    duration = timeend - timestart
-    avg_time = comm.allreduce(duration / worker_episodes, op=MPI.SUM) / world_size
-    winrate = comm.allreduce(winrate, op=MPI.SUM) / world_size
-    avg_steps = comm.allreduce(sum(steps), op=MPI.SUM) / episodes
-
-    parallel_err(rank, f'{pi1} V {pi2} | {episodes} GAMES, {avg_time:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
-                       f'{100 * winrate:.1f}% WIN')
-    return winrate, traj
-
-def sync_checkpoint(rank, comm: MPI.Intracomm, newcheckpoint_pi, checkpath, other_pi):
+def sync_checkpoint(rank, comm: MPI.Intracomm, args, new_pi, old_pi):
+    checkpath = os.path.join(args.savedir, 'checkpoint.pt')
     if rank == 0:
-        torch.save(newcheckpoint_pi.pytorch_model.state_dict(), checkpath)
+        torch.save(new_pi.pytorch_model.state_dict(), checkpath)
     comm.Barrier()
     # Update other policy
-    other_pi.pytorch_model.load_state_dict(torch.load(checkpath))
-
-
-def parallel_out(rank, s, rep=0):
-    """
-    Only the first worker prints stuff
-    :param rank:
-    :param s:
-    :return:
-    """
-    if rank == rep:
-        print(s, flush=True)
-
-
-def parallel_err(rank, s, rep=0):
-    """
-    Only the first worker prints stuff
-    :param rank:
-    :param s:
-    :return:
-    """
-    if rank == rep:
-        tqdm.write(f"{time.strftime('%H:%M:%S', time.localtime())}\t{s}", file=sys.stderr)
-        sys.stderr.flush()
+    old_pi.pytorch_model.load_state_dict(torch.load(checkpath))
 
 
 def sync_data(rank, comm: MPI.Intracomm, args):

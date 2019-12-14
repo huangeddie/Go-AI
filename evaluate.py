@@ -5,10 +5,8 @@ import gym
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import torch
 
-import utils
-from go_ai import metrics, game
+from go_ai import metrics, game, utils
 
 args = utils.hyperparameters()
 

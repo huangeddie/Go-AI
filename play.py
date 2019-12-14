@@ -1,8 +1,6 @@
 import gym
-import torch
 
-import utils
-from go_ai import policies, game
+from go_ai import policies, game, utils
 
 args = utils.hyperparameters()
 

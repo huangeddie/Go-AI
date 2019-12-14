@@ -1,12 +1,13 @@
+import queue
+
 import gym
 import numpy as np
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 import go_ai.game
-from go_ai import data, montecarlo, policies
+from go_ai import data, policies
 from go_ai.montecarlo import tree
-import queue
-from tqdm import tqdm
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -21,7 +22,7 @@ def matplot_format(state):
     return state.transpose(1, 2, 0)[:, :, [0, 1, 4]].astype(np.float)
 
 
-def plot_move_distr(title, move_distr, valid_moves, vmin=None, vmax=None ,scalar=None):
+def plot_move_distr(title, move_distr, valid_moves, vmin=None, vmax=None, scalar=None):
     """
 
     :param title:
