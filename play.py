@@ -10,8 +10,7 @@ args = utils.hyperparameters()
 go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
-checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint')
-checkpoint_model.load_state_dict(torch.load(args.checkpath))
+checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint', load_checkpoint=True)
 print("Loaded model")
 
 # Play

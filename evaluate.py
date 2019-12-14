@@ -16,9 +16,8 @@ args = utils.hyperparameters()
 go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
-checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint')
-checkpoint_model.load_state_dict(torch.load(args.checkpath))
-print(f"Loaded model {checkpoint_pi} from {args.checkpath}")
+checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint', load_checkpoint=True)
+print(f"Loaded model {checkpoint_pi} from {args.savedir}")
 
 plot_dir = 'bin/plots/'
 
@@ -57,8 +56,6 @@ print(f"Plotted sample trajectory with temp {args.temp}")
 
 # Play against baseline model
 baseline_model, baseline_pi = utils.create_agent(args, 'Baseline', use_base=True)
-if baseline_model:
-    baseline_model.load_state_dict(torch.load(args.basepath))
 print('Loaded baseline')
 
 # Play

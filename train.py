@@ -1,4 +1,5 @@
 import collections
+import os
 from datetime import datetime
 
 import gym
@@ -21,12 +22,12 @@ def worker_train(args, comm: MPI.Intracomm):
     utils.sync_data(rank, comm, args)
 
     # Policies and Model
-    curr_model, curr_pi = utils.create_agent(args, 'Current')
-    checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint')
+    curr_model, curr_pi = utils.create_agent(args, 'Current', load_checkpoint=True)
+    checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint', load_checkpoint=True)
 
     # Sync parameters from disk
-    curr_model.load_state_dict(torch.load(args.checkpath))
-    checkpoint_model.load_state_dict(torch.load(args.checkpath))
+    check_path = os.path.join(args.savedir, 'checkpoint.pt')
+    tmp_path = os.path.join(args.savedir, 'tmp.pt')
     optim = torch.optim.Adam(curr_model.parameters(), args.lr, weight_decay=1e-4)
 
     # Device
@@ -70,13 +71,13 @@ def worker_train(args, comm: MPI.Intracomm):
 
         # Sync model
         if rank == 0:
-            torch.save(curr_model.state_dict(), args.tmppath)
+            torch.save(curr_model.state_dict(), tmp_path)
         comm.Barrier()
 
         utils.parallel_err(rank, f'Optimized | {crit_acc * 100 :.1f}% {crit_loss:.3f}L')
 
         # Update model from worker 0's optimization
-        curr_model.load_state_dict(torch.load(args.tmppath))
+        curr_model.load_state_dict(torch.load(tmp_path))
 
         # Model Evaluation
         if (iteration + 1) % args.eval_interval == 0:
@@ -93,7 +94,7 @@ def worker_train(args, comm: MPI.Intracomm):
 
                     # Sync checkpoint
                     if check_winrate > 0.55:
-                        utils.sync_checkpoint(rank, comm, newcheckpoint_pi=curr_pi, checkpath=args.checkpath,
+                        utils.sync_checkpoint(rank, comm, newcheckpoint_pi=curr_pi, checkpath=check_path,
                                               other_pi=checkpoint_pi)
                         utils.parallel_err(rank, f"Accepted new checkpoint")
 

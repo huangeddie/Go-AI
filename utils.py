@@ -10,9 +10,12 @@ from go_ai import data, game, policies
 from go_ai.models import value, actorcritic
 import time
 import math
+import datetime
 
 
 def hyperparameters():
+    today = str(datetime.date.today())
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--checkpoint', type=bool, default=False, help='continue from checkpoint')
 
@@ -30,14 +33,13 @@ def hyperparameters():
     parser.add_argument('--trainsize', type=int, default=1000 * 32, help='train data size for one iteration')
 
     parser.add_argument('--iterations', type=int, default=128, help='iterations')
-    parser.add_argument('--episodes', type=int, default=256, help='episodes')
-    parser.add_argument('--evaluations', type=int, default=256, help='episodes')
+    parser.add_argument('--episodes', type=int, default=32, help='episodes')
+    parser.add_argument('--evaluations', type=int, default=32, help='episodes')
     parser.add_argument('--eval-interval', type=int, default=1, help='iterations per evaluation')
 
     parser.add_argument('--episodesdir', type=str, default='bin/episodes/', help='directory to store episodes')
-    parser.add_argument('--checkpath', type=str, default='bin/checkpoint.pt', help='model path for checkpoint')
-    parser.add_argument('--tmppath', type=str, default='bin/tmp.pt', help='model path for temp model')
-    parser.add_argument('--basepath', type=str, default='bin/base.pt', help='model path for baseline model')
+    parser.add_argument('--savedir', type=str, default=f'bin/baselines/{today}/')
+    parser.add_argument('--basepath', type=str, default=f'bin/{today}/base.pt', help='model path for baseline model')
 
     parser.add_argument('--agent', type=str, choices=['mcts', 'ac', 'mcts-ac'], default='mcts', help='type of agent/model')
     parser.add_argument('--baseagent', type=str, choices=['mcts', 'ac', 'mcts-ac', 'rand', 'greedy', 'human'],
@@ -113,20 +115,24 @@ def parallel_err(rank, s, rep=0):
 
 def sync_data(rank, comm: MPI.Intracomm, args):
     if rank == 0:
+        checkpath = os.path.join(args.savedir, 'checkpoint.pt')
         if args.checkpoint:
-            assert os.path.exists(args.checkpath)
+            assert os.path.exists(checkpath)
         else:
             # Clear worker data
             episodesdir = args.episodesdir
             data.clear_episodesdir(episodesdir)
             # Save new model
-            new_model, _ = create_agent(args, '')
-            torch.save(new_model.state_dict(), args.checkpath)
+            new_model, _ = create_agent(args, '', load_checkpoint=False)
+
+            if not os.path.exists(args.savedir):
+                os.mkdir(args.savedir)
+            torch.save(new_model.state_dict(), checkpath)
     parallel_err(rank, "Using checkpoint: {}".format(args.checkpoint))
     comm.Barrier()
 
 
-def create_agent(args, name, use_base=False):
+def create_agent(args, name, use_base=False, load_checkpoint=True):
     agent = args.baseagent if use_base else args.agent
     if agent == 'mcts':
         model = value.ValueNet(args.boardsize, args.resblocks)
@@ -148,4 +154,9 @@ def create_agent(args, name, use_base=False):
         pi = policies.HUMAN_PI
     else:
         raise Exception("Unknown agent argument", agent)
+
+    if load_checkpoint and not use_base:
+        check_path = os.path.join(args.savedir, 'checkpoint.pt')
+        model.load_state_dict(torch.load(check_path))
+
     return model, pi
