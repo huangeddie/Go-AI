@@ -1,6 +1,9 @@
 import gym
 import torch
+from mpi4py import MPI
 from torch import nn as nn
+
+from go_ai import data
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -23,6 +26,7 @@ class BasicBlock(nn.Module):
         out += identity
         out = torch.relu_(out)
         return out
+
 
 def pytorch_ac_to_numpy(model):
     def critic(states):
@@ -49,12 +53,14 @@ def pytorch_ac_to_numpy(model):
         :param states: Numpy batch of states
         :return:
         """
+        invalid_values = data.batch_invalid_values(states)
         dtype = next(model.parameters()).type()
         model.eval()
         with torch.no_grad():
             tensor_states = torch.from_numpy(states).type(dtype)
             pi, _ = model(tensor_states)
             pi = pi.detach().cpu().numpy()
+            pi += invalid_values
 
         return pi
 
@@ -105,3 +111,9 @@ class ModelMetrics:
 
     def __repr__(self):
         return self.__str__()
+
+
+def average_model(comm, model):
+    world_size = comm.Get_size()
+    for params in model.parameters():
+        params.data = comm.allreduce(params.data, op=MPI.SUM) / world_size

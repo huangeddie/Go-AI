@@ -5,14 +5,13 @@ import torch.nn as nn
 from mpi4py import MPI
 from tqdm import tqdm
 
-import go_ai.models
-from go_ai.models import pytorch_ac_to_numpy
 from go_ai import data, montecarlo
-from go_ai.models import BasicBlock
+from go_ai.models import BasicBlock, pytorch_ac_to_numpy, average_model, ModelMetrics
 
 gymgo = gym.make('gym_go:go-v0', size=0)
 GoGame = gymgo.gogame
 GoVars = gymgo.govars
+
 
 class ActorCriticNet(nn.Module):
     def __init__(self, board_size, num_blocks=4, channels=32):
@@ -61,17 +60,15 @@ class ActorCriticNet(nn.Module):
         self.critic_criterion = nn.MSELoss()
 
     def forward(self, state):
-        invalid_values = data.batch_invalid_values(state)
         x = self.shared_convs(state)
         x = torch.flatten(x, start_dim=1)
         x = self.shared_fcs(x)
         policy_scores = self.actor(x)
-        policy_scores += invalid_values
         vals = self.critic(x)
         return policy_scores, vals
 
-def parallel_get_qvals(comm, batched_data, val_func):
 
+def parallel_get_qvals(comm, batched_data, val_func):
     batches = len(batched_data)
     world_size = comm.Get_size()
     dividers = batches // world_size
@@ -81,59 +78,65 @@ def parallel_get_qvals(comm, batched_data, val_func):
     my_batches = batched_data[start: end]
     my_qvals = []
     my_states = []
-    for states, actions, next_states, rewards, terminals, wins in tqdm(my_batches, desc='Getting QVals in Parallel'):
+    if rank == 0:
+        pbar = tqdm(my_batches, desc='Getting QVals in Parallel')
+    else:
+        pbar = my_batches
+    for states, actions, next_states, rewards, terminals, wins in pbar:
         states = data.batch_random_symmetries(states)
         invalid_values = data.batch_invalid_values(states)
 
-        qvals = montecarlo.batchqs_from_valfunc(states, val_func)[0]
+        qvals, _ = montecarlo.batchqs_from_valfunc(states, val_func)
         qvals += invalid_values
 
         my_qvals.append(qvals)
         my_states.append(states)
     comm.Barrier()
-    all_data = comm.gather((my_qvals, my_states), 0)
+    all_data = comm.allgather((my_qvals, my_states))
     all_qvals = []
     all_states = []
 
-    if rank == 0:
-        for qvals, states in all_data:
-            all_qvals.extend(qvals)
-            all_states.extend(states)
+    for qvals, states in all_data:
+        all_qvals.extend(qvals)
+        all_states.extend(states)
 
     return all_qvals, all_states
 
+
 def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer):
     rank = comm.Get_rank()
-
     dtype = next(model.parameters()).type()
 
     critic_running_loss = 0
     critic_running_acc = 0
+    model.train()
     if rank == 0:
-        model.train()
         pbar = tqdm(batched_data, desc="Optimizing critic", leave=True)
-        for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(pbar, 1):
-            # Augment
-            states = data.batch_random_symmetries(states)
+    else:
+        pbar = batched_data
+    for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(pbar, 1):
+        # Augment
+        states = data.batch_random_symmetries(states)
 
-            states = torch.from_numpy(states).type(dtype)
-            wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
+        states = torch.from_numpy(states).type(dtype)
+        wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
 
-            optimizer.zero_grad()
-            _, logits = model(states)
-            vals = torch.tanh(logits)
-            loss = model.critic_criterion(vals, wins)
-            loss.backward()
-            optimizer.step()
+        optimizer.zero_grad()
+        _, logits = model(states)
+        vals = torch.tanh(logits)
+        loss = model.critic_criterion(vals, wins)
+        loss.backward()
+        optimizer.step()
 
-            pred_wins = torch.sign(vals)
-            critic_running_loss += loss.item()
-            critic_running_acc += torch.mean((pred_wins == wins).type(dtype)).item()
+        pred_wins = torch.sign(vals)
+        critic_running_loss += loss.item()
+        critic_running_acc += torch.mean((pred_wins == wins).type(dtype)).item()
 
+        if isinstance(pbar, tqdm):
             pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * critic_running_acc / i, critic_running_loss / i))
 
     # Sync Parameters
-    sync_model(comm, model)
+    average_model(comm, model)
 
     pi_func, val_func = pytorch_ac_to_numpy(model)
     qvals, states = parallel_get_qvals(comm, batched_data, val_func)
@@ -141,38 +144,39 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
     actor_running_loss = 0
     actor_running_acc = 0
     batches = len(batched_data)
+
+    model.train()
+    actor_data = list(zip(qvals, states))
     if rank == 0:
-        model.train()
-        pbar = tqdm(list(zip(qvals, states)), desc="Optimizing actor", leave=True)
-        for i, (qvals, states) in enumerate(pbar, 1):
-            # Augment
-            greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1)).type(dtype)
+        pbar = tqdm(actor_data, desc="Optimizing actor", leave=True)
+    else:
+        pbar = actor_data
+    for i, (qvals, states) in enumerate(pbar, 1):
+        # Augment
+        greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1))
 
-            optimizer.zero_grad()
-            states = torch.from_numpy(states).type(dtype)
-            policy_scores, _ = model(states)
+        optimizer.zero_grad()
+        states = torch.from_numpy(states).type(dtype)
+        policy_scores, _ = model(states)
 
-            loss = model.actor_criterion(policy_scores, greedy_actions)
-            loss.backward()
-            optimizer.step()
+        loss = model.actor_criterion(policy_scores, greedy_actions)
+        loss.backward()
+        optimizer.step()
 
-            pred_actions = torch.argmax(policy_scores, dim=1)
-            actor_running_loss += loss.item()
-            actor_running_acc += torch.mean((pred_actions == greedy_actions).type(dtype)).item()
-            batches = i
+        pred_actions = torch.argmax(policy_scores, dim=1)
+        actor_running_loss += loss.item()
+        actor_running_acc += torch.mean((pred_actions == greedy_actions).type(dtype)).item()
+        batches = i
 
+        if isinstance(pbar, tqdm):
             pbar.set_postfix_str("{:.1f}%, {:.3f}L".format(100 * actor_running_acc / i, actor_running_loss / i))
 
     # Sync Parameters
-    sync_model(comm, model)
+    average_model(comm, model)
 
-    metrics = go_ai.models.ModelMetrics()
+    metrics = ModelMetrics()
     metrics.crit_acc = critic_running_acc / batches
     metrics.crit_loss = critic_running_loss / batches
     metrics.act_acc = actor_running_acc / batches
     metrics.act_loss = actor_running_loss / batches
     return metrics
-
-def sync_model(comm, model, source=0):
-    for params in model.parameters():
-        params.data = comm.bcast(params.data, source)

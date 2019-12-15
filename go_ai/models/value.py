@@ -4,9 +4,8 @@ import torch
 import torch.nn as nn
 from mpi4py import MPI
 
-import go_ai.models
-from go_ai import data, measurements
-from go_ai.models import BasicBlock
+from go_ai import data
+from go_ai.models import BasicBlock, average_model, ModelMetrics
 
 gymgo = gym.make('gym_go:go-v0', size=0)
 GoGame = gymgo.gogame
@@ -83,13 +82,12 @@ def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimize
         running_acc += torch.mean((pred_wins == wins).type(wins.dtype)).item()
 
     # Sync Parameters
-    for params in model.parameters():
-        params.data = comm.allreduce(params.data, op=MPI.SUM) / world_size
+    average_model(comm, model)
 
     running_acc = comm.allreduce(running_acc, op=MPI.SUM) / world_size
     running_loss = comm.allreduce(running_loss, op=MPI.SUM) / world_size
 
-    metrics = go_ai.models.ModelMetrics()
+    metrics = ModelMetrics()
     metrics.crit_acc = running_acc / len(batched_data)
     metrics.crit_loss = running_loss / len(batched_data)
 

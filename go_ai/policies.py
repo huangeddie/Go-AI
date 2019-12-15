@@ -298,10 +298,8 @@ class MCTSActorCritic(Policy):
 class ActorCritic(Policy):
     def __init__(self, name, network):
         super(ActorCritic, self).__init__(name, temp=0)
-        pi_func, val_func = pytorch_ac_to_numpy(network)
+        self.pi_func, self.val_func = pytorch_ac_to_numpy(network)
         self.pytorch_model = network
-        self.pi_func = pi_func
-        self.val_func = val_func
 
     def __call__(self, go_env, **kwargs):
         """
