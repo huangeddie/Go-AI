@@ -214,16 +214,16 @@ class MCTS(Policy):
         return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.2f}T]-{self.name}"
 
 
-class MCTSActorCritic(Policy):
+class ActorCritic(Policy):
     def __init__(self, name, model, mcts, temp, tempsteps):
         """
         :param branches: The number of actions explored by actor at each node.
         :param depth: The number of steps to explore with actor. Includes opponent,
         i.e. even depth means the last step explores the opponent's
         """
-        super(MCTSActorCritic, self).__init__(name, temp=temp, temp_steps=tempsteps)
+        super(ActorCritic, self).__init__(name, temp=temp, temp_steps=tempsteps)
         self.pytorch_model = model
-        self.pi_func, self.val_func = pytorch_ac_to_numpy(model)
+        self.q_func, self.val_func = pytorch_ac_to_numpy(model)
         self.num_searches=mcts
 
     def __call__(self, go_env, **kwargs):
@@ -232,41 +232,29 @@ class MCTSActorCritic(Policy):
         :param step: Parameter used for getting the temperature
         :return:
         """
+        if self.num_searches > 0:
+            visits = tree.mct_search(go_env, self.num_searches, self.val_func, self.q_func)
 
-        visits = tree.mct_search(go_env, self.num_searches, self.val_func, self.pi_func)
+            step = kwargs['step']
+            assert step is not None
+            if step < self.temp_steps:
+                max_visit = np.max(visits)
+                pi = visits == max_visit
+            else:
+                pi = visits * (1 / self.temp)
 
-        step = kwargs['step']
-        assert step is not None
-        if step < self.temp_steps:
-            max_visit = np.max(visits)
-            pi = visits == max_visit
+            pi = pi / np.sum(pi)
         else:
-            pi = visits * (1 / self.temp)
-
-        pi = pi / np.sum(pi)
+            state = go_env.get_canonical_state()
+            policy_scores = self.q_func(state[np.newaxis])[0]
+            valid_moves = GoGame.get_valid_moves(state)
+            pi = montecarlo.temperate_pi(policy_scores, self.temp, valid_moves)
 
         return pi
 
     def __str__(self):
         return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.2f}T]-{self.name}"
 
-
-class ActorCritic(Policy):
-    def __init__(self, name, network):
-        super(ActorCritic, self).__init__(name, temp=0)
-        self.pi_func, self.val_func = pytorch_ac_to_numpy(network)
-        self.pytorch_model = network
-
-    def __call__(self, go_env, **kwargs):
-        """
-        :param go_env:
-        :param step: Parameter used for getting the temperature
-        :return: Action probabilities
-        """
-        state = go_env.get_canonical_state()
-        pi = self.pi_func(state[np.newaxis])[0]
-        pi = special.softmax(pi)
-        return pi
 
 
 RAND_PI = Random()

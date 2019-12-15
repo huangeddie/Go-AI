@@ -47,9 +47,9 @@ def hyperparameters():
     parser.add_argument('--basepath', type=str, default=f'bin/{today}/base.pt', help='model path for baseline model')
 
     # Model
-    parser.add_argument('--agent', type=str, choices=['mcts', 'ac', 'mcts-ac'], default='mcts',
+    parser.add_argument('--agent', type=str, choices=['mcts', 'ac'], default='mcts',
                         help='type of agent/model')
-    parser.add_argument('--baseagent', type=str, choices=['mcts', 'ac', 'mcts-ac', 'rand', 'greedy', 'human'],
+    parser.add_argument('--baseagent', type=str, choices=['mcts', 'ac', 'rand', 'greedy', 'human'],
                         default='rand', help='type of agent/model for baseline')
     parser.add_argument('--resblocks', type=int, default=4, help='number of basic blocks for resnets')
 
@@ -96,10 +96,7 @@ def create_agent(args, name, use_base=False, load_checkpoint=True):
         pi = policies.MCTS(name, model, args.mcts, args.temp, args.tempsteps)
     elif agent == 'ac':
         model = actorcritic.ActorCriticNet(args.boardsize)
-        pi = policies.ActorCritic(name, model)
-    elif agent == 'mcts-ac':
-        model = actorcritic.ActorCriticNet(args.boardsize)
-        pi = policies.MCTSActorCritic(name, model, args.mcts, args.temp, args.tempsteps)
+        pi = policies.ActorCritic(name, model, args.mcts, args.temp, args.tempsteps)
     elif agent == 'rand':
         model = None
         pi = policies.RAND_PI
