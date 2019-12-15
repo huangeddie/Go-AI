@@ -101,7 +101,7 @@ def create_agent(args, name, use_base=False, load_checkpoint=True):
         pi = policies.ActorCritic(name, model)
     elif agent == 'mcts-ac':
         model = actorcritic.ActorCriticNet(args.boardsize)
-        pi = policies.MCTSActorCritic(name, model, args.branches, args.depth)
+        pi = policies.MCTSActorCritic(name, model, args.temp)
     elif agent == 'rand':
         model = None
         pi = policies.RAND_PI

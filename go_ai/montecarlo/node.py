@@ -5,84 +5,76 @@ from go_ai.montecarlo import GoGame
 
 
 class Node:
-    def __init__(self, parentaction, prior_value, state, group_map=None):
+    def __init__(self, state, group_map, parent=None):
         '''
         Args:
             parent (?Node): parent Node
             prior_value (?float): the state value of this node
             state: state of the game as a numpy array
         '''
-        if parentaction is not None:
-            parent = parentaction[0]
-            parent.canon_children[parentaction[1]] = self
-            self.actiontook = parentaction[1]
-        else:
-            self.actiontook = None
-            parent = None
-
-        self.height = parent.height + 1 if parent is not None else 0
-        assert len(state.shape) == 3, (state, state.shape)
-        assert state.shape[1] == state.shape[2], (state, state.shape)
 
         self.state = state
-        self.prior_value = prior_value  # the value of this node prior to lookahead
+        self.group_map = group_map
         self.terminal = GoGame.get_game_ended(state)
+        self.valid_moves = GoGame.get_valid_moves(state)
 
         # Visits
         self.actionsize = GoGame.get_action_size(state)
-        self.canon_children = None
-        self.move_visits = np.zeros(self.actionsize)
+        self.canon_children = np.empty(self.actionsize, dtype=object)
         self.visits = 0
 
-        self.group_map = group_map
+        self.prior_pi = None
+        self.post_vals = []
 
-    def update_height(self, new_height):
-        self.height = new_height
-        children_height = self.height + 1
+        self.parent = parent
 
-        if not self.is_leaf():
-            for child in self.canon_children:
-                if isinstance(child, Node):
-                    child.update_height(children_height)
-
-    def latest_value(self):
-        if self.is_leaf():
-            return self.prior_value
+    def traverse(self, move):
+        child = self.canon_children[move]
+        if child is not None:
+            return child
         else:
-            qs = []
-            for child in self.canon_children:
-                if child is None:
-                    qs.append(montecarlo.MIN_VAL)
-                else:
-                    qs.append(montecarlo.invert_val(child.latest_value()))
-            max_qval = max(qs)
+            batch_moves = np.array([move])
+            next_states, next_gmps = GoGame.get_batch_next_states(self.state, batch_moves, self.group_map, canonical=True)
+            child = Node(next_states[0], next_gmps[0], self)
+            self.canon_children[move] = child
+            return child
 
-            if self.prior_value is None:
-                return max_qval
-            # Average of prior of max q-val
-            return (self.prior_value + max_qval) / 2
+    def backprop(self, val):
+        if val is not None:
+            self.post_vals.append(val)
+        self.visits += 1
+        if self.parent is not None:
+            inverted_val = montecarlo.invert_val(val) if val is not None else None
+            self.parent.backprop(inverted_val)
 
-    def is_leaf(self):
-        return self.canon_children is None
+    def set_prior_pi(self, prior_pi):
+        self.prior_pi = prior_pi
 
-    def latest_q(self, move):
-        """
-        Assumes child exists
-        :param move:
-        :return:
-        """
-        return montecarlo.invert_val(self.canon_children[move].latest_value())
-
-    def latest_qs(self):
-        qs = []
+    def get_move_visits(self):
+        move_visits = []
         for child in self.canon_children:
             if child is None:
-                qs.append(montecarlo.MIN_VAL)
+                move_visits.append(0)
             else:
-                qs.append(montecarlo.invert_val(child.latest_value()))
+                move_visits.append(child.visits)
+        return np.array(move_visits)
 
-        return np.array(qs)
+    def get_ucbs(self):
+        ucbs = []
+        for i in range(self.actionsize):
+            if not self.valid_moves[i]:
+                ucbs.append(np.finfo(np.float).min)
+            else:
+                prior_q = self.prior_pi[i]
+                child = self.canon_children[i]
+                if child is not None:
+                    n = child.visits
+                    avg_q = np.mean(child.post_vals)
+                else:
+                    n = 0
+                    avg_q = 0
 
-    def __str__(self):
-        return '{} {}H {}V {}N'.format(np.sum(self.state[[0, 1]], axis=0), self.height, self.prior_value,
-                                       np.sum(self.move_visits))
+                u = 1.5 * prior_q * np.sqrt(self.visits) / (1 + n)
+
+                ucbs.append(avg_q + u)
+        return ucbs

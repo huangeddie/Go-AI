@@ -5,7 +5,7 @@ from sklearn import preprocessing
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
-MIN_VAL = -1
+MIN_VAL = np.finfo(np.float).min
 
 
 def invert_val(val):
