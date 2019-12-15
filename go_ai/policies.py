@@ -130,15 +130,15 @@ class Human(Policy):
         return action_probs
 
 
-class MCTS(Policy):
-    def __init__(self, name, val_func, num_searches, temp=0, temp_steps=0):
-        super(MCTS, self).__init__(name, temp, temp_steps)
+class Value(Policy):
+    def __init__(self, name, val_func, mcts, temp=0, tempsteps=0):
+        super(Value, self).__init__(name, temp, tempsteps)
         if isinstance(val_func, torch.nn.Module):
             self.pytorch_model = val_func
             val_func = pytorch_val_to_numpy(val_func)
 
         self.val_func = val_func
-        self.num_searches = num_searches
+        self.mcts = mcts
 
     def __call__(self, go_env, **kwargs):
         """
@@ -177,12 +177,12 @@ class MCTS(Policy):
         post_qs = np.copy(prior_qs)
 
         # Search on grandchildren layer
-        if self.num_searches > 0:
+        if self.mcts > 0:
             valid_moves = np.argwhere(valid_indicators).flatten()
             assert len(valid_moves) == len(child_vals)
             ordered_child_idcs = np.argsort(child_vals.flatten())
-            best_child_idcs = ordered_child_idcs[:self.num_searches]
-            remaining_child_idcs = ordered_child_idcs[self.num_searches:]
+            best_child_idcs = ordered_child_idcs[:self.mcts]
+            remaining_child_idcs = ordered_child_idcs[self.mcts:]
             for child_idx in best_child_idcs:
                 action_to_child = valid_moves[child_idx]
                 child = canonical_children[child_idx]
@@ -211,7 +211,7 @@ class MCTS(Policy):
         return prior_qs, post_qs
 
     def __str__(self):
-        return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.2f}T]-{self.name}"
+        return f"{self.__class__.__name__}[{self.mcts}S {self.temp:.2f}T]-{self.name}"
 
 
 class ActorCritic(Policy):
@@ -224,7 +224,7 @@ class ActorCritic(Policy):
         super(ActorCritic, self).__init__(name, temp=temp, temp_steps=tempsteps)
         self.pytorch_model = model
         self.q_func, self.val_func = pytorch_ac_to_numpy(model)
-        self.num_searches=mcts
+        self.mcts=mcts
 
     def __call__(self, go_env, **kwargs):
         """
@@ -232,8 +232,8 @@ class ActorCritic(Policy):
         :param step: Parameter used for getting the temperature
         :return:
         """
-        if self.num_searches > 0:
-            visits = tree.mct_search(go_env, self.num_searches, self.val_func, self.q_func)
+        if self.mcts > 0:
+            visits = tree.mct_search(go_env, self.mcts, self.val_func, self.q_func)
 
             step = kwargs['step']
             assert step is not None
@@ -253,11 +253,11 @@ class ActorCritic(Policy):
         return pi
 
     def __str__(self):
-        return f"{self.__class__.__name__}[{self.num_searches}S {self.temp:.2f}T]-{self.name}"
+        return f"{self.__class__.__name__}[{self.mcts}S {self.temp:.2f}T]-{self.name}"
 
 
 
 RAND_PI = Random()
-GREEDY_PI = MCTS('Greedy', greedy_val_func, num_searches=0)
-SMART_GREEDY_PI = MCTS('Smart Greedy', smart_greedy_val_func, num_searches=0)
+GREEDY_PI = Value('Greedy', greedy_val_func, mcts=0)
+SMART_GREEDY_PI = Value('Smart Greedy', smart_greedy_val_func, mcts=0)
 HUMAN_PI = Human()

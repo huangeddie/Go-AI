@@ -10,8 +10,8 @@ from go_ai import policies, measurements
 class MyTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.random_policy = policies.Random()
-        self.greedy_policy = policies.MCTS('Greedy', policies.greedy_val_func, num_searches=0, temp=0)
-        self.greedymct_pi = policies.MCTS('MCT', policies.greedy_val_func, num_searches=4, temp=0)
+        self.greedy_policy = policies.Value('Greedy', policies.greedy_val_func, mcts=0, temp=0)
+        self.greedymct_pi = policies.Value('MCT', policies.greedy_val_func, mcts=4, temp=0)
         self.go_env = gym.make('gym_go:go-v0', size=4)
         self.basedir = 'plots/'
 

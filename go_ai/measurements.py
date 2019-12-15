@@ -75,7 +75,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     all_post_qs = []
     go_env = gym.make('gym_go:go-v0', size=states[0].shape[1])
     for step, (state, prev_action) in tqdm(enumerate(zip(states, taken_actions)), desc='Heat Maps'):
-        if isinstance(policy, policies.MCTS):
+        if isinstance(policy, policies.Value):
             pi, prior_qs, post_qs = policy(go_env, step=step, get_qs=True)
             state_val = policy.val_func(state[np.newaxis])[0]
 
@@ -90,7 +90,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     valid_moves = data.batch_valid_moves(states)
 
     num_states = states.shape[0]
-    num_cols = 4 if isinstance(policy, policies.MCTS) else 2
+    num_cols = 4 if isinstance(policy, policies.Value) else 2
 
     fig = plt.figure(figsize=(num_cols * 2.5, num_states * 2))
     for i in tqdm(range(num_states), desc='Plots'):
@@ -112,7 +112,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
         plt.imshow(matplot_format(states[i]))
         curr_col += 1
 
-        if isinstance(policy, policies.MCTS):
+        if isinstance(policy, policies.Value):
             plt.subplot(num_states, num_cols, curr_col + num_cols * i)
             plot_move_distr('Prior Qs', all_prior_qs[i], valid_moves[i], scalar=state_vals[i].item())
             curr_col += 1
@@ -172,75 +172,75 @@ def plot_symmetries(next_state, outpath):
     plt.close()
 
 
-def plot_mct(tree: tree.MCTree, outpath, max_layers=8, max_branch=8):
-    """
-    :param root_node: The Node to start plotting from
-    :param max_layers: The number of layers to plot (1st layer is the root)
-    :param max_branch: The max number of canon_children show per node
-    :return: A plot with each layer of the MCT states in a row
-    """
-    max_width = max_branch ** (max_layers - 1)
-    grid = np.empty((max_layers, max_width), dtype=object)
-
-    # Traverse tree to flatten into columns
-    # Consists of (node, level) pairs
-    root_node = tree.root
-
-    que = queue.SimpleQueue()
-    que.put((root_node, 0))
-    curr_x = 0
-    curr_y = -1
-    while not que.empty():
-        node, level = que.get()
-        assert node is not None
-        # If we are not moving down in the grid, move right
-        if level <= curr_y:
-            curr_x += 1
-        else:
-            curr_x = 0
-        curr_y = level
-        grid[curr_y, curr_x] = node
-        if level < max_layers - 1 and not node.is_leaf():
-            canon_children = list(filter(lambda child: child is not None, node.canon_children))
-            # Sort in ascending order so most visited goes on top of stack
-            canon_children = sorted(canon_children, key=lambda c: np.sum(c.move_visits), reverse=True)
-            if max_branch:
-                # Take last k canon_children
-                canon_children = canon_children[:max_branch]
-
-            for c in canon_children:
-                que.put((c, curr_y + 1))
-
-    # Trim empty columns from grid
-    grid = grid[:, :curr_x + 1]
-
-    plt.figure(figsize=(grid.shape[1] * 2, grid.shape[0] * 2))
-    # Qvals
-    root_qs = tree.root.latest_qs()
-    plt.subplot(grid.shape[0], grid.shape[1], 2)
-    plt.title('Q Vals')
-    plt.bar(np.arange(len(root_qs)), root_qs)
-    for i in range(grid.shape[0]):
-        for j in range(grid.shape[1]):
-            node = grid[i, j]
-            if node is None:
-                continue
-
-            if node.actiontook is not None:
-                action = action_1d_to_2d(node.actiontook, node.state.shape[1])
-                qval = node.parent.latest_q(node.actiontook)
-            else:
-                assert node.parent is None
-                action = None
-                qval = 0
-            visits = node.visits
-            value = node.latest_value()
-            prior_val = node.prior_value
-
-            plt.subplot(grid.shape[0], grid.shape[1], grid.shape[1] * i + j + 1)
-            plt.axis('off')
-            plt.title(f'{visits}N\n{prior_val:.2f}PV {value:.2f}V\n{action}A {qval:.2f}Q')
-            plt.imshow(matplot_format(node.state))
-    plt.tight_layout()
-    plt.savefig(outpath)
-    plt.close()
+# def plot_mct(tree: tree.MCTree, outpath, max_layers=8, max_branch=8):
+#     """
+#     :param root_node: The Node to start plotting from
+#     :param max_layers: The number of layers to plot (1st layer is the root)
+#     :param max_branch: The max number of canon_children show per node
+#     :return: A plot with each layer of the MCT states in a row
+#     """
+#     max_width = max_branch ** (max_layers - 1)
+#     grid = np.empty((max_layers, max_width), dtype=object)
+#
+#     # Traverse tree to flatten into columns
+#     # Consists of (node, level) pairs
+#     root_node = tree.root
+#
+#     que = queue.SimpleQueue()
+#     que.put((root_node, 0))
+#     curr_x = 0
+#     curr_y = -1
+#     while not que.empty():
+#         node, level = que.get()
+#         assert node is not None
+#         # If we are not moving down in the grid, move right
+#         if level <= curr_y:
+#             curr_x += 1
+#         else:
+#             curr_x = 0
+#         curr_y = level
+#         grid[curr_y, curr_x] = node
+#         if level < max_layers - 1 and not node.is_leaf():
+#             canon_children = list(filter(lambda child: child is not None, node.canon_children))
+#             # Sort in ascending order so most visited goes on top of stack
+#             canon_children = sorted(canon_children, key=lambda c: np.sum(c.move_visits), reverse=True)
+#             if max_branch:
+#                 # Take last k canon_children
+#                 canon_children = canon_children[:max_branch]
+#
+#             for c in canon_children:
+#                 que.put((c, curr_y + 1))
+#
+#     # Trim empty columns from grid
+#     grid = grid[:, :curr_x + 1]
+#
+#     plt.figure(figsize=(grid.shape[1] * 2, grid.shape[0] * 2))
+#     # Qvals
+#     root_qs = tree.root.latest_qs()
+#     plt.subplot(grid.shape[0], grid.shape[1], 2)
+#     plt.title('Q Vals')
+#     plt.bar(np.arange(len(root_qs)), root_qs)
+#     for i in range(grid.shape[0]):
+#         for j in range(grid.shape[1]):
+#             node = grid[i, j]
+#             if node is None:
+#                 continue
+#
+#             if node.actiontook is not None:
+#                 action = action_1d_to_2d(node.actiontook, node.state.shape[1])
+#                 qval = node.parent.latest_q(node.actiontook)
+#             else:
+#                 assert node.parent is None
+#                 action = None
+#                 qval = 0
+#             visits = node.visits
+#             value = node.latest_value()
+#             prior_val = node.prior_value
+#
+#             plt.subplot(grid.shape[0], grid.shape[1], grid.shape[1] * i + j + 1)
+#             plt.axis('off')
+#             plt.title(f'{visits}N\n{prior_val:.2f}PV {value:.2f}V\n{action}A {qval:.2f}Q')
+#             plt.imshow(matplot_format(node.state))
+#     plt.tight_layout()
+#     plt.savefig(outpath)
+#     plt.close()

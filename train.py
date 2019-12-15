@@ -55,7 +55,7 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
 
     # Optimize
     parallel.parallel_err(comm, f'Optimizing in {len(trainadata)} training steps...')
-    if args.agent == 'mcts':
+    if args.agent == 'val':
         metrics = value.optimize(comm, curr_model, trainadata, optim)
     elif args.agent == 'ac':
         metrics = actorcritic.optimize(comm, curr_model, trainadata, optim)

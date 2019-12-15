@@ -43,13 +43,12 @@ def hyperparameters():
 
     # Disk Data
     parser.add_argument('--episodesdir', type=str, default='bin/episodes/', help='directory to store episodes')
-    parser.add_argument('--savedir', type=str, default=f'bin/baselines/{today}/')
-    parser.add_argument('--basepath', type=str, default=f'bin/{today}/base.pt', help='model path for baseline model')
+    parser.add_argument('--savedir', type=str, default=f'bin/checkpoints/{today}/')
 
     # Model
-    parser.add_argument('--agent', type=str, choices=['mcts', 'ac'], default='mcts',
+    parser.add_argument('--agent', type=str, choices=['val', 'ac'], default='val',
                         help='type of agent/model')
-    parser.add_argument('--baseagent', type=str, choices=['mcts', 'ac', 'rand', 'greedy', 'human'],
+    parser.add_argument('--baseagent', type=str, choices=['val', 'ac', 'rand', 'greedy', 'human'],
                         default='rand', help='type of agent/model for baseline')
     parser.add_argument('--resblocks', type=int, default=4, help='number of basic blocks for resnets')
 
@@ -91,9 +90,9 @@ def sync_data(comm: MPI.Intracomm, args):
 
 def create_agent(args, name, use_base=False, load_checkpoint=True):
     agent = args.baseagent if use_base else args.agent
-    if agent == 'mcts':
+    if agent == 'val':
         model = value.ValueNet(args.boardsize, args.resblocks)
-        pi = policies.MCTS(name, model, args.mcts, args.temp, args.tempsteps)
+        pi = policies.Value(name, model, args.mcts, args.temp, args.tempsteps)
     elif agent == 'ac':
         model = actorcritic.ActorCriticNet(args.boardsize)
         pi = policies.ActorCritic(name, model, args.mcts, args.temp, args.tempsteps)

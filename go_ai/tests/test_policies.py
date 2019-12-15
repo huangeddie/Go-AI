@@ -4,18 +4,34 @@ import gym
 import torch
 
 from go_ai import game, policies
-from go_ai.models import value
+from go_ai.models import value, actorcritic
 
 
 class MyTestCase(unittest.TestCase):
     def setUp(self) -> None:
         board_size = 5
-        self.greedy_mct_policy = policies.MCTS('MCTGreedy', policies.greedy_val_func, num_searches=4,
-                                               temp=0)
+        self.greedy_mct_policy = policies.Value('MCTGreedy', policies.greedy_val_func, mcts=4,
+                                                temp=0)
 
         self.go_env = gym.make('gym_go:go-v0', size=board_size)
 
         self.num_games = 256
+
+    def test_mctac_vs_ac(self):
+        """
+        Custom test case to test trained models
+        :return:
+        """
+        self.go_env = gym.make('gym_go:go-v0', size=9)
+        curr_model = actorcritic.ActorCriticNet(9)
+        curr_model.load_state_dict(torch.load('../../bin/baselines/ac.pt'))
+
+        mct_pi = policies.ActorCritic('MCT', curr_model, mcts=90, temp=1, tempsteps=24)
+        val_pi = policies.ActorCritic('MCT', curr_model, mcts=0, temp=1, tempsteps=24)
+
+        win_rate, _, _ = game.play_games(self.go_env, mct_pi, val_pi, False, self.num_games)
+        print(win_rate)
+        self.assertGreaterEqual(win_rate, 0.6)
 
     def test_mctval_vs_val(self):
         """
@@ -24,10 +40,10 @@ class MyTestCase(unittest.TestCase):
         """
         self.go_env = gym.make('gym_go:go-v0', size=9)
         curr_model = value.ValueNet(9, num_blocks=4)
-        curr_model.load_state_dict(torch.load('../../bin/12_10_2019/checkpoint.pt'))
+        curr_model.load_state_dict(torch.load('../../bin/baselines/val.pt'))
 
-        mct_pi = policies.MCTS('MCT', curr_model, num_searches=8, temp=0.05, temp_steps=24)
-        val_pi = policies.MCTS('MCT', curr_model, num_searches=0, temp=0.05, temp_steps=24)
+        mct_pi = policies.Value('MCT', curr_model, mcts=8, temp=0.05, tempsteps=24)
+        val_pi = policies.Value('MCT', curr_model, mcts=0, temp=0.05, tempsteps=24)
 
         win_rate, _, _ = game.play_games(self.go_env, mct_pi, val_pi, False, self.num_games)
         print(win_rate)
@@ -60,7 +76,7 @@ class MyTestCase(unittest.TestCase):
         self.assertAlmostEqual(win_rate, 0, delta=0.1)
 
     def test_greedy_and_basegreedymct_are_equal(self):
-        self.greedy_mct_policy.num_searches = 0
+        self.greedy_mct_policy.mcts = 0
         done = False
         state = self.go_env.get_canonical_state()
         while not done:
