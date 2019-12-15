@@ -156,6 +156,12 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
     # Sync Parameters
     average_model(comm, model)
 
+    world_size = comm.Get_size()
+    critic_running_acc = comm.allreduce(critic_running_acc, op=MPI.SUM) / world_size
+    critic_running_loss = comm.allreduce(critic_running_loss, op=MPI.SUM) / world_size
+    actor_running_acc = comm.allreduce(actor_running_acc, op=MPI.SUM) / world_size
+    actor_running_loss = comm.allreduce(actor_running_loss, op=MPI.SUM) / world_size
+
     metrics = ModelMetrics()
     metrics.crit_acc = critic_running_acc / batches
     metrics.crit_loss = critic_running_loss / batches

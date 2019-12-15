@@ -48,27 +48,3 @@ def mct_search(go_env, num_searches, val_func, pi_func):
         curr_node.backprop(invert_val)
 
     return rootnode.get_move_visits()
-
-
-def select_best_child(node, u_const=1.5):
-    """
-    :param node:
-    :param u_const: 'Exploration' factor of U
-    :return: the child that
-        maximizes Q + U, where Q = V_sum / N, and
-        U = U_CONST * P / (1 + N), where P is action value.
-        forward_func action probs
-    """
-    assert not node.is_leaf()
-
-    valid_moves = GoGame.get_valid_moves(node.state)
-    invalid_values = (1 - valid_moves) * np.finfo(np.float).min
-
-    Qs = node.latest_qs()
-
-    N = node.move_visits
-    all_visits = np.sum(N)
-    upper_confidence_bound = Qs + u_const * np.sqrt(all_visits) / (1 + N)
-    best_move = np.argmax(upper_confidence_bound + invalid_values)
-
-    return node.canon_children[best_move], best_move

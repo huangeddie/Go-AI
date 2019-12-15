@@ -150,12 +150,12 @@ class MCTS(Policy):
         prior_qs, post_qs = self.mcts_qvals(go_env)
 
         valid_indicators = go_env.get_valid_moves()
-        step = kwargs['step']
         if 'get_qs' in kwargs:
             get_qs = kwargs['get_qs']
         else:
             get_qs = False
 
+        step = kwargs['step']
         assert step is not None
         if step < self.temp_steps:
             pi = temperate_pi(post_qs, self.temp, valid_indicators)
@@ -215,16 +215,16 @@ class MCTS(Policy):
 
 
 class MCTSActorCritic(Policy):
-    def __init__(self, name, model, temp):
+    def __init__(self, name, model, mcts, temp, tempsteps):
         """
         :param branches: The number of actions explored by actor at each node.
         :param depth: The number of steps to explore with actor. Includes opponent,
         i.e. even depth means the last step explores the opponent's
         """
-        super(MCTSActorCritic, self).__init__(name, temp=temp)
+        super(MCTSActorCritic, self).__init__(name, temp=temp, temp_steps=tempsteps)
         self.pytorch_model = model
         self.pi_func, self.val_func = pytorch_ac_to_numpy(model)
-        self.num_searches=16
+        self.num_searches=mcts
 
     def __call__(self, go_env, **kwargs):
         """
@@ -234,7 +234,15 @@ class MCTSActorCritic(Policy):
         """
 
         visits = tree.mct_search(go_env, self.num_searches, self.val_func, self.pi_func)
-        pi = visits * (1 / self.temp)
+
+        step = kwargs['step']
+        assert step is not None
+        if step < self.temp_steps:
+            max_visit = np.max(visits)
+            pi = visits == max_visit
+        else:
+            pi = visits * (1 / self.temp)
+
         pi = pi / np.sum(pi)
 
         return pi

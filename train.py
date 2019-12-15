@@ -28,6 +28,8 @@ def evaluate(comm, args, curr_pi, checkpoint_pi, winrates):
                 parallel.parallel_err(comm, f"Accepted new checkpoint")
 
                 accepted = True
+            else:
+                break
 
     return accepted, winrates
 

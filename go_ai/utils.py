@@ -21,15 +21,13 @@ def hyperparameters():
 
     # Monte Carlo Tree Search
     parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches')
-    parser.add_argument('--branches', type=int, default=4, help='branch degree for searching')
-    parser.add_argument('--depth', type=int, default=3, help='search depth')
 
     # Learning Parameters
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 
     # Exploration
-    parser.add_argument('--temp', type=float, default=0.1, help='initial temperature')
-    parser.add_argument('--tempsteps', type=float, default=24, help='first k steps to apply temperature to pi')
+    parser.add_argument('--temp', type=float, default=1, help='initial temperature')
+    parser.add_argument('--tempsteps', type=int, default=24, help='first k steps to apply temperature to pi')
 
     # Data Sizes
     parser.add_argument('--batchsize', type=int, default=32, help='batch size')
@@ -101,7 +99,7 @@ def create_agent(args, name, use_base=False, load_checkpoint=True):
         pi = policies.ActorCritic(name, model)
     elif agent == 'mcts-ac':
         model = actorcritic.ActorCriticNet(args.boardsize)
-        pi = policies.MCTSActorCritic(name, model, args.temp)
+        pi = policies.MCTSActorCritic(name, model, args.mcts, args.temp, args.tempsteps)
     elif agent == 'rand':
         model = None
         pi = policies.RAND_PI
