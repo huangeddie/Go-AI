@@ -8,9 +8,11 @@ args = utils.hyperparameters()
 go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
-checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint', load_checkpoint=True)
-print("Loaded model")
+base_model, base_pi = utils.create_agent(args, 'Baseline', baseline=True)
+print(f"Loaded model {base_pi}")
+
+human_pi = policies.Human(args.render)
 
 # Play
 go_env.reset()
-game.pit(go_env, policies.HUMAN_PI, checkpoint_pi, False)
+game.pit(go_env, human_pi, base_pi, False)

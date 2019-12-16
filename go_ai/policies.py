@@ -4,9 +4,7 @@ import torch
 
 from go_ai import montecarlo
 from go_ai.models import pytorch_val_to_numpy, pytorch_ac_to_numpy
-from go_ai.montecarlo import temperate_pi, greedy_pi, tree
-
-from scipy import special
+from go_ai.montecarlo import temperate_pi, tree
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -105,7 +103,8 @@ class Random(Policy):
 
 
 class Human(Policy):
-    def __init__(self):
+    def __init__(self, render):
+        self.render = render
         super(Human, self).__init__('Human')
 
     def __call__(self, go_env, **kwargs):
@@ -117,12 +116,26 @@ class Human(Policy):
         valid_moves = go_env.get_valid_moves()
 
         # Human interface
-        while True:
-            player_action = go_env.render('human')
-            state = go_env.get_state()
-            player_action = GoGame.action_2d_to_1d(player_action, state)
-            if valid_moves[player_action] > 0:
-                break
+        if self.render == 'human':
+            while True:
+                player_action = go_env.render(self.render)
+                state = go_env.get_state()
+                player_action = GoGame.action_2d_to_1d(player_action, state)
+                if valid_moves[player_action] > 0:
+                    break
+        else:
+            while True:
+                try:
+                    go_env.render(self.render)
+                    coor = input("Enter actions coordinates i j:\n")
+                    coor = coor.split(' ')
+                    player_action = (int(coor[0]), int(coor[1]))
+                    state = go_env.get_state()
+                    player_action = GoGame.action_2d_to_1d(player_action, state)
+                    if valid_moves[player_action] > 0:
+                        break
+                except Exception as ignore:
+                    pass
 
         action_probs = np.zeros(GoGame.get_action_size(state))
         action_probs[player_action] = 1
@@ -150,10 +163,6 @@ class Value(Policy):
         prior_qs, post_qs = self.mcts_qvals(go_env)
 
         valid_indicators = go_env.get_valid_moves()
-        if 'get_qs' in kwargs:
-            get_qs = kwargs['get_qs']
-        else:
-            get_qs = False
 
         step = kwargs['step']
         assert step is not None
@@ -162,8 +171,9 @@ class Value(Policy):
         else:
             pi = temperate_pi(post_qs, 0.01, valid_indicators)
 
-        if get_qs:
-            return pi, prior_qs, post_qs
+        if 'get_qs' in kwargs:
+            if kwargs['get_qs']:
+                return pi, prior_qs, post_qs
         else:
             return pi
 
@@ -224,7 +234,7 @@ class ActorCritic(Policy):
         super(ActorCritic, self).__init__(name, temp=temp, temp_steps=tempsteps)
         self.pytorch_model = model
         self.q_func, self.val_func = pytorch_ac_to_numpy(model)
-        self.mcts=mcts
+        self.mcts = mcts
 
     def __call__(self, go_env, **kwargs):
         """
@@ -233,17 +243,23 @@ class ActorCritic(Policy):
         :return:
         """
         if self.mcts > 0:
-            visits = tree.mct_search(go_env, self.mcts, self.val_func, self.q_func)
+            qs = tree.mct_search(go_env, self.mcts, self.val_func, self.q_func)
 
             step = kwargs['step']
             assert step is not None
             if step < self.temp_steps:
-                max_visit = np.max(visits)
-                pi = visits == max_visit
+                pi = qs * (1 / self.temp)
+
             else:
-                pi = visits * (1 / self.temp)
+                max_visit = np.max(qs)
+                pi = qs == max_visit
 
             pi = pi / np.sum(pi)
+
+            if 'get_qs' in kwargs:
+                if kwargs['get_qs']:
+                    return pi, qs
+
         else:
             state = go_env.get_canonical_state()
             policy_scores = self.q_func(state[np.newaxis])[0]
@@ -256,8 +272,7 @@ class ActorCritic(Policy):
         return f"{self.__class__.__name__}[{self.mcts}S {self.temp:.2f}T]-{self.name}"
 
 
-
 RAND_PI = Random()
 GREEDY_PI = Value('Greedy', greedy_val_func, mcts=0)
 SMART_GREEDY_PI = Value('Smart Greedy', smart_greedy_val_func, mcts=0)
-HUMAN_PI = Human()
+HUMAN_PI = Human('terminal')

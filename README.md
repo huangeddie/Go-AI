@@ -8,9 +8,19 @@ See the documentation for installation instructions
 # Usage
 
 ### Play against our pretrained model
+Actor Critic
 ```python
-python play.py
+python play.py --boardsize=9 --agent=ac --temp=0.05 --mcts=81 --render=human
 ```
+
+Q Learning
+```python
+python play.py --boardsize=9 --agent=val --temp=0.05 --mcts=81 --render=human
+```
+
+> Human rendering uses the Pyglet library to make a nice GUI for you. 
+>If you find that this doesn't work on your machine, try setting render to `terminal` instead  
+
 
 ### Train your own model
 ```python

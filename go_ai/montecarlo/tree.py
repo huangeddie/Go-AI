@@ -35,7 +35,7 @@ def mct_search(go_env, num_searches, val_func, pi_func):
             curr_node.backprop(None)
 
         leaf_state = curr_node.state
-        logit = val_func(leaf_state[np.newaxis])[0]
+        logit = val_func(leaf_state[np.newaxis]).item()
         val = np.tanh(logit)
         invert_val = montecarlo.invert_val(val)
 
@@ -47,4 +47,4 @@ def mct_search(go_env, num_searches, val_func, pi_func):
         curr_node.set_prior_pi(prior_pi)
         curr_node.backprop(invert_val)
 
-    return rootnode.get_move_visits()
+    return rootnode.get_qvals()

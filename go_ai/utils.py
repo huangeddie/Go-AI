@@ -46,14 +46,15 @@ def hyperparameters():
     parser.add_argument('--savedir', type=str, default=f'bin/checkpoints/{today}/')
 
     # Model
-    parser.add_argument('--agent', type=str, choices=['val', 'ac'], default='val',
+    parser.add_argument('--agent', type=str, choices=['val', 'ac', 'rand', 'greedy', 'human'], default='val',
                         help='type of agent/model')
-    parser.add_argument('--baseagent', type=str, choices=['val', 'ac', 'rand', 'greedy', 'human'],
-                        default='rand', help='type of agent/model for baseline')
     parser.add_argument('--resblocks', type=int, default=4, help='number of basic blocks for resnets')
 
     # Hardware
     parser.add_argument('--device', type=str, choices=['cpu', 'cuda'], default='cpu', help='device for pytorch models')
+
+    # Other
+    parser.add_argument('--render', type=str, choices=['terminal', 'human'], default='terminal', help='type of agent/model')
 
     return parser.parse_args()
 
@@ -88,13 +89,13 @@ def sync_data(comm: MPI.Intracomm, args):
     comm.Barrier()
 
 
-def create_agent(args, name, use_base=False, load_checkpoint=True):
-    agent = args.baseagent if use_base else args.agent
+def create_agent(args, name, baseline=False, load_checkpoint=False):
+    agent = args.agent
     if agent == 'val':
         model = value.ValueNet(args.boardsize, args.resblocks)
         pi = policies.Value(name, model, args.mcts, args.temp, args.tempsteps)
     elif agent == 'ac':
-        model = actorcritic.ActorCriticNet(args.boardsize)
+        model = actorcritic.ActorCriticNet(args.boardsize, args.resblocks)
         pi = policies.ActorCritic(name, model, args.mcts, args.temp, args.tempsteps)
     elif agent == 'rand':
         model = None
@@ -104,11 +105,15 @@ def create_agent(args, name, use_base=False, load_checkpoint=True):
         pi = policies.GREEDY_PI
     elif agent == 'human':
         model = None
-        pi = policies.HUMAN_PI
+        pi = policies.Human(args.render)
     else:
         raise Exception("Unknown agent argument", agent)
 
-    if load_checkpoint and not use_base:
+    if baseline:
+        assert not load_checkpoint
+        model.load_state_dict(torch.load(f'bin/baselines/{agent}.pt'))
+    elif load_checkpoint:
+        assert not baseline
         check_path = os.path.join(args.savedir, 'checkpoint.pt')
         model.load_state_dict(torch.load(check_path))
 

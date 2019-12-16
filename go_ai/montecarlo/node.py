@@ -50,13 +50,13 @@ class Node:
     def set_prior_pi(self, prior_pi):
         self.prior_pi = prior_pi
 
-    def get_move_visits(self):
+    def get_qvals(self):
         move_visits = []
         for child in self.canon_children:
             if child is None:
                 move_visits.append(0)
             else:
-                move_visits.append(child.visits)
+                move_visits.append(child.visits + np.mean(child.post_vals))
         return np.array(move_visits)
 
     def get_ucbs(self):

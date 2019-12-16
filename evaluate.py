@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from go_ai import measurements, game, utils
+from go_ai import measurements, utils
 
 args = utils.hyperparameters()
 
@@ -17,18 +17,20 @@ go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint', load_checkpoint=True)
 print(f"Loaded model {checkpoint_pi} from {args.savedir}")
 
-plot_dir = 'bin/plots/'
 baseline_dir = 'bin/checkpoints/2019-12-15/'
 
 stats_path = os.path.join(baseline_dir, 'stats.txt')
+
 
 def convert_to_secs(time_str):
     dur = time.strptime(time_str, '%H:%M:%S')
     secs = 3600 * dur.tm_hour + 60 * dur.tm_min + dur.tm_sec
     return secs
 
+
 def convert_to_hours(time_str):
     return convert_to_secs(time_str) / 3600
+
 
 # Plots
 if os.path.exists(stats_path):
@@ -51,7 +53,7 @@ if os.path.exists(stats_path):
     plt.plot(checks['HOURS'], check_elos)
     plt.xlabel("Hours")
     plt.ylabel("ELO")
-    plt.savefig(os.path.join(plot_dir, 'elos.pdf'))
+    plt.savefig(os.path.join(baseline_dir, 'elos.pdf'))
     plt.close()
 
     # Win rate against random and greedy
@@ -62,20 +64,11 @@ if os.path.exists(stats_path):
     plt.xlabel('Hours')
     plt.ylabel('Winrate')
     plt.legend(['Random', 'Greedy'])
-    plt.savefig(os.path.join(plot_dir, 'winrates.pdf'))
+    plt.savefig(os.path.join(baseline_dir, 'winrates.pdf'))
     plt.close()
 
     print("Made plots")
 
 # Sample trajectory and plot prior qvals
-measurements.plot_traj_fig(go_env, checkpoint_pi, os.path.join(plot_dir, f'atraj_{checkpoint_pi.temp:.2f}.pdf'))
+measurements.plot_traj_fig(go_env, checkpoint_pi, os.path.join(baseline_dir, f'atraj_{checkpoint_pi.temp:.2f}.pdf'))
 print(f"Plotted sample trajectory with temp {args.temp}")
-
-# Play against baseline model
-baseline_model, baseline_pi = utils.create_agent(args, 'Baseline', use_base=True)
-print('Loaded baseline')
-
-# Play
-go_env.reset()
-wr, _, _ = game.play_games(go_env, checkpoint_pi, baseline_pi, False, args.evaluations)
-print('Winrate: ', wr)

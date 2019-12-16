@@ -26,7 +26,7 @@ class MyTestCase(unittest.TestCase):
         curr_model = actorcritic.ActorCriticNet(9)
         curr_model.load_state_dict(torch.load('../../bin/baselines/ac.pt'))
 
-        mct_pi = policies.ActorCritic('MCT', curr_model, mcts=90, temp=1, tempsteps=24)
+        mct_pi = policies.ActorCritic('MCT', curr_model, mcts=4, temp=1, tempsteps=24)
         val_pi = policies.ActorCritic('MCT', curr_model, mcts=0, temp=1, tempsteps=24)
 
         win_rate, _, _ = game.play_games(self.go_env, mct_pi, val_pi, False, self.num_games)
@@ -36,7 +36,6 @@ class MyTestCase(unittest.TestCase):
     def test_mctval_vs_val(self):
         """
         Custom test case to test trained models
-        :return:
         """
         self.go_env = gym.make('gym_go:go-v0', size=9)
         curr_model = value.ValueNet(9, num_blocks=4)

@@ -82,6 +82,11 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
             state_vals.append(state_val)
             all_prior_qs.append(prior_qs)
             all_post_qs.append(post_qs)
+        elif isinstance(policy, policies.ActorCritic):
+            pi, qs = policy(go_env, step=step, get_qs=True)
+            state_val = policy.val_func(state[np.newaxis])[0]
+            state_vals.append(state_val)
+            all_post_qs.append(qs)
         else:
             pi = policy(go_env, step=step)
         all_pi.append(pi)
@@ -90,7 +95,12 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     valid_moves = data.batch_valid_moves(states)
 
     num_states = states.shape[0]
-    num_cols = 4 if isinstance(policy, policies.Value) else 2
+    if isinstance(policy, policies.Value):
+        num_cols = 4
+    elif isinstance(policy, policies.ActorCritic):
+        num_cols = 3
+    else:
+        num_cols = 2
 
     fig = plt.figure(figsize=(num_cols * 2.5, num_states * 2))
     for i in tqdm(range(num_states), desc='Plots'):
@@ -119,6 +129,10 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
 
             plt.subplot(num_states, num_cols, curr_col + num_cols * i)
             plot_move_distr('Post Qs', all_post_qs[i], valid_moves[i], scalar=state_vals[i].item())
+            curr_col += 1
+        elif isinstance(policy, policies.ActorCritic):
+            plt.subplot(num_states, num_cols, curr_col + num_cols * i)
+            plot_move_distr('Visits', all_post_qs[i], valid_moves[i], scalar=state_vals[i].item())
             curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
