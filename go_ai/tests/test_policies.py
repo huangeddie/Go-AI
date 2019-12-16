@@ -17,10 +17,24 @@ class MyTestCase(unittest.TestCase):
 
         self.num_games = 256
 
+    def test_val_vs_ac(self):
+        self.go_env = gym.make('gym_go:go-v0', size=9)
+        ac_model = actorcritic.ActorCriticNet(9)
+        ac_model.load_state_dict(torch.load('../../bin/baselines/ac.pt'))
+
+        val_model = value.ValueNet(9)
+        val_model.load_state_dict(torch.load('../../bin/baselines/val.pt'))
+
+        mct_pi = policies.ActorCritic('AC', ac_model, mcts=81, temp=1, tempsteps=24)
+        val_pi = policies.Value('Val', val_model, mcts=0, temp=0.07, tempsteps=24)
+
+        win_rate, _, _ = game.play_games(self.go_env, val_pi, mct_pi, False, self.num_games)
+        print(win_rate)
+        self.assertGreaterEqual(win_rate, 0.6)
+
     def test_mctac_vs_ac(self):
         """
         Custom test case to test trained models
-        :return:
         """
         self.go_env = gym.make('gym_go:go-v0', size=9)
         curr_model = actorcritic.ActorCriticNet(9)
