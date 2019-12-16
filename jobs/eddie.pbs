@@ -3,8 +3,8 @@
 #PBS -l walltime=12:00:00
 #PBS -l naccesspolicy=singleuser
 #PBS -N go_ai
-#PBS -e bin/log.txt
-#PBS -o bin/stats.txt
+#PBS -e bin/checkpoints/log.txt
+#PBS -o bin/checkpoints/stats.txt
 #PBS -q cs
 module load openmpi/3.1.1-intel-18.0
 
