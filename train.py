@@ -122,8 +122,8 @@ if __name__ == '__main__':
     utils.sync_data(comm, args)
 
     # Model and Policies
-    curr_model, curr_pi = utils.create_agent(args, 'Current', load_checkpoint=True)
-    checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint', load_checkpoint=True)
+    curr_model, curr_pi = utils.create_agent(args, 'Current', latest_checkpoint=True)
+    checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint', latest_checkpoint=True)
 
     # Device
     device = torch.device(args.device)

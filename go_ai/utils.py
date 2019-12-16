@@ -80,7 +80,7 @@ def sync_data(comm: MPI.Intracomm, args):
             episodesdir = args.episodesdir
             data.clear_episodesdir(episodesdir)
             # Save new model
-            new_model, _ = create_agent(args, '', load_checkpoint=False)
+            new_model, _ = create_agent(args, '', latest_checkpoint=False)
 
             if not os.path.exists(args.savedir):
                 os.mkdir(args.savedir)
@@ -89,7 +89,7 @@ def sync_data(comm: MPI.Intracomm, args):
     comm.Barrier()
 
 
-def create_agent(args, name, baseline=False, load_checkpoint=False):
+def create_agent(args, name, baseline=False, latest_checkpoint=False, checkpoint=None):
     agent = args.agent
     if agent == 'val':
         model = value.ValueNet(args.boardsize, args.resblocks)
@@ -110,11 +110,16 @@ def create_agent(args, name, baseline=False, load_checkpoint=False):
         raise Exception("Unknown agent argument", agent)
 
     if baseline:
-        assert not load_checkpoint
+        assert not latest_checkpoint
         model.load_state_dict(torch.load(f'bin/baselines/{agent}.pt'))
-    elif load_checkpoint:
+    elif latest_checkpoint:
         assert not baseline
+        assert checkpoint is None
         check_path = os.path.join(args.savedir, 'checkpoint.pt')
+        model.load_state_dict(torch.load(check_path))
+    elif checkpoint is not None:
+        assert not latest_checkpoint
+        check_path = os.path.join(checkpoint, 'checkpoint.pt')
         model.load_state_dict(torch.load(check_path))
 
     return model, pi
