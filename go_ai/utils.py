@@ -63,7 +63,7 @@ def hyperparameters():
 
 def sync_checkpoint(comm: MPI.Intracomm, args, new_pi, old_pi):
     rank = comm.Get_rank()
-    checkpath = os.path.join(args.savedir, 'checkpoint.pt')
+    checkpath = get_modelpath(args, 'checkpoint')
     if rank == 0:
         torch.save(new_pi.pytorch_model.state_dict(), checkpath)
     comm.Barrier()
@@ -77,11 +77,9 @@ def sync_data(comm: MPI.Intracomm, args):
         if not os.path.exists(args.savedir):
             os.mkdir(args.savedir)
 
-        checkpath = os.path.join(args.savedir, 'checkpoint.pt')
+        checkpath = get_modelpath(args, 'checkpoint')
         if args.baseline:
-            baseline_dir = 'bin/baselines/'
-            baseline_path = os.path.join(baseline_dir, args.agent + '.pt')
-            assert os.path.exists(baseline_path)
+            baseline_path = get_modelpath(args, 'baseline')
             shutil.copy(baseline_path, checkpath)
             parallel_err(comm, "Starting from baseline")
         else:
@@ -97,7 +95,19 @@ def sync_data(comm: MPI.Intracomm, args):
     comm.Barrier()
 
 
-def create_agent(args, name, baseline=False, latest_checkpoint=False, checkpoint=None):
+def get_modelpath(args, savetype):
+    if savetype == 'checkpoint':
+        dir = args.savedir
+    elif savetype == 'baseline':
+        dir  = 'bin/baselines/'
+    else:
+        raise Exception(f"Unknown location type: {savetype}")
+    path = os.path.join(dir, args.agent + '.pt')
+
+    return path
+
+
+def create_agent(args, name, baseline=False, latest_checkpoint=False, checkpath=None):
     agent = args.agent
     if agent == 'val':
         model = value.ValueNet(args.boardsize, args.resblocks)
@@ -122,12 +132,11 @@ def create_agent(args, name, baseline=False, latest_checkpoint=False, checkpoint
         model.load_state_dict(torch.load(f'bin/baselines/{agent}.pt'))
     elif latest_checkpoint:
         assert not baseline
-        assert checkpoint is None
-        check_path = os.path.join(args.savedir, 'checkpoint.pt')
+        assert checkpath is None
+        check_path = get_modelpath(args, 'checkpoint')
         model.load_state_dict(torch.load(check_path))
-    elif checkpoint is not None:
+    elif checkpath is not None:
         assert not latest_checkpoint
-        check_path = os.path.join(checkpoint, 'checkpoint.pt')
-        model.load_state_dict(torch.load(check_path))
+        model.load_state_dict(torch.load(checkpath))
 
     return model, pi
