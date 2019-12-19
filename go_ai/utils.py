@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import os
+import shutil
 
 import torch
 from mpi4py import MPI
@@ -35,7 +36,7 @@ def hyperparameters():
     parser.add_argument('--trainsize', type=int, default=1000 * 32, help='train data size for one iteration')
 
     # Training
-    parser.add_argument('--checkpoint', type=bool, default=False, help='continue from checkpoint')
+    parser.add_argument('--baseline', type=bool, default=False, help='load baseline model')
     parser.add_argument('--iterations', type=int, default=128, help='iterations')
     parser.add_argument('--episodes', type=int, default=32, help='episodes')
     parser.add_argument('--evaluations', type=int, default=32, help='episodes')
@@ -54,7 +55,8 @@ def hyperparameters():
     parser.add_argument('--device', type=str, choices=['cpu', 'cuda'], default='cpu', help='device for pytorch models')
 
     # Other
-    parser.add_argument('--render', type=str, choices=['terminal', 'human'], default='terminal', help='type of agent/model')
+    parser.add_argument('--render', type=str, choices=['terminal', 'human'], default='terminal',
+                        help='type of agent/model')
 
     return parser.parse_args()
 
@@ -72,9 +74,16 @@ def sync_checkpoint(comm: MPI.Intracomm, args, new_pi, old_pi):
 def sync_data(comm: MPI.Intracomm, args):
     rank = comm.Get_rank()
     if rank == 0:
+        if not os.path.exists(args.savedir):
+            os.mkdir(args.savedir)
+
         checkpath = os.path.join(args.savedir, 'checkpoint.pt')
-        if args.checkpoint:
-            assert os.path.exists(checkpath)
+        if args.baseline:
+            baseline_dir = 'bin/baselines/'
+            baseline_path = os.path.join(baseline_dir, args.agent + '.pt')
+            assert os.path.exists(baseline_path)
+            shutil.copy(baseline_path, checkpath)
+            parallel_err(comm, "Starting from baseline")
         else:
             # Clear worker data
             episodesdir = args.episodesdir
@@ -82,10 +91,9 @@ def sync_data(comm: MPI.Intracomm, args):
             # Save new model
             new_model, _ = create_agent(args, '', latest_checkpoint=False)
 
-            if not os.path.exists(args.savedir):
-                os.mkdir(args.savedir)
             torch.save(new_model.state_dict(), checkpath)
-    parallel_err(comm, "Using checkpoint: {}".format(args.checkpoint))
+            parallel_err(comm, "Starting from scratch")
+
     comm.Barrier()
 
 

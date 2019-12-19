@@ -14,9 +14,9 @@ args = utils.hyperparameters()
 go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
-checkpoint_dir = 'bin/checkpoints/2019-12-11/'
+checkpoint_dir = 'bin/checkpoints/2019-12-15/'
 checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint', checkpoint=checkpoint_dir)
-print(f"Loaded model {checkpoint_pi} from {args.savedir}")
+print(f"Loaded model {checkpoint_pi} from {checkpoint_dir}")
 
 stats_path = os.path.join(checkpoint_dir, 'stats.txt')
 

@@ -258,7 +258,9 @@ class ActorCritic(Policy):
 
             if 'get_qs' in kwargs:
                 if kwargs['get_qs']:
-                    return pi, qs
+                    state = go_env.get_canonical_state()
+                    prior_qs = self.q_func(state[np.newaxis])[0]
+                    return pi, prior_qs, qs
 
         else:
             state = go_env.get_canonical_state()

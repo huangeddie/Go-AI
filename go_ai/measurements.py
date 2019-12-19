@@ -19,7 +19,7 @@ def matplot_format(state):
     return state.transpose(1, 2, 0)[:, :, [0, 1, 4]].astype(np.float)
 
 
-def plot_move_distr(title, move_distr, valid_moves, vmin=None, vmax=None, scalar=None):
+def plot_move_distr(title, move_distr, valid_moves, scalar=None, pi=False):
     """
 
     :param title:
@@ -35,10 +35,15 @@ def plot_move_distr(title, move_distr, valid_moves, vmin=None, vmax=None, scalar
     valid_values = np.extract(valid_moves[:-1] == 1, move_distr[:-1])
     assert np.isnan(move_distr).any() == False, move_distr
     pass_val = float(move_distr[-1])
+    vmin = np.min(valid_values) if len(valid_values) > 0 else 0
+    vmax = np.max(valid_values) if len(valid_values) > 0 else 0
     plt.title(title + (' ' if scalar is None else ' {:.3f}S'.format(scalar))
-              + '\n{:.3f}L '.format(np.min(valid_values) if len(valid_values) > 0 else 0)
-              + '{:.3f}H '.format(np.max(valid_values) if len(valid_values) > 0 else 0)
+              + '\n{:.3f}L '.format(vmin)
+              + '{:.3f}H '.format(vmax)
               + '{:.3f}P'.format(pass_val))
+
+    if pi:
+        vmin, vmax = 0, 1
     plt.imshow(np.reshape(move_distr[:-1], (board_size, board_size)), vmin=vmin, vmax=vmax)
 
 
@@ -73,18 +78,13 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     all_post_qs = []
     go_env = gym.make('gym_go:go-v0', size=states[0].shape[1])
     for step, (state, prev_action) in tqdm(enumerate(zip(states, taken_actions)), desc='Heat Maps'):
-        if isinstance(policy, policies.Value):
+        if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
             pi, prior_qs, post_qs = policy(go_env, step=step, get_qs=True)
             state_val = policy.val_func(state[np.newaxis])[0]
 
             state_vals.append(state_val)
             all_prior_qs.append(prior_qs)
             all_post_qs.append(post_qs)
-        elif isinstance(policy, policies.ActorCritic):
-            pi, qs = policy(go_env, step=step, get_qs=True)
-            state_val = policy.val_func(state[np.newaxis])[0]
-            state_vals.append(state_val)
-            all_post_qs.append(qs)
         else:
             pi = policy(go_env, step=step)
         all_pi.append(pi)
@@ -93,10 +93,8 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     valid_moves = data.batch_valid_moves(states)
 
     num_states = states.shape[0]
-    if isinstance(policy, policies.Value):
+    if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
         num_cols = 4
-    elif isinstance(policy, policies.ActorCritic):
-        num_cols = 3
     else:
         num_cols = 2
 
@@ -120,21 +118,19 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
         plt.imshow(matplot_format(states[i]))
         curr_col += 1
 
-        if isinstance(policy, policies.Value):
+        if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
+            prior_title = 'Prior Qs' if isinstance(policy, policies.Value) else 'Prior Pi'
             plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-            plot_move_distr('Prior Qs', all_prior_qs[i], valid_moves[i], scalar=state_vals[i].item())
+            plot_move_distr(prior_title, all_prior_qs[i], valid_moves[i], scalar=state_vals[i].item())
             curr_col += 1
 
+            post_title = 'Post Qs' if isinstance(policy, policies.Value) else 'Visits'
             plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-            plot_move_distr('Post Qs', all_post_qs[i], valid_moves[i], scalar=state_vals[i].item())
-            curr_col += 1
-        elif isinstance(policy, policies.ActorCritic):
-            plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-            plot_move_distr('Visits', all_post_qs[i], valid_moves[i], scalar=state_vals[i].item())
+            plot_move_distr(post_title, all_post_qs[i], valid_moves[i], scalar=state_vals[i].item())
             curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-        plot_move_distr('Model', all_pi[i], valid_moves[i], vmin=0, vmax=1)
+        plot_move_distr('Model', all_pi[i], valid_moves[i], pi=True)
         curr_col += 1
 
     plt.tight_layout()
