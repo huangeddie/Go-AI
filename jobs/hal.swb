@@ -9,4 +9,4 @@ source /home/raysun2/.bashrc
 conda activate go_ai_env
 cd /home/raysun2/Go-AI/
 NAME="base_real"
-python train.py --boardsize=9 --episodesdir=/home/raysun2/Go-AI/episodes/${NAME}/ --checkpath /home/raysun2/Go-AI/checkpoints/${NAME}.pt --tmppath bin/tmp_${NAME}.pt --agent ac --checkpoint True
+python train.py --boardsize=9 --episodesdir=/home/raysun2/Go-AI/episodes/${NAME}/ --checkpath /home/raysun2/Go-AI/checkpoints/${NAME}.pt --tmppath bin/tmp_${NAME}.pt --model ac --checkpoint True

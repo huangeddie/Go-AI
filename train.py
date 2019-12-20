@@ -55,9 +55,9 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
 
     # Optimize
     parallel.parallel_err(comm, f'Optimizing in {len(trainadata)} training steps...')
-    if args.agent == 'val':
+    if args.model == 'val':
         metrics = value.optimize(comm, curr_model, trainadata, optim)
-    elif args.agent == 'ac':
+    elif args.model == 'ac':
         metrics = actorcritic.optimize(comm, curr_model, trainadata, optim)
 
     # Sync model
@@ -122,8 +122,8 @@ if __name__ == '__main__':
     utils.sync_data(comm, args)
 
     # Model and Policies
-    curr_model, curr_pi = utils.create_agent(args, 'Current', latest_checkpoint=True)
-    checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint', latest_checkpoint=True)
+    curr_model, curr_pi = utils.create_model(args, 'Current', latest_checkpoint=True)
+    checkpoint_model, checkpoint_pi = utils.create_model(args, 'Checkpoint', latest_checkpoint=True)
 
     # Device
     device = torch.device(args.device)

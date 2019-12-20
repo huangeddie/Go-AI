@@ -8,4 +8,4 @@
 cd $PBS_O_WORKDIR
 echo -n >bin/stats.txt
 echo -n >bin/log.txt
-python3 train.py --boardsize=5 --episodes-dir=/home/raysun2/Go-AI/episodes/ --checkpoint=True --agent=ac
+python3 train.py --boardsize=5 --episodes-dir=/home/raysun2/Go-AI/episodes/ --checkpoint=True --model=ac

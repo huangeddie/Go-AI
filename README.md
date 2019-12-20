@@ -10,12 +10,12 @@ See the documentation for installation instructions
 ### Play against our pretrained model
 Actor Critic
 ```bash
-python play.py --boardsize=9 --agent=ac --temp=0.05 --mcts=81 --render=human
+python play.py --boardsize=9 --model=ac --temp=0.05 --mcts=81 --render=human
 ```
 
 Q Learning
 ```bash
-python play.py --boardsize=9 --agent=val --temp=0.01 --mcts=8 --render=human
+python play.py --boardsize=9 --model=val --temp=0.01 --mcts=8 --render=human
 ```
 
 > Human rendering uses the Pyglet library to make a nice GUI for you. 

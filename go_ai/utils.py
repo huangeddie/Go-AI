@@ -47,8 +47,8 @@ def hyperparameters():
     parser.add_argument('--savedir', type=str, default=f'bin/checkpoints/{today}/')
 
     # Model
-    parser.add_argument('--agent', type=str, choices=['val', 'ac', 'rand', 'greedy', 'human'], default='val',
-                        help='type of agent/model')
+    parser.add_argument('--model', type=str, choices=['val', 'ac', 'rand', 'greedy', 'human'], default='val',
+                        help='type of model')
     parser.add_argument('--resblocks', type=int, default=4, help='number of basic blocks for resnets')
 
     # Hardware
@@ -56,7 +56,7 @@ def hyperparameters():
 
     # Other
     parser.add_argument('--render', type=str, choices=['terminal', 'human'], default='terminal',
-                        help='type of agent/model')
+                        help='type of rendering')
 
     return parser.parse_args()
 
@@ -87,7 +87,7 @@ def sync_data(comm: MPI.Intracomm, args):
             episodesdir = args.episodesdir
             data.clear_episodesdir(episodesdir)
             # Save new model
-            new_model, _ = create_agent(args, '', latest_checkpoint=False)
+            new_model, _ = create_model(args, '', latest_checkpoint=False)
 
             torch.save(new_model.state_dict(), checkpath)
             parallel_err(comm, "Starting from scratch")
@@ -102,41 +102,41 @@ def get_modelpath(args, savetype):
         dir  = 'bin/baselines/'
     else:
         raise Exception(f"Unknown location type: {savetype}")
-    path = os.path.join(dir, args.agent + '.pt')
+    path = os.path.join(dir, args.model + '.pt')
 
     return path
 
 
-def create_agent(args, name, baseline=False, latest_checkpoint=False, checkpath=None):
-    agent = args.agent
-    if agent == 'val':
-        model = value.ValueNet(args.boardsize, args.resblocks)
-        pi = policies.Value(name, model, args.mcts, args.temp, args.tempsteps)
-    elif agent == 'ac':
-        model = actorcritic.ActorCriticNet(args.boardsize, args.resblocks)
-        pi = policies.ActorCritic(name, model, args.mcts, args.temp, args.tempsteps)
-    elif agent == 'rand':
-        model = None
+def create_model(args, name, baseline=False, latest_checkpoint=False, checkpath=None):
+    model = args.model
+    if model == 'val':
+        net = value.ValueNet(args.boardsize, args.resblocks)
+        pi = policies.Value(name, net, args.mcts, args.temp, args.tempsteps)
+    elif model == 'ac':
+        net = actorcritic.ActorCriticNet(args.boardsize, args.resblocks)
+        pi = policies.ActorCritic(name, net, args.mcts, args.temp, args.tempsteps)
+    elif model == 'rand':
+        net = None
         pi = policies.RAND_PI
-    elif agent == 'greedy':
-        model = None
+    elif model == 'greedy':
+        net = None
         pi = policies.GREEDY_PI
-    elif agent == 'human':
-        model = None
+    elif model == 'human':
+        net = None
         pi = policies.Human(args.render)
     else:
-        raise Exception("Unknown agent argument", agent)
+        raise Exception("Unknown model argument", model)
 
     if baseline:
         assert not latest_checkpoint
-        model.load_state_dict(torch.load(f'bin/baselines/{agent}.pt'))
+        net.load_state_dict(torch.load(f'bin/baselines/{model}.pt'))
     elif latest_checkpoint:
         assert not baseline
         assert checkpath is None
         check_path = get_modelpath(args, 'checkpoint')
-        model.load_state_dict(torch.load(check_path))
+        net.load_state_dict(torch.load(check_path))
     elif checkpath is not None:
         assert not latest_checkpoint
-        model.load_state_dict(torch.load(checkpath))
+        net.load_state_dict(torch.load(checkpath))
 
-    return model, pi
+    return net, pi

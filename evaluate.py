@@ -15,7 +15,7 @@ go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
 checkpath = 'bin/checkpoints/2019-12-15/ac.pt'
-checkpoint_model, checkpoint_pi = utils.create_agent(args, 'Checkpoint', checkpath=checkpath)
+checkpoint_model, checkpoint_pi = utils.create_model(args, 'Checkpoint', checkpath=checkpath)
 print(f"Loaded model {checkpoint_pi} from {checkpath}")
 
 stats_path = os.path.join(checkpath, 'stats.txt')
