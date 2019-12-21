@@ -144,7 +144,7 @@ class Human(Policy):
                     player_action = GoGame.action_2d_to_1d(player_action, state)
                     if valid_moves[player_action] > 0:
                         break
-                except Exception as ignore:
+                except Exception:
                     pass
 
         action_probs = np.zeros(GoGame.get_action_size(state))

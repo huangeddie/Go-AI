@@ -47,4 +47,4 @@ def mct_search(go_env, num_searches, val_func, pi_func):
         curr_node.set_prior_pi(prior_pi)
         curr_node.backprop(invert_val)
 
-    return rootnode.get_qvals()
+    return rootnode.get_visit_counts()

@@ -15,4 +15,4 @@ human_pi = policies.Human(args.render)
 
 # Play
 go_env.reset()
-game.pit(go_env, human_pi, base_pi, False)
+game.pit(go_env, base_pi, human_pi, False)

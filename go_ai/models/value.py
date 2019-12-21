@@ -62,7 +62,7 @@ def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimize
     dtype = next(model.parameters()).type()
     running_loss = 0
     running_acc = 0
-    for i, (states, actions, next_states, rewards, terminals, wins) in enumerate(batched_data, 1):
+    for i, (states, actions, rewards, next_states, terminals, wins, pis) in enumerate(batched_data, 1):
         # Augment
         states = data.batch_random_symmetries(states)
 

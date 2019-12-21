@@ -34,11 +34,11 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None, pi=False):
     plt.axis('off')
     valid_values = np.extract(valid_moves[:-1] == 1, move_distr[:-1])
     invalid_moves = 1 - valid_moves
-    move_distr[np.where(invalid_moves)] = np.nan
     pass_val = float(move_distr[-1])
+    move_distr = np.ma.masked_array(move_distr, mask=invalid_moves)
 
-    vmin = np.nanmin(valid_values) if len(valid_values) > 0 else 0
-    vmax = np.nanmax(valid_values) if len(valid_values) > 0 else 0
+    vmin = np.min(valid_values) if len(valid_values) > 0 else 0
+    vmax = np.max(valid_values) if len(valid_values) > 0 else 0
     plt.title(title + (' ' if scalar is None else ' {:.3f}S'.format(scalar))
               + '\n{:.3f}L '.format(vmin)
               + '{:.3f}H '.format(vmax)
@@ -60,12 +60,12 @@ def action_1d_to_2d(action_1d, board_width):
     return action
 
 
-def state_responses_helper(policy: policies.Policy, states, taken_actions, next_states, rewards, terminals, wins):
+def state_responses_helper(policy: policies.Policy, states, actions, rewards, next_states, terminals, wins, pis):
     """
     Helper function for state_responses
     :param policy_args:
     :param states:
-    :param taken_actions:
+    :param actions:
     :param next_states:
     :param rewards:
     :param terminals:
@@ -74,12 +74,11 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
     """
     board_size = states[0].shape[1]
 
-    all_pi = []
     state_vals = []
     all_prior_qs = []
     all_post_qs = []
     go_env = gym.make('gym_go:go-v0', size=states[0].shape[1])
-    for step, (state, prev_action) in tqdm(enumerate(zip(states, taken_actions)), desc='Heat Maps'):
+    for step, (state, prev_action) in tqdm(enumerate(zip(states, actions)), desc='Heat Maps'):
         if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
             pi, prior_qs, post_qs = policy(go_env, step=step, get_qs=True)
             state_val = policy.val_func(state[np.newaxis])[0]
@@ -89,7 +88,6 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
             all_post_qs.append(post_qs)
         else:
             pi = policy(go_env, step=step)
-        all_pi.append(pi)
         go_env.step(prev_action)
 
     valid_moves = data.batch_valid_moves(states)
@@ -107,10 +105,10 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
         plt.axis('off')
         if i > 0:
-            prev_action = action_1d_to_2d(taken_actions[i - 1], board_size)
+            prev_action = action_1d_to_2d(actions[i - 1], board_size)
             board_title = 'Action: {}\n'.format(prev_action)
             if i == num_states - 1:
-                action_took = action_1d_to_2d(taken_actions[i], board_size)
+                action_took = action_1d_to_2d(actions[i], board_size)
                 board_title += 'Action Taken: {}\n'.format(action_took)
         else:
             board_title = 'Initial Board\n'
@@ -132,7 +130,7 @@ def state_responses_helper(policy: policies.Policy, states, taken_actions, next_
             curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-        plot_move_distr('Model', all_pi[i], valid_moves[i], pi=True)
+        plot_move_distr('Model', pis[i], valid_moves[i], pi=True)
         curr_col += 1
 
     plt.tight_layout()
@@ -146,10 +144,10 @@ def state_responses(policy: policies.Policy, replay_mem):
     :return: The figure visualizing responses of the model
     on those events
     """
-    states, actions, next_states, rewards, terminals, wins = data.replaylist_to_numpy(replay_mem)
+    states, actions, rewards, next_states, terminals, wins, pis = data.replaylist_to_numpy(replay_mem)
     assert len(states[0].shape) == 3 and states[0].shape[1] == states[0].shape[2], states[0].shape
 
-    fig = state_responses_helper(policy, states, actions, next_states, rewards, terminals, wins)
+    fig = state_responses_helper(policy, states, actions, rewards, next_states, terminals, wins, pis)
     return fig
 
 

@@ -55,8 +55,7 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
 
     max_steps = 2 * (go_env.size ** 2)
 
-    blackcache = []
-    whitecache = []
+    cache = []
 
     done = False
 
@@ -65,18 +64,16 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
         curr_turn = go_env.turn()
 
         # Get canonical state for policy and memory
-        canonical_state = GoGame.get_canonical_form(state)
+        can_state = GoGame.get_canonical_form(state)
 
         # Get an action
         if curr_turn == GoVars.BLACK:
-            action_probs = black_policy(go_env, step=num_steps)
-            cache = blackcache
+            pi = black_policy(go_env, step=num_steps)
         else:
             assert curr_turn == GoVars.WHITE
-            action_probs = white_policy(go_env, step=num_steps)
-            cache = whitecache
+            pi = white_policy(go_env, step=num_steps)
 
-        action = GoGame.random_weighted_action(action_probs)
+        action = GoGame.random_weighted_action(pi)
 
         # Execute actions in environment and MCT tree
         next_state, reward, done, _ = go_env.step(action)
@@ -87,7 +84,7 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
 
         # Add to memory cache
         if get_traj:
-            cache.append((canonical_state, action, reward, done))
+            cache.append((curr_turn, can_state, action, reward, done, pi))
 
         # Increment steps
         num_steps += 1
@@ -100,26 +97,15 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
     # Determine who won
     black_won = go_env.get_winning()
 
-    replay_mems = []
-    for black, cache in zip([1, -1], [blackcache, whitecache]):
-        win = black * black_won
-        mem = []
-        for i, (canonical_state, action, reward, terminal) in enumerate(cache):
-            if i < len(cache) - 1:
-                canonical_nextstate = cache[i + 1][0]
-            else:
-                canonical_nextstate = np.zeros(canonical_state.shape)
-            reward = reward * (1 - terminal) + win * terminal
-            mem.append((canonical_state, action, canonical_nextstate, reward, terminal, win))
-        replay_mems.append(mem)
-
-    black_mem, white_mem = replay_mems[0], replay_mems[1]
     replay_mem = []
-    assert len(black_mem) == len(white_mem) or len(black_mem) == 1 + len(white_mem), (len(black_mem), len(white_mem))
-    for black_event, white_event in zip(black_mem, white_mem):
-        replay_mem.append(black_event)
-        replay_mem.append(white_event)
-    if len(black_mem) == 1 + len(white_mem):
-        replay_mem.append(black_mem[-1])
+
+    for i, (curr_turn, can_state, action, reward, done, pi) in enumerate(cache):
+        win = black_won if curr_turn == GoVars.BLACK else - black_won
+        if i < len(cache) - 1:
+            can_nextstate = cache[i + 1][1]
+        else:
+            can_nextstate = np.zeros(can_state.shape)
+        reward = reward * (1 - done) + win * done
+        replay_mem.append((can_state, action, reward, can_nextstate, done, win, pi))
 
     return black_won, num_steps, replay_mem

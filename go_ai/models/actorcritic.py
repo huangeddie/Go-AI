@@ -3,7 +3,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from mpi4py import MPI
-from tqdm import tqdm
 
 from go_ai import data, montecarlo, parallel
 from go_ai.models import BasicBlock, pytorch_ac_to_numpy, average_model, ModelMetrics
@@ -78,7 +77,7 @@ def parallel_get_qvals(comm, batched_data, val_func):
     my_batches = batched_data[start: end]
     my_qvals = []
     my_states = []
-    for states, actions, next_states, rewards, terminals, wins in my_batches:
+    for states, actions, next_states, rewards, terminals, wins, pis in my_batches:
         states = data.batch_random_symmetries(states)
         invalid_values = data.batch_invalid_values(states)
 
@@ -105,7 +104,7 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
     critic_running_loss = 0
     critic_running_acc = 0
     model.train()
-    for states, actions, next_states, rewards, terminals, wins in batched_data:
+    for states, actions, rewards, next_states, terminals, wins, pis in batched_data:
         # Augment
         states = data.batch_random_symmetries(states)
 

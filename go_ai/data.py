@@ -55,12 +55,13 @@ def replaylist_to_numpy(replay_mem):
 
     states = np.array(list(replay_mem[0]), dtype=np.float32)
     actions = np.array(list(replay_mem[1]), dtype=np.int)
-    next_states = np.array(list(replay_mem[2]), dtype=np.float32)
-    rewards = np.array(list(replay_mem[3]), dtype=np.float32).reshape((-1,))
+    rewards = np.array(list(replay_mem[2]), dtype=np.float32).reshape((-1,))
+    next_states = np.array(list(replay_mem[3]), dtype=np.float32)
     terminals = np.array(list(replay_mem[4]), dtype=np.uint8)
     wins = np.array(list(replay_mem[5]), dtype=np.int)
+    pis = np.array(list(replay_mem[6]), dtype=np.float32)
 
-    return states, actions, next_states, rewards, terminals, wins
+    return states, actions, rewards, next_states, terminals, wins, pis
 
 
 def load_replaydata(episodesdir, worker_rank=None):
