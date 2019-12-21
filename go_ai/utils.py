@@ -102,18 +102,19 @@ def get_modelpath(args, savetype):
         dir  = 'bin/baselines/'
     else:
         raise Exception(f"Unknown location type: {savetype}")
-    path = os.path.join(dir, args.model + '.pt')
+    path = os.path.join(dir, f'{args.model}{args.boardsize}.pt')
 
     return path
 
 
-def create_model(args, name, baseline=False, latest_checkpoint=False, checkpath=None):
+def create_model(args, name, baseline=False, latest_checkpoint=False, checkdir=None):
     model = args.model
+    size = args.boardsize
     if model == 'val':
-        net = value.ValueNet(args.boardsize, args.resblocks)
+        net = value.ValueNet(size, args.resblocks)
         pi = policies.Value(name, net, args.mcts, args.temp, args.tempsteps)
     elif model == 'ac':
-        net = actorcritic.ActorCriticNet(args.boardsize, args.resblocks)
+        net = actorcritic.ActorCriticNet(size, args.resblocks)
         pi = policies.ActorCritic(name, net, args.mcts, args.temp, args.tempsteps)
     elif model == 'rand':
         net = None
@@ -129,14 +130,15 @@ def create_model(args, name, baseline=False, latest_checkpoint=False, checkpath=
 
     if baseline:
         assert not latest_checkpoint
-        net.load_state_dict(torch.load(f'bin/baselines/{model}.pt'))
+        net.load_state_dict(torch.load(f'bin/baselines/{model}{size}.pt'))
     elif latest_checkpoint:
         assert not baseline
-        assert checkpath is None
-        check_path = get_modelpath(args, 'checkpoint')
-        net.load_state_dict(torch.load(check_path))
-    elif checkpath is not None:
+        assert checkdir is None
+        latest_checkpath = get_modelpath(args, 'checkpoint')
+        net.load_state_dict(torch.load(latest_checkpath))
+    elif checkdir is not None:
         assert not latest_checkpoint
+        checkpath = os.path.join(checkdir, f'{model}{size}.pt')
         net.load_state_dict(torch.load(checkpath))
 
     return net, pi

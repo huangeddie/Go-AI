@@ -5,8 +5,6 @@ from sklearn import preprocessing
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
-MIN_VAL = np.finfo(np.float).min
-
 
 def invert_val(val):
     return -val
@@ -66,7 +64,7 @@ def batch_greedy_pi(batch_qvals, batch_valid_moves):
     return pi
 
 
-def temperate_pi(qvals, temp, valid_moves):
+def temp_softmax(qvals, temp, valid_moves):
     if temp <= 0:
         # Max Qs
         pi = greedy_pi(qvals, valid_moves)

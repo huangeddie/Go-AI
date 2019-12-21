@@ -26,7 +26,7 @@ class MyTestCase(unittest.TestCase):
         val_model.load_state_dict(torch.load('../../bin/baselines/val.pt'))
 
         mct_pi = policies.ActorCritic('AC', ac_model, mcts=81, temp=1, tempsteps=24)
-        val_pi = policies.Value('Val', val_model, mcts=0, temp=0.02, tempsteps=24)
+        val_pi = policies.Value('Val', val_model, mcts=8, temp=0.05, tempsteps=24)
 
         win_rate, _, _ = game.play_games(self.go_env, val_pi, mct_pi, False, self.num_games)
         print(win_rate)

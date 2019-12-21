@@ -33,10 +33,12 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None, pi=False):
     board_size = int((len(move_distr) - 1) ** 0.5)
     plt.axis('off')
     valid_values = np.extract(valid_moves[:-1] == 1, move_distr[:-1])
-    assert np.isnan(move_distr).any() == False, move_distr
+    invalid_moves = 1 - valid_moves
+    move_distr[np.where(invalid_moves)] = np.nan
     pass_val = float(move_distr[-1])
-    vmin = np.min(valid_values) if len(valid_values) > 0 else 0
-    vmax = np.max(valid_values) if len(valid_values) > 0 else 0
+
+    vmin = np.nanmin(valid_values) if len(valid_values) > 0 else 0
+    vmax = np.nanmax(valid_values) if len(valid_values) > 0 else 0
     plt.title(title + (' ' if scalar is None else ' {:.3f}S'.format(scalar))
               + '\n{:.3f}L '.format(vmin)
               + '{:.3f}H '.format(vmax)

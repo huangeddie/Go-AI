@@ -4,7 +4,8 @@ import torch
 
 from go_ai import montecarlo
 from go_ai.models import pytorch_val_to_numpy, pytorch_ac_to_numpy
-from go_ai.montecarlo import temperate_pi, tree
+from go_ai.montecarlo import tree
+from scipy import special
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -113,14 +114,17 @@ class Human(Policy):
         :param step:
         :return: Action probabilities
         """
+        state = go_env.get_state()
         valid_moves = go_env.get_valid_moves()
 
         # Human interface
         if self.render == 'human':
             while True:
                 player_action = go_env.render(self.render)
-                state = go_env.get_state()
-                player_action = GoGame.action_2d_to_1d(player_action, state)
+                if player_action is None:
+                    player_action = go_env.action_space.n - 1
+                else:
+                    player_action = GoGame.action_2d_to_1d(player_action, state)
                 if valid_moves[player_action] > 0:
                     break
         else:
@@ -128,9 +132,15 @@ class Human(Policy):
                 try:
                     go_env.render(self.render)
                     coor = input("Enter actions coordinates i j:\n")
-                    coor = coor.split(' ')
-                    player_action = (int(coor[0]), int(coor[1]))
-                    state = go_env.get_state()
+                    if coor == 'p':
+                        player_action = None
+                    elif coor == 'e':
+                        player_action = None
+                        exit()
+                    else:
+                        coor = coor.split(' ')
+                        player_action = (int(coor[0]), int(coor[1]))
+
                     player_action = GoGame.action_2d_to_1d(player_action, state)
                     if valid_moves[player_action] > 0:
                         break
@@ -161,15 +171,21 @@ class Value(Policy):
         """
 
         prior_qs, post_qs = self.mcts_qvals(go_env)
-
-        valid_indicators = go_env.get_valid_moves()
+        valid_moves = go_env.get_valid_moves()
+        where_valid = np.where(valid_moves)
+        prior_pi, post_pi = np.zeros(prior_qs.shape), np.zeros(post_qs.shape)
+        prior_pi[where_valid] = special.softmax(prior_qs[where_valid])
+        post_pi[where_valid] = special.softmax(post_qs[where_valid])
+        pi = np.nansum([prior_pi, post_pi], axis=0)
 
         step = kwargs['step']
         assert step is not None
         if step < self.temp_steps:
-            pi = temperate_pi(post_qs, self.temp, valid_indicators)
+            pi = pi ** (1 / self.temp)
         else:
-            pi = temperate_pi(post_qs, 0.01, valid_indicators)
+            pi = pi ** (1 / 0.01)
+
+        pi /= np.sum(pi)
 
         if 'get_qs' in kwargs:
             if kwargs['get_qs']:
@@ -184,7 +200,7 @@ class Value(Policy):
         valid_indicators = go_env.get_valid_moves()
 
         prior_qs = montecarlo.vals_to_qs(child_vals, canonical_state)
-        post_qs = np.copy(prior_qs)
+        post_qs = np.full(prior_qs.shape, np.nan)
 
         # Search on grandchildren layer
         if self.mcts > 0:
@@ -192,7 +208,6 @@ class Value(Policy):
             assert len(valid_moves) == len(child_vals)
             ordered_child_idcs = np.argsort(child_vals.flatten())
             best_child_idcs = ordered_child_idcs[:self.mcts]
-            remaining_child_idcs = ordered_child_idcs[self.mcts:]
             for child_idx in best_child_idcs:
                 action_to_child = valid_moves[child_idx]
                 child = canonical_children[child_idx]
@@ -202,21 +217,7 @@ class Value(Policy):
                 grandchildren, _ = GoGame.get_children(child, child_groupmap, canonical=True)
                 grand_vals = self.val_func(np.array(grandchildren))
                 # Assume opponent would take action that minimizes our value
-                new_childval = np.min(grand_vals)
-                curr_qval = prior_qs[action_to_child]
-                new_qval = np.mean([curr_qval, new_childval])
-                post_qs[action_to_child] = new_qval
-
-            changes = np.sum(post_qs != prior_qs)
-            if changes > 0:
-                bias_correction = np.min(post_qs - prior_qs)
-
-                for child_idx in remaining_child_idcs:
-                    action_to_child = valid_moves[child_idx]
-                    child = canonical_children[child_idx]
-                    if GoGame.get_game_ended(child):
-                        continue
-                    post_qs[action_to_child] += bias_correction
+                post_qs[action_to_child] = np.min(grand_vals)
 
         return prior_qs, post_qs
 
@@ -266,7 +267,7 @@ class ActorCritic(Policy):
             state = go_env.get_canonical_state()
             policy_scores = self.q_func(state[np.newaxis])[0]
             valid_moves = GoGame.get_valid_moves(state)
-            pi = montecarlo.temperate_pi(policy_scores, self.temp, valid_moves)
+            pi = montecarlo.temp_softmax(policy_scores, self.temp, valid_moves)
 
         return pi
 
