@@ -1,11 +1,11 @@
 import gym
 import numpy as np
 import torch
+from sklearn import preprocessing
 
 from go_ai import montecarlo
 from go_ai.models import pytorch_val_to_numpy, pytorch_ac_to_numpy
 from go_ai.montecarlo import tree
-from scipy import special
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -88,71 +88,6 @@ class Policy:
         return "{} {}".format(self.__class__.__name__, self.name)
 
 
-class Random(Policy):
-    def __init__(self):
-        super(Random, self).__init__('Random')
-
-    def __call__(self, go_env, **kwargs):
-        """
-        :param go_env:
-        :param step:
-        :return: Action probabilities
-        """
-
-        valid_moves = go_env.get_valid_moves()
-        return valid_moves / np.sum(valid_moves)
-
-
-class Human(Policy):
-    def __init__(self, render):
-        self.render = render
-        super(Human, self).__init__('Human')
-
-    def __call__(self, go_env, **kwargs):
-        """
-        :param go_env:
-        :param step:
-        :return: Action probabilities
-        """
-        state = go_env.get_state()
-        valid_moves = go_env.get_valid_moves()
-
-        # Human interface
-        if self.render == 'human':
-            while True:
-                player_action = go_env.render(self.render)
-                if player_action is None:
-                    player_action = go_env.action_space.n - 1
-                else:
-                    player_action = GoGame.action_2d_to_1d(player_action, state)
-                if valid_moves[player_action] > 0:
-                    break
-        else:
-            while True:
-                try:
-                    go_env.render(self.render)
-                    coor = input("Enter actions coordinates i j:\n")
-                    if coor == 'p':
-                        player_action = None
-                    elif coor == 'e':
-                        player_action = None
-                        exit()
-                    else:
-                        coor = coor.split(' ')
-                        player_action = (int(coor[0]), int(coor[1]))
-
-                    player_action = GoGame.action_2d_to_1d(player_action, state)
-                    if valid_moves[player_action] > 0:
-                        break
-                except Exception:
-                    pass
-
-        action_probs = np.zeros(GoGame.get_action_size(state))
-        action_probs[player_action] = 1
-
-        return action_probs
-
-
 class Value(Policy):
     def __init__(self, name, val_func, mcts, temp=0, tempsteps=0):
         super(Value, self).__init__(name, temp, tempsteps)
@@ -173,10 +108,11 @@ class Value(Policy):
         prior_qs, post_qs = self.mcts_qvals(go_env)
         valid_moves = go_env.get_valid_moves()
         where_valid = np.where(valid_moves)
-        prior_pi, post_pi = np.zeros(prior_qs.shape), np.zeros(post_qs.shape)
-        prior_pi[where_valid] = special.softmax(prior_qs[where_valid])
-        post_pi[where_valid] = special.softmax(post_qs[where_valid])
-        pi = np.nansum([prior_pi, post_pi], axis=0)
+        exp_prior = np.exp(prior_qs)
+        exp_post = np.exp(post_qs)
+        exp_qs = np.nansum([exp_prior, exp_post], axis=0)
+        pi = np.zeros(exp_qs.shape)
+        pi[where_valid] = preprocessing.normalize(exp_qs[where_valid][np.newaxis], norm='l1')[0]
 
         step = kwargs['step']
         assert step is not None
@@ -273,6 +209,71 @@ class ActorCritic(Policy):
 
     def __str__(self):
         return f"{self.__class__.__name__}[{self.mcts}S {self.temp:.2f}T]-{self.name}"
+
+
+class Human(Policy):
+    def __init__(self, render):
+        self.render = render
+        super(Human, self).__init__('Human')
+
+    def __call__(self, go_env, **kwargs):
+        """
+        :param go_env:
+        :param step:
+        :return: Action probabilities
+        """
+        state = go_env.get_state()
+        valid_moves = go_env.get_valid_moves()
+
+        # Human interface
+        if self.render == 'human':
+            while True:
+                player_action = go_env.render(self.render)
+                if player_action is None:
+                    player_action = go_env.action_space.n - 1
+                else:
+                    player_action = GoGame.action_2d_to_1d(player_action, state)
+                if valid_moves[player_action] > 0:
+                    break
+        else:
+            while True:
+                try:
+                    go_env.render(self.render)
+                    coor = input("Enter actions coordinates i j:\n")
+                    if coor == 'p':
+                        player_action = None
+                    elif coor == 'e':
+                        player_action = None
+                        exit()
+                    else:
+                        coor = coor.split(' ')
+                        player_action = (int(coor[0]), int(coor[1]))
+
+                    player_action = GoGame.action_2d_to_1d(player_action, state)
+                    if valid_moves[player_action] > 0:
+                        break
+                except Exception:
+                    pass
+
+        action_probs = np.zeros(GoGame.get_action_size(state))
+        action_probs[player_action] = 1
+
+        return action_probs
+
+
+class Random(Policy):
+    def __init__(self):
+        super(Random, self).__init__('Random')
+
+    def __call__(self, go_env, **kwargs):
+        """
+        :param go_env:
+        :param step:
+        :return: Action probabilities
+        """
+
+        valid_moves = go_env.get_valid_moves()
+        return valid_moves / np.sum(valid_moves)
 
 
 RAND_PI = Random()

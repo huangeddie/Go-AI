@@ -20,10 +20,10 @@ class MyTestCase(unittest.TestCase):
     def test_val_vs_ac(self):
         self.go_env = gym.make('gym_go:go-v0', size=9)
         ac_model = actorcritic.ActorCriticNet(9)
-        ac_model.load_state_dict(torch.load('../../bin/baselines/ac.pt'))
+        ac_model.load_state_dict(torch.load('../../bin/baselines/ac9.pt'))
 
         val_model = value.ValueNet(9)
-        val_model.load_state_dict(torch.load('../../bin/baselines/val.pt'))
+        val_model.load_state_dict(torch.load('../../bin/baselines/val9.pt'))
 
         mct_pi = policies.ActorCritic('AC', ac_model, mcts=81, temp=1, tempsteps=24)
         val_pi = policies.Value('Val', val_model, mcts=8, temp=0.05, tempsteps=24)
@@ -51,12 +51,12 @@ class MyTestCase(unittest.TestCase):
         """
         Custom test case to test trained models
         """
-        self.go_env = gym.make('gym_go:go-v0', size=9)
-        curr_model = value.ValueNet(9, num_blocks=4)
-        curr_model.load_state_dict(torch.load('../../bin/baselines/val.pt'))
+        self.go_env = gym.make('gym_go:go-v0', size=5)
+        curr_model = value.ValueNet(5, num_blocks=4)
+        curr_model.load_state_dict(torch.load('../../bin/baselines/val5.pt'))
 
-        mct_pi = policies.Value('MCT', curr_model, mcts=8, temp=0.05, tempsteps=24)
-        val_pi = policies.Value('MCT', curr_model, mcts=0, temp=0.05, tempsteps=24)
+        mct_pi = policies.Value('MCT', curr_model, mcts=8, temp=0.2, tempsteps=24)
+        val_pi = policies.Value('MCT', curr_model, mcts=0, temp=0.2, tempsteps=24)
 
         win_rate, _, _ = game.play_games(self.go_env, mct_pi, val_pi, False, self.num_games)
         print(win_rate)
