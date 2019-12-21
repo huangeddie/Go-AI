@@ -37,8 +37,8 @@ def plot_move_distr(title, move_distr, valid_moves, scalar=None, pi=False):
     pass_val = float(move_distr[-1])
     move_distr = np.ma.masked_array(move_distr, mask=invalid_moves)
 
-    vmin = np.min(valid_values) if len(valid_values) > 0 else 0
-    vmax = np.max(valid_values) if len(valid_values) > 0 else 0
+    vmin = np.nanmin(valid_values) if len(valid_values) > 0 else 0
+    vmax = np.nanmax(valid_values) if len(valid_values) > 0 else 0
     plt.title(title + (' ' if scalar is None else ' {:.3f}S'.format(scalar))
               + '\n{:.3f}L '.format(vmin)
               + '{:.3f}H '.format(vmax)
@@ -86,8 +86,6 @@ def state_responses_helper(policy: policies.Policy, states, actions, rewards, ne
             state_vals.append(state_val)
             all_prior_qs.append(prior_qs)
             all_post_qs.append(post_qs)
-        else:
-            pi = policy(go_env, step=step)
         go_env.step(prev_action)
 
     valid_moves = data.batch_valid_moves(states)

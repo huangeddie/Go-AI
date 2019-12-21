@@ -69,5 +69,5 @@ if os.path.exists(stats_path):
     print("Made plots")
 
 # Sample trajectory and plot prior qvals
-measurements.plot_traj_fig(go_env, checkpoint_pi, os.path.join(checkdir, f'atraj_{checkpoint_pi.temp:.2f}.pdf'))
+measurements.plot_traj_fig(go_env, checkpoint_pi, os.path.join(checkdir, f'{args.model}_{checkpoint_pi.temp:.2f}.pdf'))
 print(f"Plotted sample trajectory with temp {args.temp}")
