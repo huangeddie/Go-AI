@@ -6,9 +6,8 @@ import shutil
 import torch
 from mpi4py import MPI
 
-from go_ai import data, policies
+from go_ai import data, policies, parallel
 from go_ai.models import value, actorcritic
-from go_ai.parallel import parallel_err
 
 
 def hyperparameters():
@@ -81,7 +80,7 @@ def sync_data(comm: MPI.Intracomm, args):
         if args.baseline:
             baseline_path = get_modelpath(args, 'baseline')
             shutil.copy(baseline_path, checkpath)
-            parallel_err(comm, "Starting from baseline")
+            parallel.parallel_debug(comm, "Starting from baseline")
         else:
             # Clear worker data
             episodesdir = args.episodesdir
@@ -90,7 +89,7 @@ def sync_data(comm: MPI.Intracomm, args):
             new_model, _ = create_model(args, '', latest_checkpoint=False)
 
             torch.save(new_model.state_dict(), checkpath)
-            parallel_err(comm, "Starting from scratch")
+            parallel.parallel_debug(comm, "Starting from scratch")
 
     comm.Barrier()
 
@@ -99,7 +98,7 @@ def get_modelpath(args, savetype):
     if savetype == 'checkpoint':
         dir = args.savedir
     elif savetype == 'baseline':
-        dir  = 'bin/baselines/'
+        dir = 'bin/baselines/'
     else:
         raise Exception(f"Unknown location type: {savetype}")
     path = os.path.join(dir, f'{args.model}{args.boardsize}.pt')

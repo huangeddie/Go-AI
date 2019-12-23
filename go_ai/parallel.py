@@ -1,11 +1,28 @@
+import logging
 import math
-import sys
+import os
 import time
 
 from mpi4py import MPI
-from tqdm import tqdm
 
 from go_ai import game
+
+
+def configure_logging(args):
+    bare_frmtr = logging.Formatter('%(message)s')
+
+    filer = logging.FileHandler(os.path.join(args.savedir, 'stats.txt'), 'w')
+    filer.setLevel(logging.INFO)
+    filer.setFormatter(bare_frmtr)
+
+    console = logging.StreamHandler()
+    console.setLevel(logging.DEBUG)
+    console.setFormatter(bare_frmtr)
+
+    rootlogger = logging.getLogger()
+    rootlogger.setLevel(logging.DEBUG)
+    rootlogger.addHandler(console)
+    rootlogger.addHandler(filer)
 
 
 def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
@@ -19,7 +36,6 @@ def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
     :param req_episodes:
     :return:
     """
-    rank = comm.Get_rank()
     world_size = comm.Get_size()
 
     worker_episodes = int(math.ceil(req_episodes / world_size))
@@ -35,12 +51,12 @@ def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
     winrate = comm.allreduce(winrate, op=MPI.SUM) / world_size
     avg_steps = comm.allreduce(sum(steps), op=MPI.SUM) / episodes
 
-    parallel_err(comm, f'{pi1} V {pi2} | {episodes} GAMES, {avg_time:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
-                       f'{100 * winrate:.1f}% WIN')
+    parallel_debug(comm, f'{pi1} V {pi2} | {episodes} GAMES, {avg_time:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
+                         f'{100 * winrate:.1f}% WIN')
     return winrate, traj
 
 
-def parallel_out(comm: MPI.Intracomm, s, rep=0):
+def parallel_info(comm: MPI.Intracomm, s, rep=0):
     """
     Only the first worker prints stuff
     :param rank:
@@ -49,10 +65,10 @@ def parallel_out(comm: MPI.Intracomm, s, rep=0):
     """
     rank = comm.Get_rank()
     if rank == rep:
-        print(s, flush=True)
+        logging.info(s)
 
 
-def parallel_err(comm: MPI.Intracomm, s, rep=0):
+def parallel_debug(comm: MPI.Intracomm, s, rep=0):
     """
     Only the first worker prints stuff
     :param rank:
@@ -61,5 +77,5 @@ def parallel_err(comm: MPI.Intracomm, s, rep=0):
     """
     rank = comm.Get_rank()
     if rank == rep:
-        tqdm.write(f"{time.strftime('%H:%M:%S', time.localtime())}\t{s}", file=sys.stderr)
-        sys.stderr.flush()
+        s = f"{time.strftime('%H:%M:%S', time.localtime())}\t{s}"
+        logging.debug(s)

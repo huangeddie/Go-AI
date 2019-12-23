@@ -14,11 +14,11 @@ args = utils.hyperparameters()
 go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
-checkdir = 'bin/checkpoints/2019-12-20/'
-checkpoint_model, checkpoint_pi = utils.create_model(args, 'Checkpoint', checkdir=checkdir)
-print(f"Loaded model {checkpoint_pi} from {checkdir}")
+modeldir = 'bin/checkpoints/2019-12-23/'
+model, policy = utils.create_model(args, 'Checkpoint', checkdir=modeldir)
+print(f"Loaded model {policy} from {modeldir}")
 
-stats_path = os.path.join(checkdir, 'stats.txt')
+stats_path = os.path.join(modeldir, 'stats.txt')
 
 
 def convert_to_secs(time_str):
@@ -52,7 +52,7 @@ if os.path.exists(stats_path):
     plt.plot(checks['HOURS'], check_elos)
     plt.xlabel("Hours")
     plt.ylabel("ELO")
-    plt.savefig(os.path.join(checkdir, 'elos.pdf'))
+    plt.savefig(os.path.join(modeldir, 'elos.pdf'))
     plt.close()
 
     # Win rate against random and greedy
@@ -63,11 +63,12 @@ if os.path.exists(stats_path):
     plt.xlabel('Hours')
     plt.ylabel('Winrate')
     plt.legend(['Random', 'Greedy'])
-    plt.savefig(os.path.join(checkdir, 'winrates.pdf'))
+    plt.savefig(os.path.join(modeldir, 'winrates.pdf'))
     plt.close()
 
     print("Made plots")
 
 # Sample trajectory and plot prior qvals
-measurements.plot_traj_fig(go_env, checkpoint_pi, os.path.join(checkdir, f'{args.model}_{checkpoint_pi.temp:.2f}.pdf'))
+traj_path = os.path.join(modeldir, f'{args.model}{args.boardsize}_{policy.temp:.2f}.pdf')
+measurements.plot_traj_fig(go_env, policy, traj_path)
 print(f"Plotted sample trajectory with temp {args.temp}")

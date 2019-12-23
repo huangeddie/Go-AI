@@ -8,7 +8,6 @@ from mpi4py import MPI
 from go_ai import policies, data, utils, parallel
 from go_ai.models import value, actorcritic, ModelMetrics
 
-
 def evaluate(comm, args, curr_pi, checkpoint_pi, winrates):
     accepted = False
 
@@ -16,7 +15,7 @@ def evaluate(comm, args, curr_pi, checkpoint_pi, winrates):
     # See how this new model compares
     for opponent in [checkpoint_pi, policies.RAND_PI, policies.GREEDY_PI]:
         # Play some games
-        parallel.parallel_err(comm, f'Pitting {curr_pi} V {opponent}')
+        parallel.parallel_debug(comm, f'Pitting {curr_pi} V {opponent}')
         wr, _ = parallel.parallel_play(comm, go_env, curr_pi, opponent, False, args.evaluations)
         winrates[opponent] = wr
 
@@ -25,7 +24,7 @@ def evaluate(comm, args, curr_pi, checkpoint_pi, winrates):
             # Sync checkpoint
             if wr > 0.55:
                 utils.sync_checkpoint(comm, args, new_pi=curr_pi, old_pi=checkpoint_pi)
-                parallel.parallel_err(comm, f"Accepted new checkpoint")
+                parallel.parallel_debug(comm, f"Accepted new checkpoint")
 
                 accepted = True
             else:
@@ -41,27 +40,27 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
     curr_model = curr_pi.pytorch_model
 
     # Play episodes
-    parallel.parallel_err(comm, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
+    parallel.parallel_debug(comm, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
     wr, trajectories = parallel.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True, args.episodes)
     replay_data.extend(trajectories)
 
     # Write episodes
     data.save_replaydata(comm, replay_data, args.episodesdir)
     comm.Barrier()
-    parallel.parallel_err(comm, 'Wrote all replay data to disk')
+    parallel.parallel_debug(comm, 'Wrote all replay data to disk')
 
     # Sample data as batches
     trainadata, replay_len = data.sample_replaydata(comm, args.episodesdir, args.trainsize, args.batchsize)
 
     # Optimize
-    parallel.parallel_err(comm, f'Optimizing in {len(trainadata)} training steps...')
+    parallel.parallel_debug(comm, f'Optimizing in {len(trainadata)} training steps...')
     if args.model == 'val':
         metrics = value.optimize(comm, curr_model, trainadata, optim)
     elif args.model == 'ac':
         metrics = actorcritic.optimize(comm, curr_model, trainadata, optim)
 
     # Sync model
-    parallel.parallel_err(comm, f'Optimized | {str(metrics)}')
+    parallel.parallel_debug(comm, f'Optimized | {str(metrics)}')
 
     return metrics, replay_len
 
@@ -79,7 +78,7 @@ def train(comm, args, curr_pi, checkpoint_pi):
     starttime = datetime.now()
 
     # Header output
-    parallel.parallel_out(comm, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
+    parallel.parallel_info(comm, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
 
     winrates = collections.defaultdict(float)
     for iteration in range(args.iterations):
@@ -93,9 +92,9 @@ def train(comm, args, curr_pi, checkpoint_pi):
             if accepted == True:
                 # Clear episodes
                 replay_data.clear()
-                parallel.parallel_err(comm, "Cleared replay data")
+                parallel.parallel_debug(comm, "Cleared replay data")
             else:
-                parallel.parallel_err(comm, f"Continuing to train candidate checkpoint")
+                parallel.parallel_debug(comm, f"Continuing to train candidate checkpoint")
 
         # Print iteration summary
         currtime = datetime.now()
@@ -105,18 +104,21 @@ def train(comm, args, curr_pi, checkpoint_pi):
                     f"{100 * metrics.act_acc:04.1f}\t{metrics.act_loss:04.3f}\t" \
                     f"{100 * winrates[checkpoint_pi]:04.1f}\t{100 * winrates[policies.RAND_PI]:04.1f}\t" \
                     f"{100 * winrates[policies.GREEDY_PI]:04.1f}"
-        parallel.parallel_out(comm, iter_info)
+        parallel.parallel_info(comm, iter_info)
 
 
 if __name__ == '__main__':
     # Arguments
     args = utils.hyperparameters()
 
+    # Logging
+    parallel.configure_logging(args)
+
     # Parallel Setup
     comm = MPI.COMM_WORLD
     world_size = comm.Get_size()
 
-    parallel.parallel_err(comm, f"{world_size} Workers, {args}")
+    parallel.parallel_debug(comm, f"{world_size} Workers, {args}")
 
     # Set parameters and episode data on disk
     utils.sync_data(comm, args)

@@ -121,13 +121,13 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
         pred_wins = torch.sign(vals)
         critic_running_loss += loss.item()
         critic_running_acc += torch.mean((pred_wins == wins).type(dtype)).item()
-    parallel.parallel_err(comm, 'Optimized Critic')
+    parallel.parallel_debug(comm, 'Optimized Critic')
     # Sync Parameters
     average_model(comm, model)
 
     pi_func, val_func = pytorch_ac_to_numpy(model)
     qvals, states = parallel_get_qvals(comm, batched_data, val_func)
-    parallel.parallel_err(comm, 'Calculated QVals')
+    parallel.parallel_debug(comm, 'Calculated QVals')
 
     actor_running_loss = 0
     actor_running_acc = 0
@@ -150,7 +150,7 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
         actor_running_loss += loss.item()
         actor_running_acc += torch.mean((pred_actions == greedy_actions).type(dtype)).item()
 
-    parallel.parallel_err(comm, 'Optimized Actor')
+    parallel.parallel_debug(comm, 'Optimized Actor')
 
     # Sync Parameters
     average_model(comm, model)
