@@ -14,7 +14,7 @@ args = utils.hyperparameters()
 go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
-modeldir = 'bin/checkpoints/2019-12-23/'
+modeldir = 'bin/baselines/'
 model, policy = utils.create_model(args, 'Checkpoint', checkdir=modeldir)
 print(f"Loaded model {policy} from {modeldir}")
 

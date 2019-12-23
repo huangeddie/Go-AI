@@ -8,6 +8,7 @@ from mpi4py import MPI
 from go_ai import policies, data, utils, parallel
 from go_ai.models import value, actorcritic, ModelMetrics
 
+
 def evaluate(comm, args, curr_pi, checkpoint_pi, winrates):
     accepted = False
 
@@ -33,7 +34,7 @@ def evaluate(comm, args, curr_pi, checkpoint_pi, winrates):
     return accepted, winrates
 
 
-def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
+def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data, rejections):
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize, reward_method=args.reward)
     metrics = ModelMetrics()
@@ -41,7 +42,8 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
 
     # Play episodes
     parallel.parallel_debug(comm, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
-    wr, trajectories = parallel.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True, args.episodes)
+    wr, trajectories = parallel.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True,
+                                              (2 ** rejections) * args.episodes)
     replay_data.extend(trajectories)
 
     # Write episodes
@@ -81,9 +83,10 @@ def train(comm, args, curr_pi, checkpoint_pi):
     parallel.parallel_info(comm, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
 
     winrates = collections.defaultdict(float)
+    rejections = 0
     for iteration in range(args.iterations):
         # Train
-        metrics, replay_len = train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data)
+        metrics, replay_len = train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data, rejections)
 
         # Model Evaluation
         if (iteration + 1) % args.eval_interval == 0:
@@ -93,8 +96,10 @@ def train(comm, args, curr_pi, checkpoint_pi):
                 # Clear episodes
                 replay_data.clear()
                 parallel.parallel_debug(comm, "Cleared replay data")
+                rejections = 0
             else:
                 parallel.parallel_debug(comm, f"Continuing to train candidate checkpoint")
+                rejections += 1
 
         # Print iteration summary
         currtime = datetime.now()
