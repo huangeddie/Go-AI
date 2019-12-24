@@ -119,10 +119,10 @@ if __name__ == '__main__':
 
     # Arguments
     args = utils.hyperparameters(comm)
-    parallel.parallel_debug(comm, f"{world_size} Workers, {args}")
 
     # Logging
     parallel.configure_logging(args)
+    parallel.parallel_debug(comm, f"{world_size} Workers, {args}")
 
     # Set parameters and episode data on disk
     utils.sync_data(comm, args)
