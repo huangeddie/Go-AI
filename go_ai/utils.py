@@ -10,7 +10,7 @@ from go_ai import data, policies, parallel
 from go_ai.models import value, actorcritic
 
 
-def hyperparameters():
+def hyperparameters(comm: MPI.Intracomm):
     today = str(datetime.date.today())
 
     parser = argparse.ArgumentParser()
@@ -57,7 +57,14 @@ def hyperparameters():
     parser.add_argument('--render', type=str, choices=['terminal', 'human'], default='terminal',
                         help='type of rendering')
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # Save directory
+    if not os.path.exists(args.savedir):
+        if comm.Get_rank() == 0:
+            os.mkdir(args.savedir)
+
+    return args
 
 
 def sync_checkpoint(comm: MPI.Intracomm, args, new_pi, old_pi):
@@ -73,9 +80,6 @@ def sync_checkpoint(comm: MPI.Intracomm, args, new_pi, old_pi):
 def sync_data(comm: MPI.Intracomm, args):
     rank = comm.Get_rank()
     if rank == 0:
-        if not os.path.exists(args.savedir):
-            os.mkdir(args.savedir)
-
         checkpath = get_modelpath(args, 'checkpoint')
         if args.baseline:
             baseline_path = get_modelpath(args, 'baseline')

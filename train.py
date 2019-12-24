@@ -113,17 +113,16 @@ def train(comm, args, curr_pi, checkpoint_pi):
 
 
 if __name__ == '__main__':
-    # Arguments
-    args = utils.hyperparameters()
-
-    # Logging
-    parallel.configure_logging(args)
-
     # Parallel Setup
     comm = MPI.COMM_WORLD
     world_size = comm.Get_size()
 
+    # Arguments
+    args = utils.hyperparameters(comm)
     parallel.parallel_debug(comm, f"{world_size} Workers, {args}")
+
+    # Logging
+    parallel.configure_logging(args)
 
     # Set parameters and episode data on disk
     utils.sync_data(comm, args)
