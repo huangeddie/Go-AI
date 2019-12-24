@@ -8,7 +8,9 @@ from mpi4py import MPI
 from go_ai import game
 
 
-def configure_logging(args):
+def configure_logging(args, comm: MPI.Intracomm):
+    if comm.Get_rank() != 0:
+        return
     bare_frmtr = logging.Formatter('%(message)s')
 
     filer = logging.FileHandler(os.path.join(args.savedir, 'stats.txt'), 'w')
@@ -23,6 +25,8 @@ def configure_logging(args):
     rootlogger.setLevel(logging.DEBUG)
     rootlogger.addHandler(console)
     rootlogger.addHandler(filer)
+
+    comm.Barrier()
 
 
 def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):

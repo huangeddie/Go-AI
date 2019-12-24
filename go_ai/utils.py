@@ -63,6 +63,7 @@ def hyperparameters(comm: MPI.Intracomm):
     if not os.path.exists(args.savedir):
         if comm.Get_rank() == 0:
             os.mkdir(args.savedir)
+    comm.Barrier()
 
     return args
 

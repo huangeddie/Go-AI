@@ -121,7 +121,7 @@ if __name__ == '__main__':
     args = utils.hyperparameters(comm)
 
     # Logging
-    parallel.configure_logging(args)
+    parallel.configure_logging(args, comm)
     parallel.parallel_debug(comm, f"{world_size} Workers, {args}")
 
     # Set parameters and episode data on disk
