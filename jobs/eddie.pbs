@@ -9,8 +9,8 @@
 module load openmpi/3.1.1-intel-18.0
 
 cd $PBS_O_WORKDIR
-echo -n >bin/stats.txt
-echo -n >bin/log.txt
+echo -n >bin/checkpoints/stats.txt
+echo -n >bin/checkpoints/log.txt
 
 mpiexec -n 48 --bind-to core python3 train.py --boardsize=9 --model=val --mcts=8 --temp=0.06 --baseline=True \
 --episodes=192 --evaluations=192 --episodesdir=/home/ezhuang2/scratch/
