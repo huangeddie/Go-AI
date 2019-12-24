@@ -9,22 +9,21 @@ from go_ai import game
 
 
 def configure_logging(args, comm: MPI.Intracomm):
-    if comm.Get_rank() != 0:
-        return
-    bare_frmtr = logging.Formatter('%(message)s')
+    if comm.Get_rank() == 0:
+        bare_frmtr = logging.Formatter('%(message)s')
 
-    filer = logging.FileHandler(os.path.join(args.savedir, 'stats.txt'), 'w')
-    filer.setLevel(logging.INFO)
-    filer.setFormatter(bare_frmtr)
+        filer = logging.FileHandler(os.path.join(args.savedir, 'stats.txt'), 'w')
+        filer.setLevel(logging.INFO)
+        filer.setFormatter(bare_frmtr)
 
-    console = logging.StreamHandler()
-    console.setLevel(logging.DEBUG)
-    console.setFormatter(bare_frmtr)
+        console = logging.StreamHandler()
+        console.setLevel(logging.DEBUG)
+        console.setFormatter(bare_frmtr)
 
-    rootlogger = logging.getLogger()
-    rootlogger.setLevel(logging.DEBUG)
-    rootlogger.addHandler(console)
-    rootlogger.addHandler(filer)
+        rootlogger = logging.getLogger()
+        rootlogger.setLevel(logging.DEBUG)
+        rootlogger.addHandler(console)
+        rootlogger.addHandler(filer)
 
     comm.Barrier()
 
@@ -60,7 +59,7 @@ def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
     return winrate, traj
 
 
-def parallel_info(comm: MPI.Intracomm, s, rep=0):
+def parallel_info(comm: MPI.Intracomm, s):
     """
     Only the first worker prints stuff
     :param rank:
@@ -68,11 +67,11 @@ def parallel_info(comm: MPI.Intracomm, s, rep=0):
     :return:
     """
     rank = comm.Get_rank()
-    if rank == rep:
+    if rank == 0:
         logging.info(s)
 
 
-def parallel_debug(comm: MPI.Intracomm, s, rep=0):
+def parallel_debug(comm: MPI.Intracomm, s):
     """
     Only the first worker prints stuff
     :param rank:
@@ -80,6 +79,6 @@ def parallel_debug(comm: MPI.Intracomm, s, rep=0):
     :return:
     """
     rank = comm.Get_rank()
-    if rank == rep:
+    if rank == 0:
         s = f"{time.strftime('%H:%M:%S', time.localtime())}\t{s}"
         logging.debug(s)
