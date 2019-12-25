@@ -10,8 +10,6 @@ from go_ai.models import value, actorcritic, ModelMetrics
 
 
 def evaluate(comm, args, curr_pi, checkpoint_pi, winrates):
-    accepted = False
-
     go_env = gym.make('gym_go:go-v0', size=args.boardsize, reward_method=args.reward)
     # See how this new model compares
     for opponent in [checkpoint_pi, policies.RAND_PI, policies.GREEDY_PI]:
@@ -20,21 +18,8 @@ def evaluate(comm, args, curr_pi, checkpoint_pi, winrates):
         wr, _ = parallel.parallel_play(comm, go_env, curr_pi, opponent, False, args.evaluations)
         winrates[opponent] = wr
 
-        # Do stuff based on the opponent we faced
-        if opponent == checkpoint_pi:
-            # Sync checkpoint
-            if wr > 0.55:
-                utils.sync_checkpoint(comm, args, new_pi=curr_pi, old_pi=checkpoint_pi)
-                parallel.parallel_debug(comm, f"Accepted new checkpoint")
 
-                accepted = True
-            else:
-                break
-
-    return accepted, winrates
-
-
-def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data, rejections):
+def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize, reward_method=args.reward)
     metrics = ModelMetrics()
@@ -42,8 +27,7 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data, rejection
 
     # Play episodes
     parallel.parallel_debug(comm, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
-    wr, trajectories = parallel.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True,
-                                              (2 ** rejections) * args.episodes)
+    wr, trajectories = parallel.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True, args.episodes)
     replay_data.extend(trajectories)
 
     # Write episodes
@@ -83,23 +67,15 @@ def train(comm, args, curr_pi, checkpoint_pi):
     parallel.parallel_info(comm, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
 
     winrates = collections.defaultdict(float)
-    rejections = 0
     for iteration in range(args.iterations):
         # Train
-        metrics, replay_len = train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data, rejections)
+        metrics, replay_len = train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data)
 
         # Model Evaluation
-        if (iteration + 1) % args.eval_interval == 0:
-            accepted = evaluate(comm, args, curr_pi, checkpoint_pi, winrates)
+        evaluate(comm, args, curr_pi, checkpoint_pi, winrates)
 
-            if accepted == True:
-                # Clear episodes
-                replay_data.clear()
-                parallel.parallel_debug(comm, "Cleared replay data")
-                rejections = 0
-            else:
-                parallel.parallel_debug(comm, f"Continuing to train candidate checkpoint")
-                rejections += 1
+        # Sync
+        utils.sync_checkpoint(comm, args, new_pi=curr_pi, old_pi=checkpoint_pi)
 
         # Print iteration summary
         currtime = datetime.now()
