@@ -31,7 +31,7 @@ def hyperparameters(comm: MPI.Intracomm):
 
     # Data Sizes
     parser.add_argument('--batchsize', type=int, default=32, help='batch size')
-    parser.add_argument('--replaysize', type=int, default=200000, help='max replay memory size')
+    parser.add_argument('--replaysize', type=int, default=500000, help='max number of games to store')
     parser.add_argument('--trainsize', type=int, default=1000 * 32, help='train data size for one iteration')
 
     # Training

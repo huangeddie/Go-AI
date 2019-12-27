@@ -12,7 +12,7 @@ def configure_logging(args, comm: MPI.Intracomm):
     if comm.Get_rank() == 0:
         bare_frmtr = logging.Formatter('%(message)s')
 
-        filer = logging.FileHandler(os.path.join(args.savedir, 'stats.txt'), 'w')
+        filer = logging.FileHandler(os.path.join(args.savedir, f'{args.model}{args.boardsize}_stats.txt'), 'w')
         filer.setLevel(logging.INFO)
         filer.setFormatter(bare_frmtr)
 
@@ -46,17 +46,18 @@ def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
     single_worker = comm.Get_size() <= 1
 
     timestart = time.time()
-    winrate, steps, traj = game.play_games(go_env, pi1, pi2, gettraj, worker_episodes, progress=single_worker)
+    p1wr, black_wr, steps, traj = game.play_games(go_env, pi1, pi2, gettraj, worker_episodes, progress=single_worker)
     timeend = time.time()
 
     duration = timeend - timestart
     avg_time = comm.allreduce(duration / worker_episodes, op=MPI.SUM) / world_size
-    winrate = comm.allreduce(winrate, op=MPI.SUM) / world_size
+    p1wr = comm.allreduce(p1wr, op=MPI.SUM) / world_size
+    black_wr = comm.allreduce(black_wr, op=MPI.SUM) / world_size
     avg_steps = comm.allreduce(sum(steps), op=MPI.SUM) / episodes
 
     parallel_debug(comm, f'{pi1} V {pi2} | {episodes} GAMES, {avg_time:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
-                         f'{100 * winrate:.1f}% WIN')
-    return winrate, traj
+                         f'{100 * p1wr:.1f}% WIN({100 * black_wr:.1f}% BLACK_WIN)')
+    return p1wr, black_wr, traj
 
 
 def parallel_info(comm: MPI.Intracomm, s):

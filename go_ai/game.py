@@ -13,7 +13,8 @@ def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Po
                progress=True):
     replay_data = []
     all_steps = []
-    wins = 0
+    first_wins = 0
+    black_wins = 0
     if progress:
         pbar = tqdm(range(1, episodes + 1), desc="{} vs. {}".format(first_policy, second_policy), leave=True)
     else:
@@ -21,17 +22,19 @@ def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Po
     for i in pbar:
         go_env.reset()
         if i % 2 == 0:
-            w, steps, traj = pit(go_env, first_policy, second_policy, get_traj=get_traj)
+            black_won, steps, traj = pit(go_env, first_policy, second_policy, get_traj=get_traj)
+            first_won = black_won
         else:
-            w, steps, traj = pit(go_env, second_policy, first_policy, get_traj=get_traj)
-            w = -w
-        wins += int(w == 1)
+            black_won, steps, traj = pit(go_env, second_policy, first_policy, get_traj=get_traj)
+            first_won = -black_won
+        black_wins += int(black_won == 1)
+        first_wins += int(first_won == 1)
         all_steps.append(steps)
         replay_data.extend(traj)
         if isinstance(pbar, tqdm):
-            pbar.set_postfix_str("{:.1f}% WIN".format(100 * wins / i))
+            pbar.set_postfix_str("{:.1f}% WIN".format(100 * first_wins / i))
 
-    return wins / episodes, all_steps, replay_data
+    return first_wins / episodes, black_wins / episodes, all_steps, replay_data
 
 
 def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, get_traj=False):

@@ -5,20 +5,21 @@ import gym
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from mpi4py import MPI
 
 from go_ai import measurements, utils
 
-args = utils.hyperparameters()
+args = utils.hyperparameters(MPI.COMM_WORLD)
 
 # Environment
 go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
-modeldir = 'bin/baselines/'
+modeldir = 'bin/checkpoints/2019-12-26/'
 model, policy = utils.create_model(args, 'Checkpoint', checkdir=modeldir)
 print(f"Loaded model {policy} from {modeldir}")
 
-stats_path = os.path.join(modeldir, 'stats.txt')
+stats_path = os.path.join(modeldir, f'{args.model}{args.boardsize}_stats.txt')
 
 
 def convert_to_secs(time_str):
@@ -39,20 +40,20 @@ if os.path.exists(stats_path):
 
     # Elo
     # New checkpoints
-    checks = df[df['C_WR'] > 55]
-    check_elos = np.zeros(len(checks))
-    for i in range(len(checks)):
+    check_elos = np.zeros(len(df))
+    for i in range(len(df)):
         if i == 0:
             prev_elo = 0
         else:
             prev_elo = check_elos[i - 1]
-        wr = checks['C_WR'].values[i] / 100
-        check_elos[i] = prev_elo + 400 * (2 * wr - 1)
+        wr = df['C_WR'].values[i] / 100
+        delta = 400 * (2 * wr - 1)
+        check_elos[i] = prev_elo + delta
     plt.title('ELO Score')
-    plt.plot(checks['HOURS'], check_elos)
+    plt.plot(df['HOURS'], check_elos)
     plt.xlabel("Hours")
     plt.ylabel("ELO")
-    plt.savefig(os.path.join(modeldir, 'elos.pdf'))
+    plt.savefig(os.path.join(modeldir, f'{args.model}{args.boardsize}_elos.pdf'))
     plt.close()
 
     # Win rate against random and greedy
@@ -63,12 +64,12 @@ if os.path.exists(stats_path):
     plt.xlabel('Hours')
     plt.ylabel('Winrate')
     plt.legend(['Random', 'Greedy'])
-    plt.savefig(os.path.join(modeldir, 'winrates.pdf'))
+    plt.savefig(os.path.join(modeldir, f'{args.model}{args.boardsize}_winrates.pdf'))
     plt.close()
 
     print("Made plots")
 
 # Sample trajectory and plot prior qvals
-traj_path = os.path.join(modeldir, f'{args.model}{args.boardsize}_{policy.temp:.2f}.pdf')
+traj_path = os.path.join(modeldir, f'{args.model}{args.boardsize}_heat{policy.temp:.2f}.pdf')
 measurements.plot_traj_fig(go_env, policy, traj_path)
 print(f"Plotted sample trajectory with temp {args.temp}")
