@@ -15,7 +15,7 @@ def evaluate(comm, args, curr_pi, checkpoint_pi, winrates):
     for opponent in [checkpoint_pi, policies.RAND_PI, policies.GREEDY_PI]:
         # Play some games
         parallel.parallel_debug(comm, f'Pitting {curr_pi} V {opponent}')
-        wr, _, _ = parallel.parallel_play(comm, go_env, curr_pi, opponent, False, args.evaluations)
+        wr, _, _ = parallel.parallel_play(comm, go_env, curr_pi, opponent, args.evaluations)
         winrates[opponent] = wr
 
 
@@ -27,8 +27,8 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
 
     # Play episodes
     parallel.parallel_debug(comm, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
-    _, _, trajectories = parallel.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, True, args.episodes)
-    replay_data.extend(trajectories)
+    _, _, replays = parallel.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, args.episodes)
+    replay_data.extend(replays)
 
     # Write episodes
     data.save_replaydata(comm, replay_data, args.episodesdir)

@@ -3,8 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-import go_ai.game
-from go_ai import data, policies
+from go_ai import data, policies, game
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -135,14 +134,15 @@ def state_responses_helper(policy: policies.Policy, states, actions, rewards, ne
     return fig
 
 
-def state_responses(policy: policies.Policy, replay_mem):
+def state_responses(policy: policies.Policy, traj: game.Trajectory):
     """
     :param policy_args: The model
-    :param replay_mem: List of events
+    :param traj: List of events
     :return: The figure visualizing responses of the model
     on those events
     """
-    states, actions, rewards, next_states, terminals, wins, pis = data.replaylist_to_numpy(replay_mem)
+    transtraj = traj.transpose()
+    states, actions, rewards, next_states, terminals, wins, pis = data.trans_trajs_to_numpy(transtraj)
     assert len(states[0].shape) == 3 and states[0].shape[1] == states[0].shape[2], states[0].shape
 
     fig = state_responses_helper(policy, states, actions, rewards, next_states, terminals, wins, pis)
@@ -157,7 +157,7 @@ def plot_traj_fig(go_env, policy: policies.Policy, outpath):
     :return: A plot of the game including the policy's responses to each state
     """
     go_env.reset()
-    _, _, traj = go_ai.game.pit(go_env, black_policy=policy, white_policy=policy, get_traj=True)
+    _, _, traj = game.pit(go_env, black_policy=policy, white_policy=policy)
     state_responses(policy, traj)
     plt.savefig(outpath)
     plt.close()

@@ -1,5 +1,4 @@
 import gym
-import numpy as np
 from tqdm import tqdm
 
 from go_ai import policies
@@ -9,35 +8,56 @@ GoVars = go_env.govars
 GoGame = go_env.gogame
 
 
-def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Policy, get_traj, episodes,
-               progress=True):
-    replay_data = []
-    all_steps = []
-    first_wins = 0
-    black_wins = 0
-    if progress:
-        pbar = tqdm(range(1, episodes + 1), desc="{} vs. {}".format(first_policy, second_policy), leave=True)
-    else:
-        pbar = range(1, episodes + 1)
-    for i in pbar:
-        go_env.reset()
-        if i % 2 == 0:
-            black_won, steps, traj = pit(go_env, first_policy, second_policy, get_traj=get_traj)
-            first_won = black_won
-        else:
-            black_won, steps, traj = pit(go_env, second_policy, first_policy, get_traj=get_traj)
-            first_won = -black_won
-        black_wins += int(black_won == 1)
-        first_wins += int(first_won == 1)
-        all_steps.append(steps)
-        replay_data.extend(traj)
-        if isinstance(pbar, tqdm):
-            pbar.set_postfix_str("{:.1f}% WIN".format(100 * first_wins / i))
+class Trajectory:
+    def __init__(self):
+        self.states = []
+        self.actions = []
+        self.rewards = []
+        self.next_states = []
+        self.pis = []
 
-    return first_wins / episodes, black_wins / episodes, all_steps, replay_data
+    def transpose(self):
+        transposed = []
+        black_won = self.get_winner()
+        n = self.get_length()
+        zipped = zip(self.states, self.actions, self.rewards, self.next_states, self.pis)
+        for i, (state, action, reward, next_state, pi) in enumerate(zipped):
+            turn = i % 2
+            if turn == 0:
+                won = black_won
+            else:
+                won = -black_won
+
+            terminal = i == n - 1
+
+            transposed.append((state, action, reward, next_state, terminal, won, pi))
+
+        return transposed
+
+    def add_event(self, state, action, reward, next_state, pi):
+        self.states.append(state)
+        self.actions.append(action)
+        self.rewards.append(reward)
+        self.next_states.append(next_state)
+        self.pis.append(pi)
+
+    def set_win(self, black_won):
+        self.rewards[-1] = black_won
+
+    def get_winner(self):
+        return self.rewards[-1]
+
+    def get_length(self):
+        n = len(self.states)
+        assert len(self.actions) == n
+        assert len(self.rewards) == n
+        assert len(self.next_states) == n
+        assert len(self.pis) == n
+
+        return n
 
 
-def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, get_traj=False):
+def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy):
     """
     Pits two policies against each other and returns the results
     :param get_trajectory: Whether to store trajectory in memory
@@ -58,7 +78,7 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
 
     max_steps = 2 * (go_env.size ** 2)
 
-    cache = []
+    traj = Trajectory()
 
     done = False
 
@@ -86,8 +106,7 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
             done = True
 
         # Add to memory cache
-        if get_traj:
-            cache.append((curr_turn, can_state, action, reward, done, pi))
+        traj.add_event(can_state, action, reward, next_state, pi)
 
         # Increment steps
         num_steps += 1
@@ -100,15 +119,33 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy, ge
     # Determine who won
     black_won = go_env.get_winning()
 
-    replay_mem = []
+    traj.set_win(black_won)
 
-    for i, (curr_turn, can_state, action, reward, done, pi) in enumerate(cache):
-        win = black_won if curr_turn == GoVars.BLACK else - black_won
-        if i < len(cache) - 1:
-            can_nextstate = cache[i + 1][1]
+    return black_won, num_steps, traj
+
+
+def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Policy, episodes, progress=True):
+    replay_data = []
+    all_steps = []
+    first_wins = 0
+    black_wins = 0
+    if progress:
+        pbar = tqdm(range(1, episodes + 1), desc="{} vs. {}".format(first_policy, second_policy), leave=True)
+    else:
+        pbar = range(1, episodes + 1)
+    for i in pbar:
+        go_env.reset()
+        if i % 2 == 0:
+            black_won, steps, traj = pit(go_env, first_policy, second_policy)
+            first_won = black_won
         else:
-            can_nextstate = np.zeros(can_state.shape)
-        reward = reward * (1 - done) + win * done
-        replay_mem.append((can_state, action, reward, can_nextstate, done, win, pi))
+            black_won, steps, traj = pit(go_env, second_policy, first_policy)
+            first_won = -black_won
+        black_wins += int(black_won == 1)
+        first_wins += int(first_won == 1)
+        all_steps.append(steps)
+        replay_data.append(traj)
+        if isinstance(pbar, tqdm):
+            pbar.set_postfix_str("{:.1f}% WIN".format(100 * first_wins / i))
 
-    return black_won, num_steps, replay_mem
+    return first_wins / episodes, black_wins / episodes, all_steps, replay_data

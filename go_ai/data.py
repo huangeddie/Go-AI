@@ -44,22 +44,22 @@ def batch_random_symmetries(states):
         processed_states.append(GoGame.random_symmetry(state))
     return np.array(processed_states)
 
+def replays_to_trans_trajs(replay_data):
+    trans_trajs = []
+    for traj in replay_data:
+        trans_trajs.extend(traj.transpose())
+    return trans_trajs
 
-def replaylist_to_numpy(replay_mem):
-    """
-    Turns states from (BATCH_SIZE, 6, BOARD_SIZE, BOARD_SIZE) to (BATCH_SIZE, BOARD_SIZE, BOARD_SIZE, 6)
-    :param replay_mem:
-    :return:
-    """
-    replay_mem = list(zip(*replay_mem))
+def trans_trajs_to_numpy(trans_trajs):
+    transposed = list(zip(*trans_trajs))
 
-    states = np.array(list(replay_mem[0]), dtype=np.float32)
-    actions = np.array(list(replay_mem[1]), dtype=np.int)
-    rewards = np.array(list(replay_mem[2]), dtype=np.float32).reshape((-1,))
-    next_states = np.array(list(replay_mem[3]), dtype=np.float32)
-    terminals = np.array(list(replay_mem[4]), dtype=np.uint8)
-    wins = np.array(list(replay_mem[5]), dtype=np.int)
-    pis = np.array(list(replay_mem[6]), dtype=np.float32)
+    states = np.array(list(transposed[0]), dtype=np.float32)
+    actions = np.array(list(transposed[1]), dtype=np.int)
+    rewards = np.array(list(transposed[2]), dtype=np.float32).reshape((-1,))
+    next_states = np.array(list(transposed[3]), dtype=np.float32)
+    terminals = np.array(list(transposed[4]), dtype=np.uint8)
+    wins = np.array(list(transposed[5]), dtype=np.int)
+    pis = np.array(list(transposed[6]), dtype=np.float32)
 
     return states, actions, rewards, next_states, terminals, wins, pis
 
@@ -103,7 +103,10 @@ def sample_replaydata(comm: MPI.Intracomm, episodesdir, request_size, batchsize)
             del all_data
         comm.Barrier()
 
-    sample_data = replaylist_to_numpy(sample_data)
+    concat_trajs = replays_to_trans_trajs(sample_data)
+    random.shuffle(concat_trajs)
+
+    sample_data = trans_trajs_to_numpy(concat_trajs)
 
     sample_size = len(sample_data[0])
     for component in sample_data:

@@ -28,7 +28,7 @@ def configure_logging(args, comm: MPI.Intracomm):
     comm.Barrier()
 
 
-def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
+def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, req_episodes):
     """
     Plays games in parallel
     :param comm:
@@ -46,7 +46,7 @@ def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
     single_worker = comm.Get_size() <= 1
 
     timestart = time.time()
-    p1wr, black_wr, steps, traj = game.play_games(go_env, pi1, pi2, gettraj, worker_episodes, progress=single_worker)
+    p1wr, black_wr, steps, replay_mem = game.play_games(go_env, pi1, pi2, worker_episodes, progress=single_worker)
     timeend = time.time()
 
     duration = timeend - timestart
@@ -57,7 +57,7 @@ def parallel_play(comm: MPI.Intracomm, go_env, pi1, pi2, gettraj, req_episodes):
 
     parallel_debug(comm, f'{pi1} V {pi2} | {episodes} GAMES, {avg_time:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
                          f'{100 * p1wr:.1f}% WIN({100 * black_wr:.1f}% BLACK_WIN)')
-    return p1wr, black_wr, traj
+    return p1wr, black_wr, replay_mem
 
 
 def parallel_info(comm: MPI.Intracomm, s):
