@@ -15,7 +15,7 @@ def matplot_format(state):
     Only uses the piece and pass channels of the original state
     """
     assert len(state.shape) == 3
-    return state.transpose(1, 2, 0)[:, :, [0, 1, 4]].astype(np.float)
+    return state.get_events(1, 2, 0)[:, :, [0, 1, 4]].astype(np.float)
 
 
 def plot_move_distr(title, move_distr, valid_moves, scalar=None, pi=False):
@@ -141,8 +141,8 @@ def state_responses(policy: policies.Policy, traj: game.Trajectory):
     :return: The figure visualizing responses of the model
     on those events
     """
-    transtraj = traj.transpose()
-    states, actions, rewards, next_states, terminals, wins, pis = data.trans_trajs_to_numpy(transtraj)
+    transtraj = traj.get_events()
+    states, actions, rewards, next_states, terminals, wins, pis = data.events_to_numpy(transtraj)
     assert len(states[0].shape) == 3 and states[0].shape[1] == states[0].shape[2], states[0].shape
 
     fig = state_responses_helper(policy, states, actions, rewards, next_states, terminals, wins, pis)

@@ -16,8 +16,8 @@ class Trajectory:
         self.next_states = []
         self.pis = []
 
-    def transpose(self):
-        transposed = []
+    def get_events(self):
+        events = []
         black_won = self.get_winner()
         n = self.get_length()
         zipped = zip(self.states, self.actions, self.rewards, self.next_states, self.pis)
@@ -30,9 +30,9 @@ class Trajectory:
 
             terminal = i == n - 1
 
-            transposed.append((state, action, reward, next_state, terminal, won, pi))
+            events.append((state, action, reward, next_state, terminal, won, pi))
 
-        return transposed
+        return events
 
     def add_event(self, state, action, reward, next_state, pi):
         self.states.append(state)

@@ -44,22 +44,22 @@ def batch_random_symmetries(states):
         processed_states.append(GoGame.random_symmetry(state))
     return np.array(processed_states)
 
-def replays_to_trans_trajs(replay_data):
+def replay_to_events(replay_data):
     trans_trajs = []
     for traj in replay_data:
-        trans_trajs.extend(traj.transpose())
+        trans_trajs.extend(traj.get_events())
     return trans_trajs
 
-def trans_trajs_to_numpy(trans_trajs):
-    transposed = list(zip(*trans_trajs))
+def events_to_numpy(events):
+    unzipped = list(zip(*events))
 
-    states = np.array(list(transposed[0]), dtype=np.float32)
-    actions = np.array(list(transposed[1]), dtype=np.int)
-    rewards = np.array(list(transposed[2]), dtype=np.float32).reshape((-1,))
-    next_states = np.array(list(transposed[3]), dtype=np.float32)
-    terminals = np.array(list(transposed[4]), dtype=np.uint8)
-    wins = np.array(list(transposed[5]), dtype=np.int)
-    pis = np.array(list(transposed[6]), dtype=np.float32)
+    states = np.array(list(unzipped[0]), dtype=np.float32)
+    actions = np.array(list(unzipped[1]), dtype=np.int)
+    rewards = np.array(list(unzipped[2]), dtype=np.float32).reshape((-1,))
+    next_states = np.array(list(unzipped[3]), dtype=np.float32)
+    terminals = np.array(list(unzipped[4]), dtype=np.uint8)
+    wins = np.array(list(unzipped[5]), dtype=np.int)
+    pis = np.array(list(unzipped[6]), dtype=np.float32)
 
     return states, actions, rewards, next_states, terminals, wins, pis
 
@@ -103,10 +103,10 @@ def sample_replaydata(comm: MPI.Intracomm, episodesdir, request_size, batchsize)
             del all_data
         comm.Barrier()
 
-    concat_trajs = replays_to_trans_trajs(sample_data)
+    concat_trajs = replay_to_events(sample_data)
     random.shuffle(concat_trajs)
 
-    sample_data = trans_trajs_to_numpy(concat_trajs)
+    sample_data = events_to_numpy(concat_trajs)
 
     sample_size = len(sample_data[0])
     for component in sample_data:
@@ -130,6 +130,7 @@ def save_replaydata(comm: MPI.Intracomm, replay_data, episodesdir):
                 success = True
             except:
                 pass
+    comm.Barrier()
 
 
 def clear_episodesdir(episodesdir):

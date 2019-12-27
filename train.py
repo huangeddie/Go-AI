@@ -32,7 +32,6 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
 
     # Write episodes
     data.save_replaydata(comm, replay_data, args.episodesdir)
-    comm.Barrier()
     parallel.parallel_debug(comm, 'Wrote all replay data to disk')
 
     # Sample data as batches
