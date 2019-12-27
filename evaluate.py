@@ -5,10 +5,12 @@ import gym
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from mpi4py import MPI
 
 from go_ai import measurements, utils
 
-args = utils.hyperparameters()
+comm = MPI.COMM_WORLD
+args = utils.hyperparameters(comm)
 
 # Environment
 go_env = gym.make('gym_go:go-v0', size=args.boardsize)
