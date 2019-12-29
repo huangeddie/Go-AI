@@ -1,9 +1,14 @@
+import time
+
 import gym
 import numpy as np
+import os
+import pandas as pd
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from go_ai import data, policies, game
+from go_ai.montecarlo import tree
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -167,3 +172,57 @@ def plot_symmetries(next_state, outpath):
     plt.tight_layout()
     plt.savefig(outpath)
     plt.close()
+
+
+def convert_to_secs(time_str):
+    dur = time.strptime(time_str, '%H:%M:%S')
+    secs = 3600 * dur.tm_hour + 60 * dur.tm_min + dur.tm_sec
+    return secs
+
+
+def convert_to_hours(time_str):
+    return convert_to_secs(time_str) / 3600
+
+
+def plot_stats(stats_path, outdir):
+    df = pd.read_csv(stats_path, sep='\t')
+    df['HOURS'] = df['TIME'].map(convert_to_hours)
+    # Elo
+    # New checkpoints
+    check_elos = np.zeros(len(df))
+    for i in range(len(df)):
+        if i == 0:
+            prev_elo = 0
+        else:
+            prev_elo = check_elos[i - 1]
+        wr = df['C_WR'].values[i] / 100
+        delta = 400 * (2 * wr - 1)
+        check_elos[i] = prev_elo + delta
+    plt.title('ELO Score')
+    plt.plot(df['HOURS'], check_elos)
+    plt.xlabel("Hours")
+    plt.ylabel("ELO")
+    plt.savefig(os.path.join(outdir, 'elos.pdf'))
+    plt.close()
+
+    # Win rate against random and greedy
+    plt.figure()
+    plt.title('Winrates against Baseline Models')
+    plt.plot(df['HOURS'], df['R_WR'])
+    plt.plot(df['HOURS'], df['G_WR'])
+    plt.xlabel('Hours')
+    plt.ylabel('Winrate')
+    plt.legend(['Random', 'Greedy'])
+    plt.savefig(os.path.join(outdir, 'winrates.pdf'))
+    plt.close()
+
+
+
+def plot_tree(go_env, policy, outdir):
+    root = policy.get_tree(go_env)
+    imgdir = os.path.join(outdir, 'node_imgs/')
+    imgdir = os.path.abspath(imgdir)
+    if not os.path.exists(imgdir):
+        os.mkdir(imgdir)
+    graph = tree.get_graph(root, imgdir)
+    graph.render(os.path.join(outdir, 'tree'))

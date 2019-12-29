@@ -1,9 +1,8 @@
+import gym
+import numpy as np
 import os
 import pickle
 import random
-
-import gym
-import numpy as np
 from mpi4py import MPI
 
 go_env = gym.make('gym_go:go-v0', size=0)
@@ -44,11 +43,13 @@ def batch_random_symmetries(states):
         processed_states.append(GoGame.random_symmetry(state))
     return np.array(processed_states)
 
+
 def replay_to_events(replay_data):
     trans_trajs = []
     for traj in replay_data:
         trans_trajs.extend(traj.get_events())
     return trans_trajs
+
 
 def events_to_numpy(events):
     if len(events) == 0:
