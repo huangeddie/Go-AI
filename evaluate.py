@@ -14,6 +14,7 @@ modeldir = 'bin/checkpoints/2019-12-28/'
 model, policy = utils.create_model(args, 'Checkpoint', checkdir=modeldir)
 print(f"Loaded model {policy} from {modeldir}")
 
+# Directories and files
 basedir = os.path.join(modeldir, f'{args.model}{args.boardsize}_plots/')
 if not os.path.exists(basedir):
     os.mkdir(basedir)

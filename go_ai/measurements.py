@@ -1,5 +1,6 @@
 import time
 
+import graphviz
 import gym
 import numpy as np
 import os
@@ -224,5 +225,33 @@ def plot_tree(go_env, policy, outdir):
     imgdir = os.path.abspath(imgdir)
     if not os.path.exists(imgdir):
         os.mkdir(imgdir)
-    graph = tree.get_graph(root, imgdir)
+    graph = get_graph(root, imgdir)
     graph.render(os.path.join(outdir, 'tree'))
+
+
+def get_graph(treenode, imgdir):
+    graph = graphviz.Digraph('MCT', engine='twopi', node_attr={'shape': 'none'}, format='pdf')
+    graph.attr(overlap='false')
+    register_nodes(treenode, graph, imgdir)
+    register_edges(treenode, graph)
+    return graph
+
+
+def register_nodes(treenode, graph, imgdir):
+    plt.figure()
+    plt.title(str(treenode))
+    plt.imshow(matplot_format(treenode.state))
+    imgpath = os.path.join(imgdir, f'{str(id(treenode))}.jpg')
+    plt.savefig(imgpath)
+    plt.close()
+    graph.node(str(id(treenode)), image=imgpath, label='')
+    for child in treenode.canon_children:
+        if child is not None:
+            register_nodes(child, graph, imgdir)
+
+
+def register_edges(treenode, graph):
+    for child in treenode.canon_children:
+        if child is not None:
+            graph.edge(str(id(treenode)), str(id(child)))
+            register_edges(child, graph)
