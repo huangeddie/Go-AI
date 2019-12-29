@@ -51,6 +51,8 @@ def replay_to_events(replay_data):
     return trans_trajs
 
 def events_to_numpy(events):
+    if len(events) == 0:
+        return [], [], [], [], [], []
     unzipped = list(zip(*events))
 
     states = np.array(list(unzipped[0]), dtype=np.float32)
@@ -83,10 +85,10 @@ def load_replaydata(episodesdir, worker_rank=None):
     return all_data
 
 
-def sample_replaydata(comm: MPI.Intracomm, episodesdir, request_size, batchsize):
+def sample_eventdata(comm: MPI.Intracomm, episodesdir, batches, batchsize):
     """
     :param episodesdir:
-    :param request_size:
+    :param batches:
     :param batchsize:
     :return: Batches of sample data, len of total data that was sampled
     """
@@ -97,16 +99,22 @@ def sample_replaydata(comm: MPI.Intracomm, episodesdir, request_size, batchsize)
     replay_len = None
     for worker in range(world_size):
         if rank == worker:
-            all_data = load_replaydata(episodesdir)
-            replay_len = len(all_data)
-            sample_data = random.sample(all_data, min(request_size, replay_len))
-            del all_data
+            replay = load_replaydata(episodesdir)
+            replay_len = len(replay)
+            # Seperate into black wins and black non-wins to ensure even sampling between the two
+            black_wins = list(filter(lambda traj: traj.get_winner() == 1, replay))
+            black_nonwins = list(filter(lambda traj: traj.get_winner() != 1, replay))
+            black_wins = replay_to_events(black_wins)
+            black_nonwins = replay_to_events(black_nonwins)
+            n = min(len(black_wins), len(black_nonwins))
+            sample_size = min(batchsize * batches // 2, n)
+            sample_data = random.sample(black_wins, sample_size) + random.sample(black_nonwins, sample_size)
+            # Save memory
+            del replay
         comm.Barrier()
 
-    concat_trajs = replay_to_events(sample_data)
-    random.shuffle(concat_trajs)
-
-    sample_data = events_to_numpy(concat_trajs)
+    random.shuffle(sample_data)
+    sample_data = events_to_numpy(sample_data)
 
     sample_size = len(sample_data[0])
     for component in sample_data:

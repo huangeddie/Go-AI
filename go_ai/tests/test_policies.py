@@ -18,15 +18,16 @@ class MyTestCase(unittest.TestCase):
         self.num_games = 256
 
     def test_val_vs_val(self):
-        self.go_env = gym.make('gym_go:go-v0', size=9)
-        new_model = value.ValueNet(9)
-        new_model.load_state_dict(torch.load('../../bin/checkpoints/2019-12-24/val9.pt'))
+        size = 5
+        self.go_env = gym.make('gym_go:go-v0', size=size)
+        new_model = value.ValueNet(size)
+        new_model.load_state_dict(torch.load(f'../../bin/checkpoints/2019-12-27/val{size}.pt'))
 
-        val_model = value.ValueNet(9)
-        val_model.load_state_dict(torch.load('../../bin/baselines/val9.pt'))
+        val_model = value.ValueNet(size)
+        val_model.load_state_dict(torch.load(f'../../bin/baselines/val{size}.pt'))
 
-        new_pi = policies.Value('New', new_model, mcts=8, temp=0.06, tempsteps=24)
-        base_pi = policies.Value('Base', val_model, mcts=8, temp=0.06, tempsteps=24)
+        new_pi = policies.Value('New', new_model, mcts=8, temp=0.1, tempsteps=24)
+        base_pi = policies.Value('Base', val_model, mcts=8, temp=0.1, tempsteps=24)
 
         win_rate, _, _, _ = game.play_games(self.go_env, new_pi, base_pi, self.num_games)
         print(win_rate)

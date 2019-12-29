@@ -3,7 +3,6 @@ import numpy as np
 from go_ai import montecarlo
 from go_ai.montecarlo import GoGame
 
-
 class Node:
     def __init__(self, state, group_map, parent=None):
         '''
@@ -16,6 +15,7 @@ class Node:
         self.state = state
         self.group_map = group_map
         self.terminal = GoGame.get_game_ended(state)
+        self.winning = GoGame.get_winning(state)
         self.valid_moves = GoGame.get_valid_moves(state)
 
         # Visits
@@ -25,8 +25,11 @@ class Node:
 
         self.prior_pi = None
         self.post_vals = []
-
         self.parent = parent
+        if parent is None:
+            self.height = 0
+        else:
+            self.height = self.parent.height + 1
 
     def traverse(self, move):
         child = self.canon_children[move]
@@ -44,7 +47,7 @@ class Node:
             self.post_vals.append(val)
         self.visits += 1
         if self.parent is not None:
-            inverted_val = montecarlo.invert_val(val) if val is not None else None
+            inverted_val = montecarlo.invert_vals(val) if val is not None else None
             self.parent.backprop(inverted_val)
 
     def set_prior_pi(self, prior_pi):
@@ -78,3 +81,7 @@ class Node:
 
                 ucbs.append(avg_q + u)
         return ucbs
+
+    def __str__(self):
+        avg_q = np.mean(self.post_vals)
+        return f'{self.visits}N {self.post_vals[0]:.2f}V {avg_q:.2f}AV {self.height}H'

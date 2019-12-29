@@ -6,24 +6,21 @@ from sklearn import preprocessing
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
-def invert_val(val):
-    return -val
+def invert_vals(vals):
+    return -vals
 
 
 def qs_from_valfunc(state, val_func, group_map=None):
     canonical_children, _ = GoGame.get_children(state, group_map, canonical=True)
     child_vals = val_func(np.array(canonical_children))
-    qvals = vals_to_qs(child_vals, state)
+    valid_moves = GoGame.get_valid_moves(state)
+    qvals = vals_to_qs(child_vals, valid_moves)
     return qvals, canonical_children
 
 
-def vals_to_qs(canonical_childvals, state):
-    valid_moves = GoGame.get_valid_moves(state)
-    action_size = GoGame.get_action_size(state)
-    qvals = np.zeros(action_size)
-    for child_idx, action in enumerate(np.argwhere(valid_moves)):
-        child_val = canonical_childvals[child_idx]
-        qvals[action] = invert_val(child_val)
+def vals_to_qs(canonical_childvals, valid_moves):
+    qvals = np.zeros(valid_moves.shape)
+    qvals[np.where(valid_moves)] = invert_vals(canonical_childvals.flatten())
 
     return qvals
 

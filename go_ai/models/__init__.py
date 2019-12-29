@@ -29,26 +29,7 @@ class BasicBlock(nn.Module):
 
 
 def pytorch_ac_to_numpy(model):
-    def critic(states):
-        """
-        :param states: Numpy batch of states
-        :return:
-        """
-        dtype = next(model.parameters()).type()
-        model.eval()
-        with torch.no_grad():
-            tensor_states = torch.from_numpy(states).type(dtype)
-            _, state_vals = model(tensor_states)
-            vals = state_vals.detach().cpu().numpy()
-
-        # Check for terminals
-        for i, state in enumerate(states):
-            if GoGame.get_game_ended(state):
-                vals[i] = 100 * GoGame.get_winning(state)
-
-        return vals
-
-    def actor(states):
+    def ac_func(states):
         """
         :param states: Numpy batch of states
         :return:
@@ -58,13 +39,19 @@ def pytorch_ac_to_numpy(model):
         model.eval()
         with torch.no_grad():
             tensor_states = torch.from_numpy(states).type(dtype)
-            pi, _ = model(tensor_states)
+            pi, state_vals = model(tensor_states)
             pi = pi.detach().cpu().numpy()
             pi += invalid_values
+            vals = state_vals.detach().cpu().numpy()
 
-        return pi
+        # Check for terminals
+        for i, state in enumerate(states):
+            if GoGame.get_game_ended(state):
+                vals[i] = 100 * GoGame.get_winning(state)
 
-    return actor, critic
+        return pi, vals
+
+    return ac_func
 
 
 def pytorch_val_to_numpy(model):

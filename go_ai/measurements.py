@@ -15,7 +15,7 @@ def matplot_format(state):
     Only uses the piece and pass channels of the original state
     """
     assert len(state.shape) == 3
-    return state.get_events(1, 2, 0)[:, :, [0, 1, 4]].astype(np.float)
+    return state.transpose(1, 2, 0)[:, :, [0, 1, 4]].astype(np.float)
 
 
 def plot_move_distr(title, move_distr, valid_moves, scalar=None, pi=False):
@@ -79,8 +79,12 @@ def state_responses_helper(policy: policies.Policy, states, actions, rewards, ne
     go_env = gym.make('gym_go:go-v0', size=states[0].shape[1])
     for step, (state, prev_action) in tqdm(enumerate(zip(states, actions)), desc='Heat Maps'):
         if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
-            pi, prior_qs, post_qs = policy(go_env, step=step, get_qs=True)
-            state_val = policy.val_func(state[np.newaxis])[0]
+            pi, prior_qs, post_qs = policy(go_env, step=step, debug=True)
+            if isinstance(policy, policies.Value):
+                state_val = policy.val_func(state[np.newaxis])
+            else:
+                _, state_val = policy.ac_func(state[np.newaxis])
+            state_val = state_val[0]
 
             state_vals.append(state_val)
             all_prior_qs.append(prior_qs)

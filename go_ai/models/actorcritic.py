@@ -5,7 +5,7 @@ import torch.nn as nn
 from mpi4py import MPI
 
 from go_ai import data, montecarlo, parallel
-from go_ai.models import BasicBlock, pytorch_ac_to_numpy, average_model, ModelMetrics
+from go_ai.models import BasicBlock, average_model, ModelMetrics
 
 gymgo = gym.make('gym_go:go-v0', size=0)
 GoGame = gymgo.gogame
@@ -55,7 +55,6 @@ class ActorCriticNet(nn.Module):
             nn.Linear(fc_h, 1)
         )
 
-        self.actor_criterion = nn.CrossEntropyLoss()
         self.critic_criterion = nn.MSELoss()
 
     def forward(self, state):
@@ -103,55 +102,37 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
 
     critic_running_loss = 0
     critic_running_acc = 0
-    model.train()
-    for states, actions, rewards, next_states, terminals, wins, pis in batched_data:
-        # Augment
-        states = data.batch_random_symmetries(states)
-
-        states = torch.from_numpy(states).type(dtype)
-        wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
-
-        optimizer.zero_grad()
-        _, logits = model(states)
-        vals = torch.tanh(logits)
-        loss = model.critic_criterion(vals, wins)
-        loss.backward()
-        optimizer.step()
-
-        pred_wins = torch.sign(vals)
-        critic_running_loss += loss.item()
-        critic_running_acc += torch.mean((pred_wins == wins).type(dtype)).item()
-    parallel.parallel_debug(comm, 'Optimized Critic')
-    # Sync Parameters
-    average_model(comm, model)
-
-    pi_func, val_func = pytorch_ac_to_numpy(model)
-    qvals, states = parallel_get_qvals(comm, batched_data, val_func)
-    parallel.parallel_debug(comm, 'Calculated QVals')
 
     actor_running_loss = 0
     actor_running_acc = 0
-    batches = len(batched_data)
 
+    batches = len(batched_data)
     model.train()
-    for qvals, states in zip(qvals, states):
-        # Augment
-        greedy_actions = torch.from_numpy(np.argmax(qvals, axis=1))
+    for states, actions, rewards, next_states, terminals, wins, target_pis in batched_data:
+        states = torch.from_numpy(states).type(dtype)
+        wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
+        target_pis = torch.from_numpy(target_pis).type(dtype)
+        greedy_actions = torch.argmax(target_pis, dim=1)
 
         optimizer.zero_grad()
-        states = torch.from_numpy(states).type(dtype)
-        policy_scores, _ = model(states)
-
-        loss = model.actor_criterion(policy_scores, greedy_actions)
+        pi_logits, logits = model(states)
+        logpi = torch.log_softmax(pi_logits, dim=1)
+        vals = torch.tanh(logits)
+        assert pi_logits.shape == target_pis.shape
+        actor_loss = -torch.sum(logpi * target_pis)
+        critic_loss = model.critic_criterion(vals, wins)
+        loss = actor_loss + critic_loss
         loss.backward()
         optimizer.step()
 
-        pred_actions = torch.argmax(policy_scores, dim=1)
-        actor_running_loss += loss.item()
-        actor_running_acc += torch.mean((pred_actions == greedy_actions).type(dtype)).item()
+        pred_greedy_actions = torch.argmax(pi_logits, dim=1)
+        actor_running_loss += actor_loss.item()
+        actor_running_acc += torch.mean((pred_greedy_actions == greedy_actions).type(dtype)).item()
 
-    parallel.parallel_debug(comm, 'Optimized Actor')
-
+        pred_wins = torch.sign(vals)
+        critic_running_loss += critic_loss.item()
+        critic_running_acc += torch.mean((pred_wins == wins).type(dtype)).item()
+    parallel.parallel_debug(comm, 'Optimized')
     # Sync Parameters
     average_model(comm, model)
 

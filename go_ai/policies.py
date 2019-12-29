@@ -123,8 +123,8 @@ class Value(Policy):
 
         pi /= np.sum(pi)
 
-        if 'get_qs' in kwargs:
-            if kwargs['get_qs']:
+        if 'debug' in kwargs:
+            if kwargs['debug']:
                 return pi, prior_qs, post_qs
         else:
             return pi
@@ -132,20 +132,19 @@ class Value(Policy):
     def mcts_qvals(self, go_env):
         canonical_children, child_groupmaps = go_env.get_children(canonical=True)
         child_vals = self.val_func(np.array(canonical_children))
-        canonical_state = go_env.get_canonical_state()
-        valid_indicators = go_env.get_valid_moves()
+        valid_moves = go_env.get_valid_moves()
 
-        prior_qs = montecarlo.vals_to_qs(child_vals, canonical_state)
+        prior_qs = montecarlo.vals_to_qs(child_vals, valid_moves)
         post_qs = np.full(prior_qs.shape, np.nan)
 
         # Search on grandchildren layer
         if self.mcts > 0:
-            valid_moves = np.argwhere(valid_indicators).flatten()
-            assert len(valid_moves) == len(child_vals)
+            argvalid_moves = np.argwhere(valid_moves).flatten()
+            assert len(argvalid_moves) == len(child_vals)
             ordered_child_idcs = np.argsort(child_vals.flatten())
             best_child_idcs = ordered_child_idcs[:self.mcts]
             for child_idx in best_child_idcs:
-                action_to_child = valid_moves[child_idx]
+                action_to_child = argvalid_moves[child_idx]
                 child = canonical_children[child_idx]
                 if GoGame.get_game_ended(child):
                     continue
@@ -170,8 +169,12 @@ class ActorCritic(Policy):
         """
         super(ActorCritic, self).__init__(name, temp=temp, temp_steps=tempsteps)
         self.pytorch_model = model
-        self.q_func, self.val_func = pytorch_ac_to_numpy(model)
+        self.ac_func = pytorch_ac_to_numpy(model)
         self.mcts = mcts
+
+    def get_tree(self, go_env):
+        _, _, root = tree.mct_search(go_env, self.mcts, self.ac_func)
+        return root
 
     def __call__(self, go_env, **kwargs):
         """
@@ -180,28 +183,27 @@ class ActorCritic(Policy):
         :return:
         """
         if self.mcts > 0:
-            qs = tree.mct_search(go_env, self.mcts, self.val_func, self.q_func)
+            visits, prior_qs, root = tree.mct_search(go_env, self.mcts, self.ac_func)
 
             step = kwargs['step']
             assert step is not None
             if step < self.temp_steps:
-                pi = qs * (1 / self.temp)
+                pi = visits ** (1 / self.temp)
 
             else:
-                max_visit = np.max(qs)
-                pi = qs == max_visit
+                max_visit = np.max(visits)
+                pi = visits == max_visit
 
             pi = pi / np.sum(pi)
 
-            if 'get_qs' in kwargs:
-                if kwargs['get_qs']:
-                    state = go_env.get_canonical_state()
-                    prior_qs = self.q_func(state[np.newaxis])[0]
-                    return pi, prior_qs, qs
+            if 'debug' in kwargs:
+                if kwargs['debug']:
+                    return pi, prior_qs, visits
 
         else:
             state = go_env.get_canonical_state()
-            policy_scores = self.q_func(state[np.newaxis])[0]
+            policy_scores, _ = self.ac_func(state[np.newaxis])
+            policy_scores = policy_scores[0]
             valid_moves = GoGame.get_valid_moves(state)
             pi = montecarlo.temp_softmax(policy_scores, self.temp, valid_moves)
 

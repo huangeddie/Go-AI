@@ -35,7 +35,7 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
     parallel.parallel_debug(comm, 'Wrote all replay data to disk')
 
     # Sample data as batches
-    trainadata, replay_len = data.sample_replaydata(comm, args.episodesdir, args.trainsize, args.batchsize)
+    trainadata, replay_len = data.sample_eventdata(comm, args.episodesdir, args.batches, args.batchsize)
 
     # Optimize
     parallel.parallel_debug(comm, f'Optimizing in {len(trainadata)} training steps...')
