@@ -132,7 +132,7 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
         pred_wins = torch.sign(vals)
         critic_running_loss += critic_loss.item()
         critic_running_acc += torch.mean((pred_wins == wins).type(dtype)).item()
-    parallel.parallel_debug(comm, 'Optimized')
+
     # Sync Parameters
     average_model(comm, model)
 

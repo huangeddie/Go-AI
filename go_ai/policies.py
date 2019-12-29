@@ -121,7 +121,7 @@ class Value(Policy):
             max_val = np.max(pi)
             pi = pi == max_val
 
-        pi /= np.sum(pi)
+        pi = pi / np.sum(pi)
 
         if 'debug' in kwargs:
             if kwargs['debug']:
