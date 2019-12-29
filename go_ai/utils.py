@@ -80,15 +80,16 @@ def sync_checkpoint(comm: MPI.Intracomm, args, new_pi, old_pi):
 def sync_data(comm: MPI.Intracomm, args):
     rank = comm.Get_rank()
     if rank == 0:
+        # Clear worker data
+        episodesdir = args.episodesdir
+        data.clear_episodesdir(episodesdir)
+
         checkpath = get_modelpath(args, 'checkpoint')
         if args.baseline:
             baseline_path = get_modelpath(args, 'baseline')
             shutil.copy(baseline_path, checkpath)
             parallel.parallel_debug(comm, "Starting from baseline")
         else:
-            # Clear worker data
-            episodesdir = args.episodesdir
-            data.clear_episodesdir(episodesdir)
             # Save new model
             new_model, _ = create_model(args, '', latest_checkpoint=False)
 
@@ -110,7 +111,7 @@ def get_modelpath(args, savetype):
     return path
 
 
-def create_model(args, name, baseline=False, latest_checkpoint=False, checkdir=None):
+def create_model(args, name, baseline=False, latest_checkpoint=False, modeldir=None):
     model = args.model
     size = args.boardsize
     if model == 'val':
@@ -136,12 +137,12 @@ def create_model(args, name, baseline=False, latest_checkpoint=False, checkdir=N
         net.load_state_dict(torch.load(f'bin/baselines/{model}{size}.pt'))
     elif latest_checkpoint:
         assert not baseline
-        assert checkdir is None
+        assert modeldir is None
         latest_checkpath = get_modelpath(args, 'checkpoint')
         net.load_state_dict(torch.load(latest_checkpath))
-    elif checkdir is not None:
+    elif modeldir is not None:
         assert not latest_checkpoint
-        checkpath = os.path.join(checkdir, f'{model}{size}.pt')
+        checkpath = os.path.join(modeldir, f'{model}{size}.pt')
         net.load_state_dict(torch.load(checkpath))
 
     return net, pi

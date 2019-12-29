@@ -10,24 +10,23 @@ from go_ai.models import value, actorcritic
 class MyTestCase(unittest.TestCase):
     def setUp(self) -> None:
         board_size = 5
-        self.greedy_mct_policy = policies.Value('MCTGreedy', policies.greedy_val_func, mcts=4,
-                                                temp=0)
+        self.greedy_mct_policy = policies.Value('MCTGreedy', policies.greedy_val_func, mcts=100, temp=0)
 
         self.go_env = gym.make('gym_go:go-v0', size=board_size)
 
         self.num_games = 256
 
     def test_val_vs_val(self):
-        size = 5
+        size = 9
         self.go_env = gym.make('gym_go:go-v0', size=size)
         new_model = value.ValueNet(size)
-        new_model.load_state_dict(torch.load(f'../../bin/checkpoints/2019-12-27/val{size}.pt'))
+        new_model.load_state_dict(torch.load(f'../../bin/checkpoints/2019-12-29/val{size}.pt'))
 
         val_model = value.ValueNet(size)
         val_model.load_state_dict(torch.load(f'../../bin/baselines/val{size}.pt'))
 
-        new_pi = policies.Value('New', new_model, mcts=8, temp=0.1)
-        base_pi = policies.Value('Base', val_model, mcts=8, temp=0.1)
+        new_pi = policies.Value('New', new_model, mcts=8, temp=0.06)
+        base_pi = policies.Value('Base', val_model, mcts=8, temp=0.06)
 
         win_rate, _, _, _ = game.play_games(self.go_env, new_pi, base_pi, self.num_games)
         print(win_rate)
@@ -67,12 +66,13 @@ class MyTestCase(unittest.TestCase):
         """
         Custom test case to test trained models
         """
-        self.go_env = gym.make('gym_go:go-v0', size=5)
-        curr_model = value.ValueNet(5, num_blocks=4)
-        curr_model.load_state_dict(torch.load('../../bin/baselines/val5.pt'))
+        size = 5
+        self.go_env = gym.make('gym_go:go-v0', size=size)
+        curr_model = value.ValueNet(size)
+        curr_model.load_state_dict(torch.load(f'../../bin/baselines/val{size}.pt'))
 
-        mct_pi = policies.Value('MCT', curr_model, mcts=8, temp=0.2)
-        val_pi = policies.Value('MCT', curr_model, mcts=0, temp=0.2)
+        mct_pi = policies.Value('MCT', curr_model, mcts=100, temp=0.1)
+        val_pi = policies.Value('MCT', curr_model, mcts=0, temp=0.1)
 
         win_rate, _, _, _ = game.play_games(self.go_env, mct_pi, val_pi, self.num_games)
         print(win_rate)
@@ -90,7 +90,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_smartgreed_vs_greed(self):
         win_rate, _, _, _ = game.play_games(self.go_env, policies.SMART_GREEDY_PI, policies.GREEDY_PI, False,
-                                         self.num_games)
+                                            self.num_games)
         print(win_rate)
         self.assertAlmostEqual(win_rate, 0.5, delta=0.1)
 

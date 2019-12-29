@@ -10,8 +10,8 @@ args = utils.hyperparameters(MPI.COMM_WORLD)
 go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
-modeldir = 'bin/checkpoints/2019-12-28/'
-model, policy = utils.create_model(args, 'Checkpoint', checkdir=modeldir)
+modeldir = 'bin/baselines/'
+model, policy = utils.create_model(args, 'Model', modeldir=modeldir)
 print(f"Loaded model {policy} from {modeldir}")
 
 # Directories and files
@@ -22,8 +22,9 @@ if not os.path.exists(basedir):
 stats_path = os.path.join(modeldir, f'{args.model}{args.boardsize}_stats.txt')
 
 # Plot stats
-measurements.plot_stats(stats_path, basedir)
-print("Plotted ELOs and win rates")
+if os.path.exists(stats_path):
+    measurements.plot_stats(stats_path, basedir)
+    print("Plotted ELOs and win rates")
 
 # Plot tree if applicable
 if isinstance(policy, policies.ActorCritic):

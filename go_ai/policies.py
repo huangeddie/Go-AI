@@ -1,7 +1,7 @@
 import gym
 import numpy as np
 import torch
-from sklearn import preprocessing
+from scipy import special
 
 from go_ai import montecarlo
 from go_ai.models import pytorch_val_to_numpy, pytorch_ac_to_numpy
@@ -20,9 +20,9 @@ def greedy_val_func(states):
         black_area, white_area = GoGame.get_areas(state)
         if GoGame.get_game_ended(state):
             if black_area > white_area:
-                val = 1
+                val = 100
             elif black_area < white_area:
-                val = -1
+                val = -100
             else:
                 val = 0
         else:
@@ -107,11 +107,9 @@ class Value(Policy):
         prior_qs, post_qs = self.mcts_qvals(go_env)
         valid_moves = go_env.get_valid_moves()
         where_valid = np.where(valid_moves)
-        exp_prior = np.exp(prior_qs)
-        exp_post = np.exp(post_qs)
-        exp_qs = np.nansum([exp_prior, exp_post], axis=0)
-        pi = np.zeros(exp_qs.shape)
-        pi[where_valid] = preprocessing.normalize(exp_qs[where_valid][np.newaxis], norm='l1')[0]
+        avg_qs = np.nanmean([prior_qs, post_qs], axis=0)
+        pi = np.zeros(avg_qs.shape)
+        pi[where_valid] = special.softmax(avg_qs[where_valid])
 
         step = kwargs['step']
         assert step is not None
@@ -143,16 +141,30 @@ class Value(Policy):
             assert len(argvalid_moves) == len(child_vals)
             ordered_child_idcs = np.argsort(child_vals.flatten())
             best_child_idcs = ordered_child_idcs[:self.mcts]
+
+            all_grandchildren = []
+            all_actions = []
+            seperators = []
             for child_idx in best_child_idcs:
-                action_to_child = argvalid_moves[child_idx]
                 child = canonical_children[child_idx]
                 if GoGame.get_game_ended(child):
                     continue
+
+                action_to_child = argvalid_moves[child_idx]
                 child_groupmap = child_groupmaps[child_idx]
                 grandchildren, _ = GoGame.get_children(child, child_groupmap, canonical=True)
-                grand_vals = self.val_func(np.array(grandchildren))
-                # Assume opponent would take action that minimizes our value
-                post_qs[action_to_child] = np.min(grand_vals)
+
+                start = len(all_grandchildren)
+                all_grandchildren.extend(grandchildren)
+                end = len(all_grandchildren)
+                all_actions.append(action_to_child)
+                seperators.append((start, end))
+
+            if len(all_grandchildren) > 0:
+                grand_vals = self.val_func(np.array(all_grandchildren))
+                for action, sep in zip(all_actions, seperators):
+                    # Assume opponent would take action that minimizes our value
+                    post_qs[action] = np.min(grand_vals[sep[0]: sep[1]])
 
         return prior_qs, post_qs
 
