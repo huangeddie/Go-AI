@@ -110,6 +110,7 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
     model.train()
     for states, actions, rewards, next_states, terminals, wins, target_pis in batched_data:
         states = torch.from_numpy(states).type(dtype)
+
         wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
         target_pis = torch.from_numpy(target_pis).type(dtype)
         greedy_actions = torch.argmax(target_pis, dim=1)
@@ -119,7 +120,7 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
         logpi = torch.log_softmax(pi_logits, dim=1)
         vals = torch.tanh(logits)
         assert pi_logits.shape == target_pis.shape
-        actor_loss = -torch.sum(logpi * target_pis)
+        actor_loss = -torch.sum(logpi * target_pis) / len(states)
         critic_loss = model.critic_criterion(vals, wins)
         loss = actor_loss + critic_loss
         loss.backward()
