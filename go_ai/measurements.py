@@ -61,58 +61,62 @@ def action_1d_to_2d(action_1d, board_width):
 
 def state_responses(policy: policies.Policy, traj: game.Trajectory):
     states = np.array(traj.states)
-    board_size = states[0].shape[1]
 
     all_post_qs, all_prior_qs, state_vals = measure_vals(traj.actions, policy, states)
 
     valid_moves = data.batch_valid_moves(states)
 
-    num_states = states.shape[0]
+    n = len(traj)
     if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
         num_cols = 4
     else:
         num_cols = 2
 
-    fig = plt.figure(figsize=(num_cols * 2.5, num_states * 2))
+    fig = plt.figure(figsize=(num_cols * 2.5, n * 2))
     black_won = traj.get_winner()
-    n = len(traj)
-    for i in tqdm(range(num_states), desc='Plots'):
+    prior_title = 'Prior Qs' if isinstance(policy, policies.Value) else 'Prior Pi'
+    post_title = 'Post Qs' if isinstance(policy, policies.Value) else 'Visits'
+
+    for i in tqdm(range(n), desc='Plots'):
         curr_col = 1
 
-        plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-        plt.axis('off')
-        if i > 0:
-            prev_action = action_1d_to_2d(traj.actions[i - 1], board_size)
-            board_title = 'Action: {}\n'.format(prev_action)
-            if i == num_states - 1:
-                action_took = action_1d_to_2d(traj.actions[i], board_size)
-                board_title += 'Action Taken: {}\n'.format(action_took)
-        else:
-            board_title = 'Initial Board\n'
-        win = black_won if i % 2 == 0 else -black_won
-        board_title += '{:.0f}R {}T, {}W'.format(traj.rewards[i], int(i == n - 1), win)
-
-        plt.title(board_title)
-        plt.imshow(matplot_format(states[i]))
+        plt.subplot(n, num_cols, curr_col + num_cols * i)
+        plot_state(black_won, i, n, traj)
         curr_col += 1
 
-        if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
-            prior_title = 'Prior Qs' if isinstance(policy, policies.Value) else 'Prior Pi'
-            plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-            plot_move_distr(prior_title, all_prior_qs[i], valid_moves[i], scalar=state_vals[i].item())
-            curr_col += 1
+        plt.subplot(n, num_cols, curr_col + num_cols * i)
+        plot_move_distr(prior_title, all_prior_qs[i], valid_moves[i], scalar=state_vals[i].item())
+        curr_col += 1
 
-            post_title = 'Post Qs' if isinstance(policy, policies.Value) else 'Visits'
-            plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-            plot_move_distr(post_title, all_post_qs[i], valid_moves[i], scalar=state_vals[i].item())
-            curr_col += 1
+        plt.subplot(n, num_cols, curr_col + num_cols * i)
+        plot_move_distr(post_title, all_post_qs[i], valid_moves[i], scalar=state_vals[i].item())
+        curr_col += 1
 
-        plt.subplot(num_states, num_cols, curr_col + num_cols * i)
+        plt.subplot(n, num_cols, curr_col + num_cols * i)
         plot_move_distr('Model', traj.pis[i], valid_moves[i], pi=True)
         curr_col += 1
 
     plt.tight_layout()
     return fig
+
+
+def plot_state(black_won, i, n, traj):
+    terminal = int(i == n - 1)
+    state = traj.states[i]
+    board_size = state.shape[1]
+    plt.axis('off')
+    if i > 0:
+        prev_action = action_1d_to_2d(traj.actions[i - 1], board_size)
+        board_title = 'Action: {}\n'.format(prev_action)
+        if i == n - 1:
+            action_took = action_1d_to_2d(traj.actions[i], board_size)
+            board_title += 'Action Taken: {}\n'.format(action_took)
+    else:
+        board_title = 'Initial Board\n'
+    win = black_won if i % 2 == 0 else -black_won
+    board_title += '{:.0f}R {}T, {}W'.format(traj.rewards[i], terminal, win)
+    plt.title(board_title)
+    plt.imshow(matplot_format(state))
 
 
 def measure_vals(actions, policy, states):
