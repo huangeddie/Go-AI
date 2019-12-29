@@ -62,10 +62,9 @@ class Policy:
     Interface for all types of policies
     """
 
-    def __init__(self, name, temp=None, temp_steps=None):
+    def __init__(self, name, temp=None):
         self.name = name
         self.temp = temp
-        self.temp_steps = temp_steps
         self.pytorch_model = None
 
     def __call__(self, go_env, **kwargs):
@@ -89,8 +88,8 @@ class Policy:
 
 
 class Value(Policy):
-    def __init__(self, name, val_func, mcts, temp=0, tempsteps=0):
-        super(Value, self).__init__(name, temp, tempsteps)
+    def __init__(self, name, val_func, mcts, temp=0):
+        super(Value, self).__init__(name, temp)
         if isinstance(val_func, torch.nn.Module):
             self.pytorch_model = val_func
             val_func = pytorch_val_to_numpy(val_func)
@@ -116,10 +115,7 @@ class Value(Policy):
 
         step = kwargs['step']
         assert step is not None
-        if step < self.temp_steps:
-            pi = pi ** (1 / self.temp)
-        else:
-            pi = pi ** (1 / 0.01)
+        pi = pi ** (1 / self.temp)
 
         pi /= np.sum(pi)
 
@@ -161,13 +157,13 @@ class Value(Policy):
 
 
 class ActorCritic(Policy):
-    def __init__(self, name, model, mcts, temp, tempsteps):
+    def __init__(self, name, model, mcts, temp,):
         """
         :param branches: The number of actions explored by actor at each node.
         :param depth: The number of steps to explore with actor. Includes opponent,
         i.e. even depth means the last step explores the opponent's
         """
-        super(ActorCritic, self).__init__(name, temp=temp, temp_steps=tempsteps)
+        super(ActorCritic, self).__init__(name, temp=temp)
         self.pytorch_model = model
         self.ac_func = pytorch_ac_to_numpy(model)
         self.mcts = mcts
@@ -187,13 +183,7 @@ class ActorCritic(Policy):
 
             step = kwargs['step']
             assert step is not None
-            if step < self.temp_steps:
-                pi = visits ** (1 / self.temp)
-
-            else:
-                max_visit = np.max(visits)
-                pi = visits == max_visit
-
+            pi = visits ** (1 / self.temp)
             pi = pi / np.sum(pi)
 
             if 'debug' in kwargs:

@@ -26,8 +26,8 @@ class MyTestCase(unittest.TestCase):
         val_model = value.ValueNet(size)
         val_model.load_state_dict(torch.load(f'../../bin/baselines/val{size}.pt'))
 
-        new_pi = policies.Value('New', new_model, mcts=8, temp=0.1, tempsteps=24)
-        base_pi = policies.Value('Base', val_model, mcts=8, temp=0.1, tempsteps=24)
+        new_pi = policies.Value('New', new_model, mcts=8, temp=0.1)
+        base_pi = policies.Value('Base', val_model, mcts=8, temp=0.1)
 
         win_rate, _, _, _ = game.play_games(self.go_env, new_pi, base_pi, self.num_games)
         print(win_rate)
@@ -41,8 +41,8 @@ class MyTestCase(unittest.TestCase):
         val_model = value.ValueNet(9)
         val_model.load_state_dict(torch.load('../../bin/baselines/val9.pt'))
 
-        mct_pi = policies.ActorCritic('AC', ac_model, mcts=81, temp=1, tempsteps=24)
-        val_pi = policies.Value('Val', val_model, mcts=8, temp=0.05, tempsteps=24)
+        mct_pi = policies.ActorCritic('AC', ac_model, mcts=81, temp=1)
+        val_pi = policies.Value('Val', val_model, mcts=8, temp=0.05)
 
         win_rate, _, _, _ = game.play_games(self.go_env, val_pi, mct_pi, self.num_games)
         print(win_rate)
@@ -56,8 +56,8 @@ class MyTestCase(unittest.TestCase):
         curr_model = actorcritic.ActorCriticNet(9)
         curr_model.load_state_dict(torch.load('../../bin/baselines/ac.pt'))
 
-        mct_pi = policies.ActorCritic('MCT', curr_model, mcts=4, temp=1, tempsteps=24)
-        val_pi = policies.ActorCritic('MCT', curr_model, mcts=0, temp=1, tempsteps=24)
+        mct_pi = policies.ActorCritic('MCT', curr_model, mcts=4, temp=1)
+        val_pi = policies.ActorCritic('MCT', curr_model, mcts=0, temp=1)
 
         win_rate, _, _, _ = game.play_games(self.go_env, mct_pi, val_pi, self.num_games)
         print(win_rate)
@@ -71,8 +71,8 @@ class MyTestCase(unittest.TestCase):
         curr_model = value.ValueNet(5, num_blocks=4)
         curr_model.load_state_dict(torch.load('../../bin/baselines/val5.pt'))
 
-        mct_pi = policies.Value('MCT', curr_model, mcts=8, temp=0.2, tempsteps=24)
-        val_pi = policies.Value('MCT', curr_model, mcts=0, temp=0.2, tempsteps=24)
+        mct_pi = policies.Value('MCT', curr_model, mcts=8, temp=0.2)
+        val_pi = policies.Value('MCT', curr_model, mcts=0, temp=0.2)
 
         win_rate, _, _, _ = game.play_games(self.go_env, mct_pi, val_pi, self.num_games)
         print(win_rate)

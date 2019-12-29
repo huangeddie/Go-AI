@@ -9,7 +9,6 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from go_ai import data, policies, game
-from go_ai.montecarlo import tree
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -216,7 +215,6 @@ def plot_stats(stats_path, outdir):
     plt.legend(['Random', 'Greedy'])
     plt.savefig(os.path.join(outdir, 'winrates.pdf'))
     plt.close()
-
 
 
 def plot_tree(go_env, policy, outdir):

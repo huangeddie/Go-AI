@@ -27,7 +27,6 @@ def hyperparameters(comm: MPI.Intracomm):
 
     # Exploration
     parser.add_argument('--temp', type=float, default=1, help='initial temperature')
-    parser.add_argument('--tempsteps', type=int, default=24, help='first k steps to apply temperature to pi')
 
     # Data Sizes
     parser.add_argument('--batchsize', type=int, default=32, help='batch size')
@@ -116,10 +115,10 @@ def create_model(args, name, baseline=False, latest_checkpoint=False, checkdir=N
     size = args.boardsize
     if model == 'val':
         net = value.ValueNet(size, args.resblocks)
-        pi = policies.Value(name, net, args.mcts, args.temp, args.tempsteps)
+        pi = policies.Value(name, net, args.mcts, args.temp)
     elif model == 'ac':
         net = actorcritic.ActorCriticNet(size, args.resblocks)
-        pi = policies.ActorCritic(name, net, args.mcts, args.temp, args.tempsteps)
+        pi = policies.ActorCritic(name, net, args.mcts, args.temp)
     elif model == 'rand':
         net = None
         pi = policies.RAND_PI
