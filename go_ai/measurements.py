@@ -237,10 +237,11 @@ def get_graph(treenode, imgdir):
 
 def register_nodes(treenode, graph, imgdir):
     plt.figure()
+    plt.axis('off')
     plt.title(str(treenode))
     plt.imshow(matplot_format(treenode.state))
     imgpath = os.path.join(imgdir, f'{str(id(treenode))}.jpg')
-    plt.savefig(imgpath)
+    plt.savefig(imgpath, bbox_inches='tight')
     plt.close()
     graph.node(str(id(treenode)), image=imgpath, label='')
     for child in treenode.canon_children:
@@ -249,7 +250,7 @@ def register_nodes(treenode, graph, imgdir):
 
 
 def register_edges(treenode, graph):
-    for child in treenode.canon_children:
+    for child, prob in zip(treenode.canon_children, treenode.prior_pi):
         if child is not None:
-            graph.edge(str(id(treenode)), str(id(child)))
+            graph.edge(str(id(treenode)), str(id(child)), label=f'{prob:.2f}')
             register_edges(child, graph)

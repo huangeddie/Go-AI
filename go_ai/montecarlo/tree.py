@@ -23,19 +23,18 @@ def mct_search(go_env, num_searches, ac_func):
     rootstate = go_env.get_canonical_state()
 
     rootnode = Node(rootstate, root_groupmap)
-    valid_moves = rootnode.valid_moves
-    invalid_values = data.batch_invalid_values(rootstate[np.newaxis])[0]
-    root_prior_logits, root_val_logits = ac_func(rootstate[np.newaxis])
-    root_prior_logits = root_prior_logits[0]
-    root_prior_pi = special.softmax(root_prior_logits * valid_moves + invalid_values)
-    rootnode.set_prior_pi(root_prior_pi)
+    _, root_val_logits = ac_func(rootstate[np.newaxis])
     rootnode.backprop(np.tanh(root_val_logits).item())
 
     canonical_children, child_groupmaps = GoGame.get_children(rootstate, root_groupmap, canonical=True)
-    child_priors, child_vals = ac_func(canonical_children)
-    child_vals = np.tanh(child_vals)
-    inv_child_vals = montecarlo.invert_vals(child_vals)
+    child_priors, child_logits = ac_func(canonical_children)
+    inv_child_logits = montecarlo.invert_vals(child_logits).flatten()
+    inv_child_vals = np.tanh(inv_child_logits)
     child_valids = rootnode.valid_moves
+    root_prior_pi, root_prior_logits = np.zeros(rootnode.actionsize), np.zeros(rootnode.actionsize)
+    root_prior_logits[np.where(child_valids)] = inv_child_logits
+    root_prior_pi[np.where(child_valids)] = special.softmax(inv_child_logits)
+    rootnode.set_prior_pi(root_prior_pi)
 
     batch_valid_moves = data.batch_valid_moves(canonical_children)
     batch_invalid_values = data.batch_invalid_values(canonical_children)
@@ -49,6 +48,7 @@ def mct_search(go_env, num_searches, ac_func):
         child.set_prior_pi(prior_pi)
         child.backprop(inv_childval.item())
 
+    # MCT Search
     remaining_searches = max(num_searches - int(np.sum(child_valids)), 0)
     for i in range(remaining_searches):
         curr_node = rootnode

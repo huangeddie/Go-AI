@@ -23,7 +23,7 @@ stats_path = os.path.join(modeldir, f'{args.model}{args.boardsize}_stats.txt')
 
 # Plot stats
 measurements.plot_stats(stats_path, basedir)
-print("Plotted ElOs and win rates")
+print("Plotted ELOs and win rates")
 
 # Plot tree if applicable
 if isinstance(policy, policies.ActorCritic):

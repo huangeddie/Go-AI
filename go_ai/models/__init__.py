@@ -47,7 +47,7 @@ def pytorch_ac_to_numpy(model):
         # Check for terminals
         for i, state in enumerate(states):
             if GoGame.get_game_ended(state):
-                vals[i] = 100 * GoGame.get_winning(state)
+                vals[i] = 1000 * GoGame.get_winning(state)
 
         return pi, vals
 
@@ -77,7 +77,7 @@ def pytorch_val_to_numpy(model):
         # Check for terminals
         for i, state in enumerate(states):
             if GoGame.get_game_ended(state):
-                vals[i] = 100 * GoGame.get_winning(state)
+                vals[i] = 1000 * GoGame.get_winning(state)
 
         return vals
 

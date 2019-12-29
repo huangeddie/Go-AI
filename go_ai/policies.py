@@ -115,7 +115,11 @@ class Value(Policy):
 
         step = kwargs['step']
         assert step is not None
-        pi = pi ** (1 / self.temp)
+        if self.temp > 0:
+            pi = pi ** (1 / self.temp)
+        else:
+            max_val = np.max(pi)
+            pi = pi == max_val
 
         pi /= np.sum(pi)
 
