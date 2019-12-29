@@ -66,9 +66,11 @@ def temp_softmax(qvals, temp, valid_moves):
         # Max Qs
         pi = greedy_pi(qvals, valid_moves)
     else:
-        pi = np.zeros(qvals.shape)
+        pi = np.zeros(valid_moves.shape)
         valid_indcs = np.where(valid_moves)
-        pi[valid_indcs] = special.softmax(qvals[valid_indcs] * (1 / temp))
+        if qvals.shape == valid_moves.shape:
+            qvals = qvals[valid_indcs]
+        pi[valid_indcs] = special.softmax(qvals * (1 / temp))
 
     return pi
 

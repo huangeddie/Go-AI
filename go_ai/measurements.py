@@ -216,6 +216,27 @@ def plot_stats(stats_path, outdir):
     plt.savefig(os.path.join(outdir, 'winrates.pdf'))
     plt.close()
 
+    # Loss and accuracy
+    plt.figure()
+    plt.title('Losses')
+    plt.plot(df['HOURS'], df['C_LOSS'])
+    plt.plot(df['HOURS'], df['A_LOSS'])
+    plt.xlabel('Hours')
+    plt.ylabel('Loss')
+    plt.legend(['Critic', 'Actor'])
+    plt.savefig(os.path.join(outdir, 'loss.pdf'))
+    plt.close()
+
+    plt.figure()
+    plt.title('Accuracy')
+    plt.plot(df['HOURS'], df['C_ACC'])
+    plt.plot(df['HOURS'], df['A_ACC'])
+    plt.xlabel('Hours')
+    plt.ylabel('Accuracy')
+    plt.legend(['Critic', 'Actor'])
+    plt.savefig(os.path.join(outdir, 'acc.pdf'))
+    plt.close()
+
 
 def plot_tree(go_env, policy, outdir):
     root = policy.get_tree(go_env)

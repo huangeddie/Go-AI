@@ -20,9 +20,9 @@ def greedy_val_func(states):
         black_area, white_area = GoGame.get_areas(state)
         if GoGame.get_game_ended(state):
             if black_area > white_area:
-                val = 100
+                val = 1
             elif black_area < white_area:
-                val = -100
+                val = -1
             else:
                 val = 0
         else:
@@ -106,20 +106,8 @@ class Value(Policy):
 
         prior_qs, post_qs = self.mcts_qvals(go_env)
         valid_moves = go_env.get_valid_moves()
-        where_valid = np.where(valid_moves)
         avg_qs = np.nanmean([prior_qs, post_qs], axis=0)
-        pi = np.zeros(avg_qs.shape)
-        pi[where_valid] = special.softmax(avg_qs[where_valid])
-
-        step = kwargs['step']
-        assert step is not None
-        if self.temp > 0:
-            pi = pi ** (1 / self.temp)
-        else:
-            max_val = np.max(pi)
-            pi = pi == max_val
-
-        pi = pi / np.sum(pi)
+        pi = montecarlo.temp_softmax(avg_qs, self.temp, valid_moves)
 
         if 'debug' in kwargs:
             if kwargs['debug']:
@@ -144,6 +132,7 @@ class Value(Policy):
 
             all_grandchildren = []
             all_actions = []
+            all_valid_moves = []
             seperators = []
             for child_idx in best_child_idcs:
                 child = canonical_children[child_idx]
@@ -159,12 +148,18 @@ class Value(Policy):
                 end = len(all_grandchildren)
                 all_actions.append(action_to_child)
                 seperators.append((start, end))
+                all_valid_moves.append(GoGame.get_valid_moves(child))
 
             if len(all_grandchildren) > 0:
-                grand_vals = self.val_func(np.array(all_grandchildren))
-                for action, sep in zip(all_actions, seperators):
-                    # Assume opponent would take action that minimizes our value
-                    post_qs[action] = np.min(grand_vals[sep[0]: sep[1]])
+                all_grand_vals = self.val_func(np.array(all_grandchildren))
+                for action, sep, valid_moves in zip(all_actions, seperators, all_valid_moves):
+                    grand_vals = all_grand_vals[sep[0]: sep[1]].flatten()
+                    qs = np.zeros(valid_moves.shape)
+                    where_valid = np.where(valid_moves)
+                    qs[where_valid] = montecarlo.invert_vals(grand_vals)
+                    pi = montecarlo.temp_softmax(qs, self.temp, valid_moves)
+                    post_qs[action] = montecarlo.invert_vals(np.inner(pi, qs))
+                    post_qs[action] = np.min(grand_vals)
 
         return prior_qs, post_qs
 
@@ -197,8 +192,6 @@ class ActorCritic(Policy):
         if self.mcts > 0:
             visits, prior_qs, root = tree.mct_search(go_env, self.mcts, self.ac_func)
 
-            step = kwargs['step']
-            assert step is not None
             pi = visits ** (1 / self.temp)
             pi = pi / np.sum(pi)
 
