@@ -19,7 +19,7 @@ class Trajectory:
     def get_events(self):
         events = []
         black_won = self.get_winner()
-        n = self.get_length()
+        n = len(self)
         zipped = zip(self.states, self.actions, self.rewards, self.next_states, self.pis)
         for i, (state, action, reward, next_state, pi) in enumerate(zipped):
             turn = i % 2
@@ -47,7 +47,7 @@ class Trajectory:
     def get_winner(self):
         return self.rewards[-1]
 
-    def get_length(self):
+    def __len__(self):
         n = len(self.states)
         assert len(self.actions) == n
         assert len(self.rewards) == n

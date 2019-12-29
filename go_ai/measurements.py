@@ -59,37 +59,11 @@ def action_1d_to_2d(action_1d, board_width):
     return action
 
 
-def state_responses_helper(policy: policies.Policy, states, actions, rewards, next_states, terminals, wins, pis):
-    """
-    Helper function for state_responses
-    :param policy_args:
-    :param states:
-    :param actions:
-    :param next_states:
-    :param rewards:
-    :param terminals:
-    :param wins:
-    :return:
-    """
+def state_responses(policy: policies.Policy, traj: game.Trajectory):
+    states = np.array(traj.states)
     board_size = states[0].shape[1]
 
-    state_vals = []
-    all_prior_qs = []
-    all_post_qs = []
-    go_env = gym.make('gym_go:go-v0', size=states[0].shape[1])
-    for step, (state, prev_action) in tqdm(enumerate(zip(states, actions)), desc='Heat Maps'):
-        if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
-            pi, prior_qs, post_qs = policy(go_env, step=step, debug=True)
-            if isinstance(policy, policies.Value):
-                state_val = policy.val_func(state[np.newaxis])
-            else:
-                _, state_val = policy.ac_func(state[np.newaxis])
-            state_val = state_val[0]
-
-            state_vals.append(state_val)
-            all_prior_qs.append(prior_qs)
-            all_post_qs.append(post_qs)
-        go_env.step(prev_action)
+    all_post_qs, all_prior_qs, state_vals = measure_vals(traj.actions, policy, states)
 
     valid_moves = data.batch_valid_moves(states)
 
@@ -100,20 +74,23 @@ def state_responses_helper(policy: policies.Policy, states, actions, rewards, ne
         num_cols = 2
 
     fig = plt.figure(figsize=(num_cols * 2.5, num_states * 2))
+    black_won = traj.get_winner()
+    n = len(traj)
     for i in tqdm(range(num_states), desc='Plots'):
         curr_col = 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
         plt.axis('off')
         if i > 0:
-            prev_action = action_1d_to_2d(actions[i - 1], board_size)
+            prev_action = action_1d_to_2d(traj.actions[i - 1], board_size)
             board_title = 'Action: {}\n'.format(prev_action)
             if i == num_states - 1:
-                action_took = action_1d_to_2d(actions[i], board_size)
+                action_took = action_1d_to_2d(traj.actions[i], board_size)
                 board_title += 'Action Taken: {}\n'.format(action_took)
         else:
             board_title = 'Initial Board\n'
-        board_title += '{:.0f}R {}T, {}W'.format(rewards[i], terminals[i], wins[i])
+        win = black_won if i % 2 == 0 else -black_won
+        board_title += '{:.0f}R {}T, {}W'.format(traj.rewards[i], int(i == n - 1), win)
 
         plt.title(board_title)
         plt.imshow(matplot_format(states[i]))
@@ -131,26 +108,32 @@ def state_responses_helper(policy: policies.Policy, states, actions, rewards, ne
             curr_col += 1
 
         plt.subplot(num_states, num_cols, curr_col + num_cols * i)
-        plot_move_distr('Model', pis[i], valid_moves[i], pi=True)
+        plot_move_distr('Model', traj.pis[i], valid_moves[i], pi=True)
         curr_col += 1
 
     plt.tight_layout()
     return fig
 
 
-def state_responses(policy: policies.Policy, traj: game.Trajectory):
-    """
-    :param policy_args: The model
-    :param traj: List of events
-    :return: The figure visualizing responses of the model
-    on those events
-    """
-    transtraj = traj.get_events()
-    states, actions, rewards, next_states, terminals, wins, pis = data.events_to_numpy(transtraj)
-    assert len(states[0].shape) == 3 and states[0].shape[1] == states[0].shape[2], states[0].shape
+def measure_vals(actions, policy, states):
+    state_vals = []
+    all_prior_qs = []
+    all_post_qs = []
+    go_env = gym.make('gym_go:go-v0', size=states[0].shape[1])
+    for step, (state, prev_action) in tqdm(enumerate(zip(states, actions)), desc='Heat Maps'):
+        if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
+            pi, prior_qs, post_qs = policy(go_env, step=step, debug=True)
+            if isinstance(policy, policies.Value):
+                state_val = policy.val_func(state[np.newaxis])
+            else:
+                _, state_val = policy.ac_func(state[np.newaxis])
+            state_val = state_val[0]
 
-    fig = state_responses_helper(policy, states, actions, rewards, next_states, terminals, wins, pis)
-    return fig
+            state_vals.append(state_val)
+            all_prior_qs.append(prior_qs)
+            all_post_qs.append(post_qs)
+        go_env.step(prev_action)
+    return all_post_qs, all_prior_qs, state_vals
 
 
 def plot_traj_fig(go_env, policy: policies.Policy, outpath):
