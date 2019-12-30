@@ -71,8 +71,8 @@ class MyTestCase(unittest.TestCase):
         curr_model = value.ValueNet(size)
         curr_model.load_state_dict(torch.load(f'../../bin/baselines/val{size}.pt'))
 
-        mct_pi = policies.Value('MCT', curr_model, mcts=100, temp=0.1)
-        val_pi = policies.Value('MCT', curr_model, mcts=0, temp=0.1)
+        mct_pi = policies.Value('MCT', curr_model, mcts=8, temp=0.06)
+        val_pi = policies.Value('MCT', curr_model, mcts=0, temp=0.06)
 
         win_rate, _, _, _ = game.play_games(self.go_env, mct_pi, val_pi, self.num_games)
         print(win_rate)
