@@ -106,8 +106,10 @@ class Value(Policy):
 
         prior_qs, post_qs = self.mcts_qvals(go_env)
         valid_moves = go_env.get_valid_moves()
-        avg_qs = np.nanmean([prior_qs, post_qs], axis=0)
-        pi = montecarlo.temp_softmax(avg_qs, self.temp, valid_moves)
+        exp_prior = np.exp(prior_qs)
+        exp_post = np.exp(post_qs)
+        qs = np.nansum([exp_prior, exp_post], axis=0)
+        pi = montecarlo.temperature(qs, self.temp, valid_moves)
 
         if 'debug' in kwargs:
             if kwargs['debug']:

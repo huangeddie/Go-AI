@@ -12,6 +12,6 @@ cd $PBS_O_WORKDIR
 echo -n >bin/checkpoints/stats.txt
 echo -n >bin/checkpoints/log.txt
 
-mpiexec -n 48 --bind-to core python3 train.py --boardsize=9 --model=val --mcts=8 --temp=0.03 --baseline=1 \
+mpiexec -n 48 --bind-to core python3 train.py --boardsize=9 --model=val --mcts=8 --temp=0.06 --baseline=1 \
 --episodes=192 --evaluations=192 --episodesdir=/home/ezhuang2/scratch/
 

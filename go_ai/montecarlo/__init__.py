@@ -75,6 +75,18 @@ def temp_softmax(qvals, temp, valid_moves):
     return pi
 
 
+def temperature(qs, temp, valid_moves):
+    if temp <= 0:
+        pi = greedy_pi(qs, valid_moves)
+    else:
+        pi = np.zeros(valid_moves.shape)
+        where_valid = np.where(valid_moves)
+        pi[where_valid] = preprocessing.normalize(qs[where_valid][np.newaxis], norm='l1')[0]
+        pi = preprocessing.normalize(pi[np.newaxis] ** (1 / temp), norm='l1')[0]
+
+    return pi
+
+
 def batch_temperate_pi(batch_qvals, temp, batch_valid_moves):
     if temp <= 0:
         # Max Qs
