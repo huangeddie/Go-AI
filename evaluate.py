@@ -10,7 +10,7 @@ args = utils.hyperparameters(MPI.COMM_WORLD)
 go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
-modeldir = 'bin/checkpoints/2019-12-30/'
+modeldir = 'bin/checkpoints/2020-01-14/'
 model, policy = utils.create_model(args, 'Model', modeldir=modeldir)
 print(f"Loaded model {policy} from {modeldir}")
 
