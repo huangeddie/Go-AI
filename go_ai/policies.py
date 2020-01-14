@@ -1,7 +1,6 @@
 import gym
 import numpy as np
 import torch
-from scipy import special
 
 from go_ai import montecarlo
 from go_ai.models import pytorch_val_to_numpy, pytorch_ac_to_numpy
@@ -20,9 +19,9 @@ def greedy_val_func(states):
         black_area, white_area = GoGame.get_areas(state)
         if GoGame.get_game_ended(state):
             if black_area > white_area:
-                val = 1
+                val = 100
             elif black_area < white_area:
-                val = -1
+                val = -100
             else:
                 val = 0
         else:
@@ -170,7 +169,7 @@ class Value(Policy):
 
 
 class ActorCritic(Policy):
-    def __init__(self, name, model, mcts, temp,):
+    def __init__(self, name, model, mcts, temp, ):
         """
         :param branches: The number of actions explored by actor at each node.
         :param depth: The number of steps to explore with actor. Includes opponent,
