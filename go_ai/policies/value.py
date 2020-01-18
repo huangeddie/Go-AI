@@ -31,7 +31,7 @@ class Value(Policy):
 
         exp_qs = np.exp(qs)
         pi = np.nansum(exp_qs, axis=0)
-        pi = search.temp_norm(pi, self.temp, rootnode.valid_moves)
+        pi = search.temp_norm(pi, self.temp, rootnode.valid_moves())
 
         if 'get_tree' in kwargs:
             if kwargs['get_tree']:

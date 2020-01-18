@@ -59,7 +59,7 @@ def ac_search(go_env, num_searches, ac_func):
     child_priors, child_logits = ac_func(canonical_children)
     inv_child_logits = search.invert_vals(child_logits).flatten()
     inv_child_vals = np.tanh(inv_child_logits)
-    child_valids = rootnode.valid_moves
+    child_valids = rootnode.valid_moves()
     root_prior_pi, root_prior_logits = np.zeros(rootnode.actionsize()), np.zeros(rootnode.actionsize())
     root_prior_logits[np.where(child_valids)] = inv_child_logits
     root_prior_pi[np.where(child_valids)] = special.softmax(inv_child_logits)
@@ -80,13 +80,13 @@ def ac_search(go_env, num_searches, ac_func):
     remaining_searches = max(num_searches - int(np.sum(child_valids)), 0)
     for i in range(remaining_searches):
         curr_node = rootnode
-        while curr_node.visits > 0 and not curr_node.terminal:
+        while curr_node.visits > 0 and not curr_node.terminal():
             ucbs = curr_node.get_ucbs()
             move = np.argmax(ucbs)
             curr_node = curr_node.step(move)
 
-        if curr_node.terminal:
-            winning = curr_node.winning
+        if curr_node.terminal():
+            winning = curr_node.winning()
             if curr_node.level % 2 == 1:
                 val = -winning
             else:

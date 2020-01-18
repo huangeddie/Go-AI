@@ -25,9 +25,6 @@ class Node:
         # Go
         self.state = state
         self.group_map = group_map
-        self.terminal = GoGame.get_game_ended(state)
-        self.winning = GoGame.get_winning(state)
-        self.valid_moves = GoGame.get_valid_moves(state)
 
         # Links
         self.parent = parent
@@ -51,6 +48,9 @@ class Node:
     # =================
     # Basic Tree API
     # =================
+    def terminal(self):
+        return GoGame.get_game_ended(self.state)
+
     def isleaf(self):
         # Not the same as whether the state is terminal or not
         return (self.canon_children == None).all()
@@ -70,7 +70,7 @@ class Node:
 
     def make_children(self):
         children, child_gmps = GoGame.get_children(self.state, self.group_map, canonical=True)
-        actions = np.argwhere(self.valid_moves).flatten()
+        actions = np.argwhere(self.valid_moves()).flatten()
         assert len(actions) == len(children)
         for action, state, group_map in zip(actions, children, child_gmps):
             self.make_child(action, state, group_map)
@@ -82,6 +82,9 @@ class Node:
 
     def actionsize(self):
         return GoGame.get_action_size(self.state)
+
+    def valid_moves(self):
+        return GoGame.get_valid_moves(self.state)
 
     def step(self, move):
         child = self.canon_children[move]
@@ -104,6 +107,9 @@ class Node:
     # =====================
     # MCT API
     # =====================
+    def winning(self):
+        return GoGame.get_winning(self.state)
+
     def backprop(self, val):
         if val is not None:
             self.post_vals.append(val)
@@ -127,7 +133,7 @@ class Node:
     def get_ucbs(self):
         ucbs = []
         for i in range(self.actionsize()):
-            if not self.valid_moves[i]:
+            if not self.valid_moves()[i]:
                 ucbs.append(np.finfo(np.float).min)
             else:
                 prior_q = self.prior_pi[i]
