@@ -8,7 +8,7 @@ from go_ai.search import tree
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
-def val_search(go_env, base_width, val_func, preserve_tree=False):
+def val_search(go_env, base_width, val_func, keep_tree=False):
     rootnode = tree.Node(go_env.state, go_env.group_map)
     depth = int(np.log2(base_width))
     qs = np.full((depth + 1, rootnode.actionsize()), np.nan)
@@ -38,7 +38,7 @@ def val_search(go_env, base_width, val_func, preserve_tree=False):
                     next_node = min(childnodes, key=lambda node: node.val)
                     next_nodes.append(next_node)
 
-        if not preserve_tree:
+        if not keep_tree:
             for node in best_nodes:
                 node.destroy()
             del best_nodes
