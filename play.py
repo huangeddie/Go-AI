@@ -1,7 +1,8 @@
 import gym
 from mpi4py import MPI
 
-from go_ai import policies, game, utils
+import go_ai.policies.baselines
+from go_ai import game, utils
 
 args = utils.hyperparameters(MPI.COMM_WORLD)
 
@@ -10,10 +11,10 @@ go_env = gym.make('gym_go:go-v0', size=args.boardsize)
 
 # Policies
 modeldir = 'bin/baselines/'
-model, policy = utils.create_model(args, 'Checkpoint', modeldir=modeldir)
+policy, model = go_ai.policies.baselines.create_policy(args, 'Checkpoint', modeldir=modeldir)
 print(f"Loaded model {policy}")
 
-human_pi = policies.Human(args.render)
+human_pi = go_ai.policies.baselines.Human(args.render)
 
 # Play
 go_env.reset()

@@ -1,14 +1,17 @@
+import os
 import time
 
 import graphviz
 import gym
 import numpy as np
-import os
 import pandas as pd
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from go_ai import data, policies, game
+import go_ai.policies
+import go_ai.policies.actorcritic
+import go_ai.policies.value
+from go_ai import data, game
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -64,7 +67,7 @@ def action_1d_to_2d(action_1d, board_width):
     return action
 
 
-def state_responses(policy: policies.Policy, traj: game.Trajectory):
+def state_responses(policy: go_ai.policies.Policy, traj: game.Trajectory):
     states = np.array(traj.states)
 
     all_qs_list, state_vals = measure_vals(traj.actions, policy, states)
@@ -74,14 +77,14 @@ def state_responses(policy: policies.Policy, traj: game.Trajectory):
     valid_moves = data.batch_valid_moves(states)
 
     n = len(traj)
-    if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
+    if isinstance(policy, go_ai.policies.value.Value) or isinstance(policy, go_ai.policies.actorcritic.ActorCritic):
         num_cols = 3 + layers_expanded
     else:
         num_cols = 2
 
     fig = plt.figure(figsize=(num_cols * 2.5, n * 2))
     black_won = traj.get_winner()
-    qs_title = 'Layer Qs' if isinstance(policy, policies.Value) else 'Prior Pi'
+    qs_title = 'Layer Qs' if isinstance(policy, go_ai.policies.value.Value) else 'Prior Pi'
 
     for i in tqdm(range(n), desc='Plots'):
         curr_col = 1
@@ -127,9 +130,9 @@ def measure_vals(actions, policy, states):
     all_qs = []
     go_env = gym.make('gym_go:go-v0', size=states[0].shape[1])
     for step, (state, prev_action) in tqdm(enumerate(zip(states, actions)), desc='Heat Maps'):
-        if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
+        if isinstance(policy, go_ai.policies.value.Value) or isinstance(policy, go_ai.policies.actorcritic.ActorCritic):
             pi, rootnode = policy(go_env, step=step, get_tree=True)
-            if isinstance(policy, policies.Value):
+            if isinstance(policy, go_ai.policies.value.Value):
                 state_val = policy.val_func(state[np.newaxis])
             else:
                 _, state_val = policy.ac_func(state[np.newaxis])
@@ -141,7 +144,7 @@ def measure_vals(actions, policy, states):
     return all_qs, state_vals
 
 
-def plot_traj_fig(go_env, policy: policies.Policy, outpath):
+def plot_traj_fig(go_env, policy: go_ai.policies.Policy, outpath):
     """
     Plays out a self-play game
     :param go_env:
@@ -246,7 +249,8 @@ def plot_tree(go_env, policy, outdir):
 
 
 def get_graph(treenode, imgdir, engine):
-    graph = graphviz.Digraph('MCT', engine=engine, node_attr={'shape': 'none'}, graph_attr={'ranksep': "8"}, format='pdf')
+    graph = graphviz.Digraph('MCT', engine=engine, node_attr={'shape': 'none'}, graph_attr={'ranksep': "8"},
+                             format='pdf')
     graph.attr(overlap='false')
     register_nodes(treenode, graph, imgdir)
     register_edges(treenode, graph)

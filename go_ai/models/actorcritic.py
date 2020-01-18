@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from mpi4py import MPI
 
-from go_ai import data, search, parallel
+from go_ai import data, search
 from go_ai.models import BasicBlock, average_model, ModelMetrics
 
 gymgo = gym.make('gym_go:go-v0', size=0)
@@ -66,7 +66,7 @@ class ActorCriticNet(nn.Module):
         return policy_scores, vals
 
 
-def parallel_get_qvals(comm, batched_data, val_func):
+def mpi_get_qvals(comm, batched_data, val_func):
     batches = len(batched_data)
     world_size = comm.Get_size()
     dividers = batches // world_size

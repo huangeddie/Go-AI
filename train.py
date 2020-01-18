@@ -5,17 +5,19 @@ import gym
 import torch
 from mpi4py import MPI
 
-from go_ai import policies, data, utils, parallel
+import go_ai.policies.baselines
+import go_ai.utils
+from go_ai import data, utils
 from go_ai.models import value, actorcritic, ModelMetrics
 
 
 def model_eval(comm, args, curr_pi, checkpoint_pi, winrates):
     go_env = gym.make('gym_go:go-v0', size=args.boardsize, reward_method=args.reward)
     # See how this new model compares
-    for opponent in [checkpoint_pi, policies.RAND_PI, policies.GREEDY_PI]:
+    for opponent in [checkpoint_pi, go_ai.policies.baselines.RAND_PI, go_ai.policies.baselines.GREEDY_PI]:
         # Play some games
-        parallel.parallel_debug(comm, f'Pitting {curr_pi} V {opponent}')
-        wr, _, _ = parallel.parallel_play(comm, go_env, curr_pi, opponent, args.evaluations)
+        go_ai.utils.mpi_log_debug(comm, f'Pitting {curr_pi} V {opponent}')
+        wr, _, _ = go_ai.utils.mpi_play(comm, go_env, curr_pi, opponent, args.evaluations)
         winrates[opponent] = wr
 
 
@@ -26,26 +28,26 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
     curr_model = curr_pi.pytorch_model
 
     # Play episodes
-    parallel.parallel_debug(comm, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
-    _, _, replays = parallel.parallel_play(comm, go_env, checkpoint_pi, checkpoint_pi, args.episodes)
+    go_ai.utils.mpi_log_debug(comm, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
+    _, _, replays = go_ai.utils.mpi_play(comm, go_env, checkpoint_pi, checkpoint_pi, args.episodes)
     replay_data.extend(replays)
 
     # Write episodes
     data.save_replaydata(comm, replay_data, args.episodesdir)
-    parallel.parallel_debug(comm, 'Wrote all replay data to disk')
+    go_ai.utils.mpi_log_debug(comm, 'Wrote all replay data to disk')
 
     # Sample data as batches
     trainadata, replay_len = data.sample_eventdata(comm, args.episodesdir, args.batches, args.batchsize)
 
     # Optimize
-    parallel.parallel_debug(comm, f'Optimizing in {len(trainadata)} training steps...')
+    go_ai.utils.mpi_log_debug(comm, f'Optimizing in {len(trainadata)} training steps...')
     if args.model == 'val':
         metrics = value.optimize(comm, curr_model, trainadata, optim)
     elif args.model == 'ac':
         metrics = actorcritic.optimize(comm, curr_model, trainadata, optim)
 
     # Sync model
-    parallel.parallel_debug(comm, f'Optimized | {str(metrics)}')
+    go_ai.utils.mpi_log_debug(comm, f'Optimized | {str(metrics)}')
 
     return metrics, replay_len
 
@@ -63,7 +65,7 @@ def train(comm, args, curr_pi, checkpoint_pi):
     starttime = datetime.now()
 
     # Header output
-    parallel.parallel_info(comm, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
+    go_ai.utils.mpi_log_info(comm, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
 
     winrates = collections.defaultdict(float)
     for iteration in range(args.iterations):
@@ -74,7 +76,7 @@ def train(comm, args, curr_pi, checkpoint_pi):
         model_eval(comm, args, curr_pi, checkpoint_pi, winrates)
 
         # Sync
-        utils.sync_checkpoint(comm, args, new_pi=curr_pi, old_pi=checkpoint_pi)
+        utils.mpi_sync_checkpoint(comm, args, new_pi=curr_pi, old_pi=checkpoint_pi)
 
         # Print iteration summary
         currtime = datetime.now()
@@ -82,9 +84,9 @@ def train(comm, args, curr_pi, checkpoint_pi):
         iter_info = f"{str(delta).split('.')[0]}\t{iteration:02d}\t{replay_len:07d}\t" \
                     f"{100 * metrics.crit_acc:04.1f}\t{metrics.crit_loss:04.3f}\t" \
                     f"{100 * metrics.act_acc:04.1f}\t{metrics.act_loss:04.3f}\t" \
-                    f"{100 * winrates[checkpoint_pi]:04.1f}\t{100 * winrates[policies.RAND_PI]:04.1f}\t" \
-                    f"{100 * winrates[policies.GREEDY_PI]:04.1f}"
-        parallel.parallel_info(comm, iter_info)
+                    f"{100 * winrates[checkpoint_pi]:04.1f}\t{100 * winrates[go_ai.policies.baselines.RAND_PI]:04.1f}\t" \
+                    f"{100 * winrates[go_ai.policies.baselines.GREEDY_PI]:04.1f}"
+        go_ai.utils.mpi_log_info(comm, iter_info)
 
 
 if __name__ == '__main__':
@@ -96,15 +98,15 @@ if __name__ == '__main__':
     args = utils.hyperparameters(comm)
 
     # Logging
-    parallel.configure_logging(args, comm)
-    parallel.parallel_debug(comm, f"{world_size} Workers, {args}")
+    go_ai.utils.mpi_config_log(args, comm)
+    go_ai.utils.mpi_log_debug(comm, f"{world_size} Workers, {args}")
 
     # Set parameters and episode data on disk
-    utils.sync_data(comm, args)
+    utils.mpi_sync_data(comm, args)
 
     # Model and Policies
-    curr_model, curr_pi = utils.create_model(args, 'Current', latest_checkpoint=True)
-    checkpoint_model, checkpoint_pi = utils.create_model(args, 'Checkpoint', latest_checkpoint=True)
+    curr_pi, curr_model = go_ai.policies.baselines.create_policy(args, 'Current', latest_checkpoint=True)
+    checkpoint_pi, checkpoint_model = go_ai.policies.baselines.create_policy(args, 'Checkpoint', latest_checkpoint=True)
 
     # Device
     device = torch.device(args.device)

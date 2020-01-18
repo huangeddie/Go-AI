@@ -1,3 +1,5 @@
+import os
+
 import gym
 import torch
 from mpi4py import MPI
@@ -104,3 +106,15 @@ def average_model(comm, model):
     world_size = comm.Get_size()
     for params in model.parameters():
         params.data = comm.allreduce(params.data, op=MPI.SUM) / world_size
+
+
+def get_modelpath(args, savetype):
+    if savetype == 'checkpoint':
+        dir = args.savedir
+    elif savetype == 'baseline':
+        dir = 'bin/baselines/'
+    else:
+        raise Exception(f"Unknown location type: {savetype}")
+    path = os.path.join(dir, f'{args.model}{args.boardsize}.pt')
+
+    return path

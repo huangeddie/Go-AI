@@ -1,7 +1,7 @@
 import gym
 from tqdm import tqdm
 
-from go_ai import policies
+import go_ai.policies
 
 go_env = gym.make('gym_go:go-v0', size=0)
 GoVars = go_env.govars
@@ -57,7 +57,7 @@ class Trajectory:
         return n
 
 
-def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy):
+def pit(go_env, black_policy: go_ai.policies.Policy, white_policy: go_ai.policies.Policy):
     """
     Pits two policies against each other and returns the results
     :param get_trajectory: Whether to store trajectory in memory
@@ -124,7 +124,8 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy):
     return black_won, num_steps, traj
 
 
-def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Policy, episodes, progress=True):
+def play_games(go_env, first_policy: go_ai.policies.Policy, second_policy: go_ai.policies.Policy, episodes,
+               progress=True):
     replay_data = []
     all_steps = []
     first_wins = 0

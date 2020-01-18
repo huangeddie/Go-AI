@@ -1,13 +1,17 @@
 import argparse
 import datetime
+import logging
+import math
 import os
 import shutil
+import time
 
 import torch
 from mpi4py import MPI
 
-from go_ai import data, policies, parallel
-from go_ai.models import value, actorcritic
+from go_ai import data, game
+from go_ai.models import get_modelpath
+from go_ai.policies.baselines import create_policy
 
 
 def hyperparameters(comm: MPI.Intracomm):
@@ -67,7 +71,66 @@ def hyperparameters(comm: MPI.Intracomm):
     return args
 
 
-def sync_checkpoint(comm: MPI.Intracomm, args, new_pi, old_pi):
+def config_log(args=None):
+    bare_frmtr = logging.Formatter('%(message)s')
+    if args is None:
+        handler = logging.Handler()
+    else:
+        handler = logging.FileHandler(os.path.join(args.savedir, f'{args.model}{args.boardsize}_stats.txt'), 'w')
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(bare_frmtr)
+    console = logging.StreamHandler()
+    console.setLevel(logging.DEBUG)
+    console.setFormatter(bare_frmtr)
+    rootlogger = logging.getLogger()
+    rootlogger.setLevel(logging.DEBUG)
+    rootlogger.addHandler(console)
+    rootlogger.addHandler(handler)
+
+    logging.getLogger('matplotlib.font_manager').disabled = True
+
+
+def log_info(s):
+    logging.info(s)
+
+
+def log_debug(s):
+    s = f"{time.strftime('%H:%M:%S', time.localtime())}\t{s}"
+    logging.debug(s)
+
+
+def mpi_config_log(args, comm: MPI.Intracomm):
+    if comm.Get_rank() == 0:
+        config_log(args)
+
+    comm.Barrier()
+
+
+def mpi_log_info(comm: MPI.Intracomm, s):
+    """
+    Only the first worker prints stuff
+    :param rank:
+    :param s:
+    :return:
+    """
+    rank = comm.Get_rank()
+    if rank == 0:
+        log_info(s)
+
+
+def mpi_log_debug(comm: MPI.Intracomm, s):
+    """
+    Only the first worker prints stuff
+    :param rank:
+    :param s:
+    :return:
+    """
+    rank = comm.Get_rank()
+    if rank == 0:
+        log_debug(s)
+
+
+def mpi_sync_checkpoint(comm: MPI.Intracomm, args, new_pi, old_pi):
     rank = comm.Get_rank()
     checkpath = get_modelpath(args, 'checkpoint')
     if rank == 0:
@@ -77,7 +140,7 @@ def sync_checkpoint(comm: MPI.Intracomm, args, new_pi, old_pi):
     old_pi.pytorch_model.load_state_dict(torch.load(checkpath))
 
 
-def sync_data(comm: MPI.Intracomm, args):
+def mpi_sync_data(comm: MPI.Intracomm, args):
     rank = comm.Get_rank()
     if rank == 0:
         # Clear worker data
@@ -88,61 +151,44 @@ def sync_data(comm: MPI.Intracomm, args):
         if args.baseline:
             baseline_path = get_modelpath(args, 'baseline')
             shutil.copy(baseline_path, checkpath)
-            parallel.parallel_debug(comm, "Starting from baseline")
+            mpi_log_debug(comm, "Starting from baseline")
         else:
             # Save new model
-            new_model, _ = create_model(args, '', latest_checkpoint=False)
+            _, new_model = create_policy(args, '', latest_checkpoint=False)
 
             torch.save(new_model.state_dict(), checkpath)
-            parallel.parallel_debug(comm, "Starting from scratch")
+            mpi_log_debug(comm, "Starting from scratch")
 
     comm.Barrier()
 
 
-def get_modelpath(args, savetype):
-    if savetype == 'checkpoint':
-        dir = args.savedir
-    elif savetype == 'baseline':
-        dir = 'bin/baselines/'
-    else:
-        raise Exception(f"Unknown location type: {savetype}")
-    path = os.path.join(dir, f'{args.model}{args.boardsize}.pt')
+def mpi_play(comm: MPI.Intracomm, go_env, pi1, pi2, req_episodes):
+    """
+    Plays games in parallel
+    :param comm:
+    :param go_env:
+    :param pi1:
+    :param pi2:
+    :param gettraj:
+    :param req_episodes:
+    :return:
+    """
+    world_size = comm.Get_size()
 
-    return path
+    worker_episodes = int(math.ceil(req_episodes / world_size))
+    episodes = worker_episodes * world_size
+    single_worker = comm.Get_size() <= 1
 
+    timestart = time.time()
+    p1wr, black_wr, steps, replay_mem = game.play_games(go_env, pi1, pi2, worker_episodes, progress=single_worker)
+    timeend = time.time()
 
-def create_model(args, name, baseline=False, latest_checkpoint=False, modeldir=None):
-    model = args.model
-    size = args.boardsize
-    if model == 'val':
-        net = value.ValueNet(size, args.resblocks)
-        pi = policies.Value(name, net, args.mcts, args.temp)
-    elif model == 'ac':
-        net = actorcritic.ActorCriticNet(size, args.resblocks)
-        pi = policies.ActorCritic(name, net, args.mcts, args.temp)
-    elif model == 'rand':
-        net = None
-        pi = policies.RAND_PI
-    elif model == 'greedy':
-        net = None
-        pi = policies.GREEDY_PI
-    elif model == 'human':
-        net = None
-        pi = policies.Human(args.render)
-    else:
-        raise Exception("Unknown model argument", model)
+    duration = timeend - timestart
+    avg_time = comm.allreduce(duration / worker_episodes, op=MPI.SUM) / world_size
+    p1wr = comm.allreduce(p1wr, op=MPI.SUM) / world_size
+    black_wr = comm.allreduce(black_wr, op=MPI.SUM) / world_size
+    avg_steps = comm.allreduce(sum(steps), op=MPI.SUM) / episodes
 
-    if baseline:
-        assert not latest_checkpoint
-        net.load_state_dict(torch.load(f'bin/baselines/{model}{size}.pt'))
-    elif latest_checkpoint:
-        assert not baseline
-        assert modeldir is None
-        latest_checkpath = get_modelpath(args, 'checkpoint')
-        net.load_state_dict(torch.load(latest_checkpath))
-    elif modeldir is not None:
-        assert not latest_checkpoint
-        checkpath = os.path.join(modeldir, f'{model}{size}.pt')
-        net.load_state_dict(torch.load(checkpath))
-
-    return net, pi
+    mpi_log_debug(comm, f'{pi1} V {pi2} | {episodes} GAMES, {avg_time:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
+                         f'{100 * p1wr:.1f}% WIN({100 * black_wr:.1f}% BLACK_WIN)')
+    return p1wr, black_wr, replay_mem

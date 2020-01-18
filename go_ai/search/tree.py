@@ -58,8 +58,8 @@ class Node:
     def isroot(self):
         return self.parent is None
 
-    def make_child(self, action, state, groupmap):
-        child_node = Node(state, groupmap, self)
+    def make_child(self, action, state, group_map):
+        child_node = Node(state, group_map, self)
         self.canon_children[action] = child_node
         if child_node.level == 1:
             child_node.first_action = action
@@ -72,8 +72,8 @@ class Node:
         children, child_gmps = GoGame.get_children(self.state, self.group_map, canonical=True)
         actions = np.argwhere(self.valid_moves).flatten()
         assert len(actions) == len(children)
-        for action, state, groupmap in zip(actions, children, child_gmps):
-            self.make_child(action, state, groupmap)
+        for action, state, group_map in zip(actions, children, child_gmps):
+            self.make_child(action, state, group_map)
 
         return self.get_real_children()
 
