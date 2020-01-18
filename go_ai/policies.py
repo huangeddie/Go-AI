@@ -112,8 +112,8 @@ class Value(Policy):
         pi = np.nansum(exp_qs, axis=0)
         pi = search.temp_norm(pi, self.temp, rootnode.valid_moves)
 
-        if 'debug' in kwargs:
-            if kwargs['debug']:
+        if 'get_tree' in kwargs:
+            if kwargs['get_tree']:
                 return pi, rootnode
         else:
             return pi
@@ -179,8 +179,8 @@ class ActorCritic(Policy):
             pi = qs[1] ** (1 / self.temp)
             pi = pi / np.sum(pi)
 
-            if 'debug' in kwargs:
-                if kwargs['debug']:
+            if 'get_tree' in kwargs:
+                if kwargs['get_tree']:
                     return pi, rootnode
 
         else:
