@@ -6,6 +6,7 @@ from mpi4py import MPI
 import go_ai.policies.actorcritic
 import go_ai.policies.baselines
 import go_ai.policies.value
+import go_ai.search.plot
 from go_ai import measurements, utils
 
 utils.config_log()
@@ -34,7 +35,7 @@ if os.path.exists(stats_path):
 # Plot tree if applicable
 if isinstance(policy, go_ai.policies.actorcritic.ActorCritic) or isinstance(policy, go_ai.policies.value.Value):
     go_env.reset()
-    measurements.plot_tree(go_env, policy, basedir)
+    go_ai.search.plot.plot_tree(go_env, policy, basedir)
     utils.log_debug(f'Plotted tree')
 
 # Sample trajectory and plot prior qvals
