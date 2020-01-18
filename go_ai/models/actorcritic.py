@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from mpi4py import MPI
 
-from go_ai import data, montecarlo, parallel
+from go_ai import data, search, parallel
 from go_ai.models import BasicBlock, average_model, ModelMetrics
 
 gymgo = gym.make('gym_go:go-v0', size=0)
@@ -80,7 +80,7 @@ def parallel_get_qvals(comm, batched_data, val_func):
         states = data.batch_random_symmetries(states)
         invalid_values = data.batch_invalid_values(states)
 
-        qvals, _ = montecarlo.batchqs_from_valfunc(states, val_func)
+        qvals, _ = search.batchqs_from_valfunc(states, val_func)
         qvals += invalid_values
 
         my_qvals.append(qvals)

@@ -1,10 +1,12 @@
+from queue import Queue
+
 import gym
 import numpy as np
 import torch
 
-from go_ai import montecarlo
+from go_ai import search
 from go_ai.models import pytorch_val_to_numpy, pytorch_ac_to_numpy
-from go_ai.montecarlo import tree
+from go_ai.search import mct
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -95,6 +97,7 @@ class Value(Policy):
 
         self.val_func = val_func
         self.mcts = mcts
+        self.depth = int(np.log2(self.mcts)) if self.mcts > 0 else 0
 
     def __call__(self, go_env, **kwargs):
         """
@@ -102,67 +105,50 @@ class Value(Policy):
         :param step: Parameter used for getting the temperature
         :return:
         """
+        rootnode = mct.val_search(go_env, self.mcts, self.val_func)
+        qs = self.tree_to_qs(rootnode)
 
-        prior_qs, post_qs = self.mcts_qvals(go_env)
-        valid_moves = go_env.get_valid_moves()
-        exp_prior = np.exp(prior_qs)
-        exp_post = np.exp(post_qs)
-        qs = np.nansum([exp_prior, exp_post], axis=0)
-        pi = montecarlo.temperature(qs, self.temp, valid_moves)
+        exp_qs = np.exp(qs)
+        pi = np.nansum(exp_qs, axis=0)
+        pi = search.temp_norm(pi, self.temp, rootnode.valid_moves)
 
         if 'debug' in kwargs:
             if kwargs['debug']:
-                return pi, prior_qs, post_qs
+                return pi, rootnode
         else:
             return pi
 
-    def mcts_qvals(self, go_env):
-        canonical_children, child_groupmaps = go_env.get_children(canonical=True)
-        child_vals = self.val_func(np.array(canonical_children))
-        valid_moves = go_env.get_valid_moves()
+    def tree_to_qs(self, rootnode):
+        qs = np.full((self.depth + 1, rootnode.actionsize()), np.nan)
 
-        prior_qs = montecarlo.vals_to_qs(child_vals, valid_moves)
-        post_qs = np.full(prior_qs.shape, np.nan)
+        # Iterate through root-child nodes, inner nodes
+        queue = Queue()
+        for child in rootnode.get_real_children():
+            queue.put(child)
 
-        # Search on grandchildren layer
-        if self.mcts > 0:
-            argvalid_moves = np.argwhere(valid_moves).flatten()
-            assert len(argvalid_moves) == len(child_vals)
-            ordered_child_idcs = np.argsort(child_vals.flatten())
-            best_child_idcs = ordered_child_idcs[:self.mcts]
+        while not queue.empty():
+            node = queue.get()
+            if node.level == 1:
+                # Root child
+                qs[0, node.first_action] = search.invert_vals(node.val)
 
-            all_grandchildren = []
-            all_actions = []
-            all_valid_moves = []
-            seperators = []
-            for child_idx in best_child_idcs:
-                child = canonical_children[child_idx]
-                if GoGame.get_game_ended(child):
-                    continue
+            if not node.isleaf():
+                # Inner node
+                likely_node = min(node.get_real_children(), key=lambda node: node.val)
+                level = likely_node.level
 
-                action_to_child = argvalid_moves[child_idx]
-                child_groupmap = child_groupmaps[child_idx]
-                grandchildren, _ = GoGame.get_children(child, child_groupmap, canonical=True)
+                orig_qval = qs[level - 1, node.first_action]
+                if level % 2 == 0:
+                    qval = np.nanmin([likely_node.val, orig_qval])
+                else:
+                    qval = np.nanmax([search.invert_vals(likely_node.val), orig_qval])
 
-                start = len(all_grandchildren)
-                all_grandchildren.extend(grandchildren)
-                end = len(all_grandchildren)
-                all_actions.append(action_to_child)
-                seperators.append((start, end))
-                all_valid_moves.append(GoGame.get_valid_moves(child))
+                qs[level - 1, node.first_action] = qval
 
-            if len(all_grandchildren) > 0:
-                all_grand_vals = self.val_func(np.array(all_grandchildren))
-                for action, sep, valid_moves in zip(all_actions, seperators, all_valid_moves):
-                    grand_vals = all_grand_vals[sep[0]: sep[1]].flatten()
-                    qs = np.zeros(valid_moves.shape)
-                    where_valid = np.where(valid_moves)
-                    qs[where_valid] = montecarlo.invert_vals(grand_vals)
-                    pi = montecarlo.temp_softmax(qs, self.temp, valid_moves)
-                    post_qs[action] = montecarlo.invert_vals(np.inner(pi, qs))
-                    post_qs[action] = np.min(grand_vals)
-
-        return prior_qs, post_qs
+                # Queue children
+                for child in node.get_real_children():
+                    queue.put(child)
+        return qs
 
     def __str__(self):
         return f"{self.__class__.__name__}[{self.mcts}S {self.temp:.2f}T]-{self.name}"
@@ -180,10 +166,6 @@ class ActorCritic(Policy):
         self.ac_func = pytorch_ac_to_numpy(model)
         self.mcts = mcts
 
-    def get_tree(self, go_env):
-        _, _, root = tree.mct_search(go_env, self.mcts, self.ac_func)
-        return root
-
     def __call__(self, go_env, **kwargs):
         """
         :param state: Unused variable since we already have the state stored in the tree
@@ -191,23 +173,31 @@ class ActorCritic(Policy):
         :return:
         """
         if self.mcts > 0:
-            visits, prior_qs, root = tree.mct_search(go_env, self.mcts, self.ac_func)
+            rootnode = mct.ac_search(go_env, self.mcts, self.ac_func)
+            qs = self.tree_to_qs(rootnode)
 
-            pi = visits ** (1 / self.temp)
+            pi = qs[1] ** (1 / self.temp)
             pi = pi / np.sum(pi)
 
             if 'debug' in kwargs:
                 if kwargs['debug']:
-                    return pi, prior_qs, visits
+                    return pi, rootnode
 
         else:
             state = go_env.get_canonical_state()
             policy_scores, _ = self.ac_func(state[np.newaxis])
             policy_scores = policy_scores[0]
             valid_moves = GoGame.get_valid_moves(state)
-            pi = montecarlo.temp_softmax(policy_scores, self.temp, valid_moves)
+            pi = search.temp_softmax(policy_scores, self.temp, valid_moves)
 
         return pi
+
+    def tree_to_qs(self, rootnode):
+        qs = np.empty((2, rootnode.actionsize))
+        qs[0] = rootnode.prior_pi
+        qs[1] = rootnode.get_visit_counts()
+
+        return qs
 
     def __str__(self):
         return f"{self.__class__.__name__}[{self.mcts}S {self.temp:.2f}T]-{self.name}"

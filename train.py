@@ -9,7 +9,7 @@ from go_ai import policies, data, utils, parallel
 from go_ai.models import value, actorcritic, ModelMetrics
 
 
-def evaluate(comm, args, curr_pi, checkpoint_pi, winrates):
+def model_eval(comm, args, curr_pi, checkpoint_pi, winrates):
     go_env = gym.make('gym_go:go-v0', size=args.boardsize, reward_method=args.reward)
     # See how this new model compares
     for opponent in [checkpoint_pi, policies.RAND_PI, policies.GREEDY_PI]:
@@ -71,7 +71,7 @@ def train(comm, args, curr_pi, checkpoint_pi):
         metrics, replay_len = train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data)
 
         # Model Evaluation
-        evaluate(comm, args, curr_pi, checkpoint_pi, winrates)
+        model_eval(comm, args, curr_pi, checkpoint_pi, winrates)
 
         # Sync
         utils.sync_checkpoint(comm, args, new_pi=curr_pi, old_pi=checkpoint_pi)

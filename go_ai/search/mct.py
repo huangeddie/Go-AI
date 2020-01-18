@@ -2,13 +2,42 @@ import gym
 import numpy as np
 from scipy import special
 
-from go_ai import montecarlo, data
-from go_ai.montecarlo.node import Node
+from go_ai import search, data
+from go_ai.search import tree
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
-def mct_search(go_env, num_searches, ac_func):
+def val_search(go_env, base_width, val_func):
+    rootnode = tree.Node(go_env.state, go_env.group_map)
+    next_nodes = rootnode.make_children()
+    tree.set_state_vals(val_func, next_nodes)
+
+    width = base_width
+    level = 1
+    while width > 1:
+        best_nodes = sorted(next_nodes, key=lambda node: node.val, reverse=level % 2 == 0)
+        next_nodes = []
+        all_children = []
+        for node in best_nodes[:width]:
+            childnodes = node.make_children()
+            all_children.extend(childnodes)
+
+        if len(all_children) > 0:
+            tree.set_state_vals(val_func, all_children)
+
+            for node in best_nodes[:width]:
+                childnodes = node.get_real_children()
+                if len(childnodes) > 0:
+                    next_node = min(childnodes, key=lambda node: node.val)
+                    next_nodes.append(next_node)
+
+        width = width // 2
+        level += 1
+
+    return rootnode
+
+def ac_search(go_env, num_searches, ac_func):
     '''
     Description:
         Select a child node that maximizes Q + U,
@@ -22,16 +51,16 @@ def mct_search(go_env, num_searches, ac_func):
     root_groupmap = go_env.group_map
     rootstate = go_env.get_canonical_state()
 
-    rootnode = Node(rootstate, root_groupmap)
+    rootnode = tree.Node(rootstate, root_groupmap)
     _, root_val_logits = ac_func(rootstate[np.newaxis])
     rootnode.backprop(np.tanh(root_val_logits).item())
 
     canonical_children, child_groupmaps = GoGame.get_children(rootstate, root_groupmap, canonical=True)
     child_priors, child_logits = ac_func(canonical_children)
-    inv_child_logits = montecarlo.invert_vals(child_logits).flatten()
+    inv_child_logits = search.invert_vals(child_logits).flatten()
     inv_child_vals = np.tanh(inv_child_logits)
     child_valids = rootnode.valid_moves
-    root_prior_pi, root_prior_logits = np.zeros(rootnode.actionsize), np.zeros(rootnode.actionsize)
+    root_prior_pi, root_prior_logits = np.zeros(rootnode.actionsize()), np.zeros(rootnode.actionsize())
     root_prior_logits[np.where(child_valids)] = inv_child_logits
     root_prior_pi[np.where(child_valids)] = special.softmax(inv_child_logits)
     rootnode.set_prior_pi(root_prior_pi)
@@ -41,9 +70,8 @@ def mct_search(go_env, num_searches, ac_func):
     batch_prior_pi = special.softmax(child_priors * batch_valid_moves + batch_invalid_values, axis=1)
 
     pbar = zip(canonical_children, child_groupmaps, np.argwhere(child_valids), batch_prior_pi, inv_child_vals)
-    for child, groupmap, action, prior_pi, inv_childval in pbar:
-        child = Node(child, groupmap, rootnode)
-        rootnode.canon_children[action] = child
+    for child_state, groupmap, action, prior_pi, inv_childval in pbar:
+        child = rootnode.make_child(action, child_state, groupmap)
 
         child.set_prior_pi(prior_pi)
         child.backprop(inv_childval.item())
@@ -55,7 +83,7 @@ def mct_search(go_env, num_searches, ac_func):
         while curr_node.visits > 0 and not curr_node.terminal:
             ucbs = curr_node.get_ucbs()
             move = np.argmax(ucbs)
-            curr_node = curr_node.traverse(move)
+            curr_node = curr_node.step(move)
 
         if curr_node.terminal:
             winning = curr_node.winning
@@ -72,7 +100,7 @@ def mct_search(go_env, num_searches, ac_func):
 
             val = np.tanh(logit)
             if curr_node.height % 2 == 1:
-                val = montecarlo.invert_vals(val)
+                val = search.invert_vals(val)
 
             valid_moves = GoGame.get_valid_moves(leaf_state)
             invalid_values = data.batch_invalid_values(leaf_state[np.newaxis])[0]
@@ -81,6 +109,4 @@ def mct_search(go_env, num_searches, ac_func):
             curr_node.set_prior_pi(prior_pi)
             curr_node.backprop(val)
 
-    return rootnode.get_visit_counts(), root_prior_logits, rootnode
-
-
+    return rootnode

@@ -67,20 +67,21 @@ def action_1d_to_2d(action_1d, board_width):
 def state_responses(policy: policies.Policy, traj: game.Trajectory):
     states = np.array(traj.states)
 
-    all_post_qs, all_prior_qs, state_vals = measure_vals(traj.actions, policy, states)
+    all_qs_list, state_vals = measure_vals(traj.actions, policy, states)
+    all_qs = np.array(all_qs_list)
+    layers_expanded = all_qs.shape[1]
 
     valid_moves = data.batch_valid_moves(states)
 
     n = len(traj)
     if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
-        num_cols = 4
+        num_cols = 3 + layers_expanded
     else:
         num_cols = 2
 
     fig = plt.figure(figsize=(num_cols * 2.5, n * 2))
     black_won = traj.get_winner()
-    prior_title = 'Prior Qs' if isinstance(policy, policies.Value) else 'Prior Pi'
-    post_title = 'Post Qs' if isinstance(policy, policies.Value) else 'Visits'
+    qs_title = 'Layer Qs' if isinstance(policy, policies.Value) else 'Prior Pi'
 
     for i in tqdm(range(n), desc='Plots'):
         curr_col = 1
@@ -89,13 +90,10 @@ def state_responses(policy: policies.Policy, traj: game.Trajectory):
         plot_state(black_won, i, n, traj)
         curr_col += 1
 
-        plt.subplot(n, num_cols, curr_col + num_cols * i)
-        plot_move_distr(prior_title, all_prior_qs[i], valid_moves[i], scalar=state_vals[i].item())
-        curr_col += 1
-
-        plt.subplot(n, num_cols, curr_col + num_cols * i)
-        plot_move_distr(post_title, all_post_qs[i], valid_moves[i], scalar=state_vals[i].item())
-        curr_col += 1
+        for j in range(layers_expanded):
+            plt.subplot(n, num_cols, curr_col + num_cols * i)
+            plot_move_distr(qs_title, all_qs[i, j], valid_moves[i], scalar=state_vals[i].item())
+            curr_col += 1
 
         plt.subplot(n, num_cols, curr_col + num_cols * i)
         plot_move_distr('Model', traj.pis[i], valid_moves[i], pi=True)
@@ -126,23 +124,21 @@ def plot_state(black_won, i, n, traj):
 
 def measure_vals(actions, policy, states):
     state_vals = []
-    all_prior_qs = []
-    all_post_qs = []
+    all_qs = []
     go_env = gym.make('gym_go:go-v0', size=states[0].shape[1])
     for step, (state, prev_action) in tqdm(enumerate(zip(states, actions)), desc='Heat Maps'):
         if isinstance(policy, policies.Value) or isinstance(policy, policies.ActorCritic):
-            pi, prior_qs, post_qs = policy(go_env, step=step, debug=True)
+            pi, rootnode = policy(go_env, step=step, debug=True)
             if isinstance(policy, policies.Value):
                 state_val = policy.val_func(state[np.newaxis])
             else:
                 _, state_val = policy.ac_func(state[np.newaxis])
             state_val = state_val[0]
-
             state_vals.append(state_val)
-            all_prior_qs.append(prior_qs)
-            all_post_qs.append(post_qs)
+            qs = policy.tree_to_qs(rootnode)
+            all_qs.append(qs)
         go_env.step(prev_action)
-    return all_post_qs, all_prior_qs, state_vals
+    return all_qs, state_vals
 
 
 def plot_traj_fig(go_env, policy: policies.Policy, outpath):
@@ -239,17 +235,18 @@ def plot_stats(stats_path, outdir):
 
 
 def plot_tree(go_env, policy, outdir):
-    root = policy.get_tree(go_env)
+    _, root = policy(go_env, debug=True)
     imgdir = os.path.join(outdir, 'node_imgs/')
     imgdir = os.path.abspath(imgdir)
     if not os.path.exists(imgdir):
         os.mkdir(imgdir)
-    graph = get_graph(root, imgdir)
-    graph.render(os.path.join(outdir, 'tree'))
+    for engine in ['twopi', 'dot']:
+        graph = get_graph(root, imgdir, engine)
+        graph.render(os.path.join(outdir, f'tree_{engine}'))
 
 
-def get_graph(treenode, imgdir):
-    graph = graphviz.Digraph('MCT', engine='twopi', node_attr={'shape': 'none'}, format='pdf')
+def get_graph(treenode, imgdir, engine):
+    graph = graphviz.Digraph('MCT', engine=engine, node_attr={'shape': 'none'}, graph_attr={'ranksep': "8"}, format='pdf')
     graph.attr(overlap='false')
     register_nodes(treenode, graph, imgdir)
     register_edges(treenode, graph)
@@ -271,7 +268,11 @@ def register_nodes(treenode, graph, imgdir):
 
 
 def register_edges(treenode, graph):
-    for child, prob in zip(treenode.canon_children, treenode.prior_pi):
+    for a in range(treenode.actionsize()):
+        child = treenode.canon_children[a]
         if child is not None:
-            graph.edge(str(id(treenode)), str(id(child)), label=f'{prob:.2f}')
+            label = ''
+            if treenode.prior_pi is not None:
+                label = f'{treenode.prior_pi[a]:.2f}'
+            graph.edge(str(id(treenode)), str(id(child)), label=label)
             register_edges(child, graph)

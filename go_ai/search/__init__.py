@@ -75,7 +75,7 @@ def temp_softmax(qvals, temp, valid_moves):
     return pi
 
 
-def temperature(qs, temp, valid_moves):
+def temp_norm(qs, temp, valid_moves):
     if temp <= 0:
         pi = greedy_pi(qs, valid_moves)
     else:
