@@ -21,7 +21,7 @@ def model_eval(comm, args, curr_pi, checkpoint_pi, winrates):
         winrates[opponent] = wr
 
 
-def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
+def train_step(comm, args, curr_pi, optim, checkpoint_pi):
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.boardsize, reward_method=args.reward)
     metrics = ModelMetrics()
@@ -30,14 +30,13 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data):
     # Play episodes
     go_ai.utils.mpi_log_debug(comm, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
     _, _, replays = go_ai.utils.mpi_play(comm, go_env, checkpoint_pi, checkpoint_pi, args.episodes)
-    replay_data.extend(replays)
 
     # Write episodes
-    data.save_replaydata(comm, replay_data, args.episodesdir)
-    go_ai.utils.mpi_log_debug(comm, 'Wrote all replay data to disk')
+    data.add_replaydata(comm, args, replays)
+    go_ai.utils.mpi_log_debug(comm, 'Added all replay data to disk')
 
     # Sample data as batches
-    trainadata, replay_len = data.sample_eventdata(comm, args.episodesdir, args.batches, args.batchsize)
+    trainadata, replay_len = data.sample_eventdata(comm, args.episodes_path, args.batches, args.batchsize)
 
     # Optimize
     go_ai.utils.mpi_log_debug(comm, f'Optimizing in {len(trainadata)} training steps...')
@@ -57,10 +56,6 @@ def train(comm, args, curr_pi, checkpoint_pi):
     curr_model = curr_pi.pytorch_model
     optim = torch.optim.Adam(curr_model.parameters(), args.lr, weight_decay=1e-4)
 
-    # Replay data
-    world_size = comm.Get_size()
-    replay_data = collections.deque(maxlen=args.replaysize // world_size)
-
     # Timer
     starttime = datetime.now()
 
@@ -70,7 +65,7 @@ def train(comm, args, curr_pi, checkpoint_pi):
     winrates = collections.defaultdict(float)
     for iteration in range(args.iterations):
         # Train
-        metrics, replay_len = train_step(comm, args, curr_pi, optim, checkpoint_pi, replay_data)
+        metrics, replay_len = train_step(comm, args, curr_pi, optim, checkpoint_pi)
 
         # Model Evaluation
         model_eval(comm, args, curr_pi, checkpoint_pi, winrates)

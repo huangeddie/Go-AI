@@ -45,7 +45,7 @@ def hyperparameters(comm: MPI.Intracomm):
     parser.add_argument('--eval-interval', type=int, default=1, help='iterations per evaluation')
 
     # Disk Data
-    parser.add_argument('--episodesdir', type=str, default='bin/episodes/', help='directory to store episodes')
+    parser.add_argument('--episodes-path', type=str, default='bin/episodes.pickle', help='path to store episodes')
     parser.add_argument('--savedir', type=str, default=f'bin/checkpoints/{today}/')
 
     # Model
@@ -144,8 +144,7 @@ def mpi_sync_data(comm: MPI.Intracomm, args):
     rank = comm.Get_rank()
     if rank == 0:
         # Clear worker data
-        episodesdir = args.episodesdir
-        data.clear_episodesdir(episodesdir)
+        data.reset_episodes(args)
 
         checkpath = get_modelpath(args, 'checkpoint')
         if args.baseline:
@@ -190,5 +189,5 @@ def mpi_play(comm: MPI.Intracomm, go_env, pi1, pi2, req_episodes):
     avg_steps = comm.allreduce(sum(steps), op=MPI.SUM) / episodes
 
     mpi_log_debug(comm, f'{pi1} V {pi2} | {episodes} GAMES, {avg_time:.1f} SEC/GAME, {avg_steps:.0f} STEPS/GAME, '
-                         f'{100 * p1wr:.1f}% WIN({100 * black_wr:.1f}% BLACK_WIN)')
+                        f'{100 * p1wr:.1f}% WIN({100 * black_wr:.1f}% BLACK_WIN)')
     return p1wr, black_wr, replay_mem

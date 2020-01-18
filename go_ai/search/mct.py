@@ -10,7 +10,7 @@ GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 def val_search(go_env, base_width, val_func, keep_tree=False):
     rootnode = tree.Node(go_env.state, go_env.group_map)
-    depth = int(np.log2(base_width))
+    depth = int(np.log2(base_width)) if base_width > 0 else 0
     qs = np.full((depth + 1, rootnode.actionsize()), np.nan)
 
     next_nodes = rootnode.make_children()
