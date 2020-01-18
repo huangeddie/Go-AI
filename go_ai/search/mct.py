@@ -8,10 +8,16 @@ from go_ai.search import tree
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
-def val_search(go_env, base_width, val_func):
+def val_search(go_env, base_width, val_func, preserve_tree=False):
     rootnode = tree.Node(go_env.state, go_env.group_map)
+    depth = int(np.log2(base_width))
+    qs = np.full((depth + 1, rootnode.actionsize()), np.nan)
+
     next_nodes = rootnode.make_children()
     tree.set_state_vals(val_func, next_nodes)
+
+    for child in next_nodes:
+        qs[0, child.first_action] = search.invert_vals(child.val)
 
     width = base_width
     level = 1
@@ -32,10 +38,21 @@ def val_search(go_env, base_width, val_func):
                     next_node = min(childnodes, key=lambda node: node.val)
                     next_nodes.append(next_node)
 
+        if not preserve_tree:
+            for node in best_nodes:
+                node.destroy()
+            del best_nodes
+
+        for next_node in next_nodes:
+            if next_node.level % 2 == 0:
+                qs[level, next_node.first_action] = next_node.val
+            else:
+                qs[level, next_node.first_action] = search.invert_vals(next_node.val)
+
         width = width // 2
         level += 1
 
-    return rootnode
+    return qs, rootnode
 
 def ac_search(go_env, num_searches, ac_func):
     '''

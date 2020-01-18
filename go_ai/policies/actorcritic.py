@@ -28,15 +28,19 @@ class ActorCritic(Policy):
         :return:
         """
         if self.mcts > 0:
+            if 'debug' in kwargs:
+                debug = kwargs['debug']
+            else:
+                debug = False
+
             rootnode = mct.ac_search(go_env, self.mcts, self.ac_func)
             qs = self.tree_to_qs(rootnode)
 
             pi = qs[1] ** (1 / self.temp)
             pi = pi / np.sum(pi)
 
-            if 'get_tree' in kwargs:
-                if kwargs['get_tree']:
-                    return pi, rootnode
+            if debug:
+                return pi, qs, rootnode
 
         else:
             state = go_env.get_canonical_state()

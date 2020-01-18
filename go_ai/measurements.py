@@ -131,14 +131,13 @@ def measure_vals(actions, policy, states):
     go_env = gym.make('gym_go:go-v0', size=states[0].shape[1])
     for step, (state, prev_action) in tqdm(enumerate(zip(states, actions)), desc='Heat Maps'):
         if isinstance(policy, go_ai.policies.value.Value) or isinstance(policy, go_ai.policies.actorcritic.ActorCritic):
-            pi, rootnode = policy(go_env, step=step, get_tree=True)
+            pi, qs, rootnode = policy(go_env, step=step, debug=True)
             if isinstance(policy, go_ai.policies.value.Value):
                 state_val = policy.val_func(state[np.newaxis])
             else:
                 _, state_val = policy.ac_func(state[np.newaxis])
             state_val = state_val[0]
             state_vals.append(state_val)
-            qs = policy.tree_to_qs(rootnode)
             all_qs.append(qs)
         go_env.step(prev_action)
     return all_qs, state_vals
@@ -238,7 +237,7 @@ def plot_stats(stats_path, outdir):
 
 
 def plot_tree(go_env, policy, outdir):
-    _, root = policy(go_env, get_tree=True)
+    _, _, root = policy(go_env, debug=True)
     imgdir = os.path.join(outdir, 'node_imgs/')
     imgdir = os.path.abspath(imgdir)
     if not os.path.exists(imgdir):

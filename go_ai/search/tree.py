@@ -45,6 +45,12 @@ class Node:
         self.prior_pi = None
         self.post_vals = []
 
+    def destroy(self):
+        del self.state
+        del self.group_map
+        del self.parent
+        del self.canon_children
+
     # =================
     # Basic Tree API
     # =================
