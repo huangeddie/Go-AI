@@ -45,7 +45,7 @@ def hyperparameters(comm: MPI.Intracomm):
     parser.add_argument('--eval-interval', type=int, default=1, help='iterations per evaluation')
 
     # Disk Data
-    parser.add_argument('--episodes-path', type=str, default='bin/episodes.pickle', help='path to store episodes')
+    parser.add_argument('--replay-path', type=str, default='bin/episodes.pickle', help='path to store replay')
     parser.add_argument('--savedir', type=str, default=f'bin/checkpoints/{today}/')
 
     # Model
@@ -144,7 +144,7 @@ def mpi_sync_data(comm: MPI.Intracomm, args):
     rank = comm.Get_rank()
     if rank == 0:
         # Clear worker data
-        data.reset_episodes(args)
+        data.reset_replay_data(args)
 
         checkpath = get_modelpath(args, 'checkpoint')
         if args.baseline:

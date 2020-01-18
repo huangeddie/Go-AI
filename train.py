@@ -36,7 +36,7 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi):
     go_ai.utils.mpi_log_debug(comm, 'Added all replay data to disk')
 
     # Sample data as batches
-    trainadata, replay_len = data.sample_eventdata(comm, args.episodes_path, args.batches, args.batchsize)
+    trainadata, replay_len = data.sample_eventdata(comm, args.replay_path, args.batches, args.batchsize)
 
     # Optimize
     go_ai.utils.mpi_log_debug(comm, f'Optimizing in {len(trainadata)} training steps...')
@@ -96,7 +96,7 @@ if __name__ == '__main__':
     go_ai.utils.mpi_config_log(args, comm)
     go_ai.utils.mpi_log_debug(comm, f"{world_size} Workers, {args}")
 
-    # Set parameters and episode data on disk
+    # Set parameters and replay data on disk
     utils.mpi_sync_data(comm, args)
 
     # Model and Policies
