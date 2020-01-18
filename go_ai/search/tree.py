@@ -33,12 +33,6 @@ class Node:
         self.parent = parent
         self.canon_children = np.empty(self.actionsize(), dtype=object)
 
-        # Height
-        if parent is None:
-            self.height = 0
-        else:
-            self.height = self.parent.height - 1
-
         # Level
         if parent is None:
             self.level = 0
@@ -57,12 +51,6 @@ class Node:
     # =================
     # Basic Tree API
     # =================
-    def _update_height(self):
-        children_heights = map(lambda node: node.height, self.get_real_children())
-        self.height = max(children_heights) + 1
-        if self.parent is not None:
-            self.parent._update_height()
-
     def isleaf(self):
         # Not the same as whether the state is terminal or not
         return (self.canon_children == None).all()
@@ -71,11 +59,6 @@ class Node:
         return self.parent is None
 
     def make_child(self, action, state, groupmap):
-        if (self.canon_children == None).all():
-            # First child
-            self.height = 1
-            if self.parent is not None:
-                self.parent._update_height()
         child_node = Node(state, groupmap, self)
         self.canon_children[action] = child_node
         if child_node.level == 1:
@@ -168,6 +151,6 @@ class Node:
         if len(self.post_vals) > 0:
             result += f' {np.mean(self.post_vals):.2f}AV'
 
-        result += f' {self.height}H {self.visits}N'
+        result += f' {self.level}L {self.visits}N'
 
         return result

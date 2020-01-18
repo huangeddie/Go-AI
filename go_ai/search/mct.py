@@ -87,7 +87,7 @@ def ac_search(go_env, num_searches, ac_func):
 
         if curr_node.terminal:
             winning = curr_node.winning
-            if curr_node.height % 2 == 1:
+            if curr_node.level % 2 == 1:
                 val = -winning
             else:
                 val = winning
@@ -99,7 +99,7 @@ def ac_search(go_env, num_searches, ac_func):
             logit = logit.item()
 
             val = np.tanh(logit)
-            if curr_node.height % 2 == 1:
+            if curr_node.level % 2 == 1:
                 val = search.invert_vals(val)
 
             valid_moves = GoGame.get_valid_moves(leaf_state)
