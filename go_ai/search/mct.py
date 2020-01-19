@@ -8,9 +8,8 @@ from go_ai.search import tree
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
-def val_search(go_env, base_width, val_func, keep_tree=False):
+def val_search(go_env, base_width, depth, val_func, keep_tree=False):
     rootnode = tree.Node(go_env.state, go_env.group_map)
-    depth = int(np.log2(base_width)) if base_width > 0 else 0
     qs = np.full((depth + 1, rootnode.actionsize()), np.nan)
 
     next_nodes = rootnode.make_children()
@@ -20,8 +19,7 @@ def val_search(go_env, base_width, val_func, keep_tree=False):
         qs[0, child.first_action] = search.invert_vals(child.val)
 
     width = base_width
-    level = 1
-    while width > 1:
+    for level in range(1, depth + 1):
         best_nodes = sorted(next_nodes, key=lambda node: node.val, reverse=level % 2 == 0)
         next_nodes = []
         all_children = []
@@ -49,8 +47,7 @@ def val_search(go_env, base_width, val_func, keep_tree=False):
             else:
                 qs[level, next_node.first_action] = search.invert_vals(next_node.val)
 
-        width = width // 2
-        level += 1
+        # width = width // 2
 
     return qs, rootnode
 

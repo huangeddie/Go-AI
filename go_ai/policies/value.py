@@ -18,7 +18,7 @@ class Value(Policy):
 
         self.val_func = val_func
         self.mcts = mcts
-        self.depth = int(np.log2(self.mcts)) if self.mcts > 0 else 0
+        self.depth = 4
 
     def __call__(self, go_env, **kwargs):
         """
@@ -31,7 +31,7 @@ class Value(Policy):
         else:
             debug = False
 
-        qs, rootnode = mct.val_search(go_env, self.mcts, self.val_func, debug)
+        qs, rootnode = mct.val_search(go_env, self.mcts, self.depth, self.val_func, debug)
 
         exp_qs = np.exp(qs)
         pi = np.nansum(exp_qs, axis=0)

@@ -142,12 +142,14 @@ def create_policy(args, name, baseline=False, latest_checkpoint=False, modeldir=
     elif model == 'rand':
         net = None
         pi = RAND_PI
+        return pi, net
     elif model == 'greedy':
-        net = None
-        pi = GREEDY_PI
+        pi = Value('Greedy', greedy_val_func, args.mcts, args.temp)
+        return pi, greedy_val_func
     elif model == 'human':
         net = None
         pi = Human(args.render)
+        return pi, net
     else:
         raise Exception("Unknown model argument", model)
 

@@ -14,7 +14,7 @@ class MyTestCase(unittest.TestCase):
     def setUp(self) -> None:
         board_size = 5
         self.greedy_mct_policy = go_ai.policies.value.Value('MCTGreedy', go_ai.policies.baselines.greedy_val_func,
-                                                            mcts=100, temp=0)
+                                                            mcts=32, temp=0)
 
         self.go_env = gym.make('gym_go:go-v0', size=board_size)
 
@@ -75,8 +75,8 @@ class MyTestCase(unittest.TestCase):
         curr_model = value.ValueNet(size)
         curr_model.load_state_dict(torch.load(f'../../bin/baselines/val{size}.pt'))
 
-        mct_pi = go_ai.policies.value.Value('MCT', curr_model, mcts=8, temp=0.06)
-        val_pi = go_ai.policies.value.Value('MCT', curr_model, mcts=0, temp=0.06)
+        mct_pi = go_ai.policies.value.Value('MCT', curr_model, mcts=8, temp=0.05)
+        val_pi = go_ai.policies.value.Value('MCT', curr_model, mcts=0, temp=0)
 
         win_rate, _, _, _ = game.play_games(self.go_env, mct_pi, val_pi, self.num_games)
         print(win_rate)
