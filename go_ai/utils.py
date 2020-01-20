@@ -48,7 +48,7 @@ def hyperparameters(comm: MPI.Intracomm):
     parser.add_argument('--eval-interval', type=int, default=1, help='iterations per evaluation')
 
     # Disk Data
-    parser.add_argument('--replay-path', type=str, default='bin/episodes.pickle', help='path to store replay')
+    parser.add_argument('--replay-path', type=str, default='bin/replay.pickle', help='path to store replay')
     parser.add_argument('--savedir', type=str, default=f'bin/checkpoints/{today}/')
 
     # Model
