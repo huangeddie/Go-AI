@@ -13,5 +13,5 @@ echo -n >bin/checkpoints/stats.txt
 echo -n >bin/checkpoints/log.txt
 
 mpiexec -n 48 --bind-to core python3 train.py --boardsize=7 --model=val --temp=0.05 \
---episodes=192 --evaluations=96 --episodes_path=/home/ezhuang2/scratch/episodes.pickle
+--episodes=192 --evaluations=96 --replay_path=/home/ezhuang2/scratch/episodes.pickle
 
