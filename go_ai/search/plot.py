@@ -6,7 +6,15 @@ from matplotlib import pyplot as plt
 from go_ai.measurements import matplot_format
 
 
-def plot_tree(go_env, policy, outdir):
+def plot_tree(go_env, policy, outdir, state_info=None):
+    go_env.reset()
+    if state_info is not None:
+        for actions in state_info:
+            for i, a in enumerate(actions):
+                go_env.step(a)
+                if i < len(actions) - 1:
+                    go_env.step(None)
+
     _, _, root = policy(go_env, debug=True)
     imgdir = os.path.join(outdir, 'node_imgs/')
     imgdir = os.path.abspath(imgdir)

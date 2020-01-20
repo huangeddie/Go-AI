@@ -24,7 +24,10 @@ def hyperparameters(comm: MPI.Intracomm):
     parser.add_argument('--reward', type=str, choices=['real', 'heuristic'], default='real', help='reward system')
 
     # Monte Carlo Tree Search
-    parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches')
+    parser.add_argument('--mcts', type=int, default=0, help='monte carlo searches (actor critic)')
+    parser.add_argument('--width', type=int, default=4, help='width of beam search (value)')
+    parser.add_argument('--depth', type=int, default=4, help='depth of beam search (value)')
+    parser.add_argument('--gamma', type=float, default=0.9, help='confidence in qvals from higher levels of the search tree')
 
     # Learning Parameters
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')

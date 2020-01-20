@@ -34,8 +34,13 @@ if os.path.exists(stats_path):
 
 # Plot tree if applicable
 if isinstance(policy, go_ai.policies.actorcritic.ActorCritic) or isinstance(policy, go_ai.policies.value.Value):
-    go_env.reset()
-    go_ai.search.plot.plot_tree(go_env, policy, basedir)
+    black_rows = []
+    black_cols = []
+    white_rows = []
+    white_cols = []
+    blacks = list(zip(black_rows, black_cols))
+    whites = list(zip(white_rows, white_cols))
+    go_ai.search.plot.plot_tree(go_env, policy, basedir, [blacks, whites])
     utils.log_debug(f'Plotted tree')
 
 # Sample trajectory and plot prior qvals

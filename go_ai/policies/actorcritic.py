@@ -10,16 +10,16 @@ GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
 class ActorCritic(Policy):
-    def __init__(self, name, model, mcts, temp, ):
+    def __init__(self, name, model, args):
         """
         :param branches: The number of actions explored by actor at each node.
         :param depth: The number of steps to explore with actor. Includes opponent,
         i.e. even depth means the last step explores the opponent's
         """
-        super(ActorCritic, self).__init__(name, temp=temp)
+        super(ActorCritic, self).__init__(name, temp=args.temp)
         self.pytorch_model = model
         self.ac_func = pytorch_ac_to_numpy(model)
-        self.mcts = mcts
+        self.mcts = args.mcts
 
     def __call__(self, go_env, **kwargs):
         """

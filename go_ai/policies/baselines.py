@@ -125,8 +125,8 @@ class Random(Policy):
 
 
 RAND_PI = Random()
-GREEDY_PI = Value('Greedy', greedy_val_func, mcts=0)
-SMART_GREEDY_PI = Value('Smart Greedy', smart_greedy_val_func, mcts=0)
+GREEDY_PI = Value('Greedy', greedy_val_func)
+SMART_GREEDY_PI = Value('Smart Greedy', smart_greedy_val_func)
 HUMAN_PI = Human('terminal')
 
 
@@ -135,10 +135,10 @@ def create_policy(args, name, baseline=False, latest_checkpoint=False, modeldir=
     size = args.boardsize
     if model == 'val':
         net = value.ValueNet(size, args.resblocks)
-        pi = Value(name, net, args.mcts, args.temp)
+        pi = Value(name, net, args)
     elif model == 'ac':
         net = actorcritic.ActorCriticNet(size, args.resblocks)
-        pi = ActorCritic(name, net, args.mcts, args.temp)
+        pi = ActorCritic(name, net, args)
     elif model == 'rand':
         net = None
         pi = RAND_PI

@@ -10,15 +10,16 @@ from go_ai.search import mct
 
 
 class Value(Policy):
-    def __init__(self, name, val_func, mcts, temp=0):
-        super(Value, self).__init__(name, temp)
+    def __init__(self, name, val_func, args=None):
+        super(Value, self).__init__(name, args.temp if args is not None else 0)
         if isinstance(val_func, torch.nn.Module):
             self.pytorch_model = val_func
             val_func = pytorch_val_to_numpy(val_func)
 
         self.val_func = val_func
-        self.mcts = mcts
-        self.depth = 4
+        self.width = args.width if args is not None else 0
+        self.depth = args.depth if args is not None else 0
+        self.gamma = args.gamma if args is not None else 0
 
     def __call__(self, go_env, **kwargs):
         """
@@ -31,10 +32,11 @@ class Value(Policy):
         else:
             debug = False
 
-        qs, rootnode = mct.val_search(go_env, self.mcts, self.depth, self.val_func, debug)
+        qs, rootnode = mct.val_search(go_env, self.width, self.depth, self.val_func, debug)
 
-        exp_qs = np.exp(qs)
-        pi = np.nansum(exp_qs, axis=0)
+        exp_qs = np.nan_to_num(np.exp(qs))
+        gammas = self.gamma ** np.arange(self.depth + 1)
+        pi = np.matmul(exp_qs.T, gammas)
         pi = search.temp_norm(pi, self.temp, rootnode.valid_moves())
 
         if debug:
@@ -43,4 +45,4 @@ class Value(Policy):
             return pi
 
     def __str__(self):
-        return f"{self.__class__.__name__}[{self.mcts}S {self.temp:.2f}T]-{self.name}"
+        return f"{self.__class__.__name__}[{self.width}/{self.depth}S {self.temp:.2f}T]-{self.name}"

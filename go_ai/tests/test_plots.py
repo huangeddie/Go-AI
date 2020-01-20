@@ -13,9 +13,9 @@ from go_ai import measurements
 class MyTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.random_policy = go_ai.policies.baselines.Random()
-        self.greedy_policy = go_ai.policies.value.Value('Greedy', go_ai.policies.baselines.greedy_val_func, mcts=0,
+        self.greedy_policy = go_ai.policies.value.Value('Greedy', go_ai.policies.baselines.greedy_val_func, width=0,
                                                         temp=0)
-        self.greedymct_pi = go_ai.policies.value.Value('MCT', go_ai.policies.baselines.greedy_val_func, mcts=4, temp=0)
+        self.greedymct_pi = go_ai.policies.value.Value('MCT', go_ai.policies.baselines.greedy_val_func, width=4, temp=0)
         self.go_env = gym.make('gym_go:go-v0', size=4)
         self.basedir = 'plots/'
 
