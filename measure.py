@@ -10,22 +10,21 @@ import go_ai.search.plot
 from go_ai import measurements, utils
 
 utils.config_log()
-args = utils.hyperparameters(MPI.COMM_WORLD)
+args = utils.hyperparameters(['--customdir=bin/baselines/'])
 
 # Environment
-go_env = gym.make('gym_go:go-v0', size=args.boardsize)
+go_env = gym.make('gym_go:go-v0', size=args.size)
 
 # Policies
-modeldir = 'bin/baselines/'
-policy, model = go_ai.policies.baselines.create_policy(args, 'Model', modeldir=modeldir)
-utils.log_debug(f"Loaded model {policy} from {modeldir}")
+policy, model = go_ai.policies.baselines.create_policy(args, 'Model')
+utils.log_debug(f"Loaded model {policy} from {args.customdir}")
 
 # Directories and files
-basedir = os.path.join(modeldir, f'{args.model}{args.boardsize}_plots/')
+basedir = os.path.join(customdir, f'{args.model}{args.size}_plots/')
 if not os.path.exists(basedir):
     os.mkdir(basedir)
 
-stats_path = os.path.join(modeldir, f'{args.model}{args.boardsize}_stats.txt')
+stats_path = os.path.join(customdir, f'{args.model}{args.size}_stats.txt')
 
 # Plot stats
 if os.path.exists(stats_path):

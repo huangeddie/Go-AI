@@ -5,7 +5,7 @@ import torch
 from mpi4py import MPI
 from torch import nn as nn
 
-from go_ai import data
+from go_ai import replay
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -36,7 +36,7 @@ def pytorch_ac_to_numpy(model):
         :param states: Numpy batch of states
         :return:
         """
-        invalid_values = data.batch_invalid_values(states)
+        invalid_values = replay.batch_invalid_values(states)
         dtype = next(model.parameters()).type()
         model.eval()
         with torch.no_grad():
@@ -110,11 +110,11 @@ def average_model(comm, model):
 
 def get_modelpath(args, savetype):
     if savetype == 'checkpoint':
-        dir = args.savedir
+        dir = args.checkdir
     elif savetype == 'baseline':
         dir = 'bin/baselines/'
     else:
         raise Exception(f"Unknown location type: {savetype}")
-    path = os.path.join(dir, f'{args.model}{args.boardsize}.pt')
+    path = os.path.join(dir, f'{args.model}{args.size}.pt')
 
     return path

@@ -2,7 +2,7 @@ import gym
 import numpy as np
 from scipy import special
 
-from go_ai import search, data
+from go_ai import search, replay
 from go_ai.search import tree
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
@@ -79,8 +79,8 @@ def ac_search(go_env, num_searches, ac_func):
     root_prior_pi[np.where(child_valids)] = special.softmax(inv_child_logits)
     rootnode.set_prior_pi(root_prior_pi)
 
-    batch_valid_moves = data.batch_valid_moves(canonical_children)
-    batch_invalid_values = data.batch_invalid_values(canonical_children)
+    batch_valid_moves = replay.batch_valid_moves(canonical_children)
+    batch_invalid_values = replay.batch_invalid_values(canonical_children)
     batch_prior_pi = special.softmax(child_priors * batch_valid_moves + batch_invalid_values, axis=1)
 
     pbar = zip(canonical_children, child_group_maps, np.argwhere(child_valids), batch_prior_pi, inv_child_vals)
@@ -117,7 +117,7 @@ def ac_search(go_env, num_searches, ac_func):
                 val = search.invert_vals(val)
 
             valid_moves = GoGame.get_valid_moves(leaf_state)
-            invalid_values = data.batch_invalid_values(leaf_state[np.newaxis])[0]
+            invalid_values = replay.batch_invalid_values(leaf_state[np.newaxis])[0]
             prior_pi = special.softmax(prior_qs * valid_moves + invalid_values)
 
             curr_node.set_prior_pi(prior_pi)

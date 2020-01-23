@@ -10,7 +10,7 @@ GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
 class ActorCritic(Policy):
-    def __init__(self, name, model, args):
+    def __init__(self, name, model, args=None):
         """
         :param branches: The number of actions explored by actor at each node.
         :param depth: The number of steps to explore with actor. Includes opponent,

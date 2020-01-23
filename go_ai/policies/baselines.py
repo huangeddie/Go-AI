@@ -130,9 +130,9 @@ SMART_GREEDY_PI = Value('Smart Greedy', smart_greedy_val_func)
 HUMAN_PI = Human('terminal')
 
 
-def create_policy(args, name, baseline=False, latest_checkpoint=False, modeldir=None):
+def create_policy(args, name=''):
     model = args.model
-    size = args.boardsize
+    size = args.size
     if model == 'val':
         net = value.ValueNet(size, args.resblocks)
         pi = Value(name, net, args)
@@ -144,7 +144,7 @@ def create_policy(args, name, baseline=False, latest_checkpoint=False, modeldir=
         pi = RAND_PI
         return pi, net
     elif model == 'greedy':
-        pi = Value('Greedy', greedy_val_func, args.mcts, args.temp)
+        pi = Value('Greedy', greedy_val_func, args)
         return pi, greedy_val_func
     elif model == 'human':
         net = None
@@ -153,17 +153,21 @@ def create_policy(args, name, baseline=False, latest_checkpoint=False, modeldir=
     else:
         raise Exception("Unknown model argument", model)
 
-    if baseline:
-        assert not latest_checkpoint
-        net.load_state_dict(torch.load(f'bin/baselines/{model}{size}.pt'))
-    elif latest_checkpoint:
-        assert not baseline
-        assert modeldir is None
-        latest_checkpath = get_modelpath(args, 'checkpoint')
-        net.load_state_dict(torch.load(latest_checkpath))
-    elif modeldir is not None:
-        assert not latest_checkpoint
-        checkpath = os.path.join(modeldir, f'{model}{size}.pt')
-        net.load_state_dict(torch.load(checkpath))
+    load_weights(args, net)
 
     return pi, net
+
+
+def load_weights(args, net):
+    if args.baseline:
+        assert not args.latest_checkpoint
+        assert args.customdir == ''
+        net.load_state_dict(torch.load(args.basepath))
+    elif args.latest_checkpoint:
+        assert not args.baseline
+        assert args.customdir == ''
+        net.load_state_dict(torch.load(args.checkpath))
+    elif args.customdir != '':
+        assert not args.latest_checkpoint
+        assert not args.baseline
+        net.load_state_dict(torch.load(args.custompath))

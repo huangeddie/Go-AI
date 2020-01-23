@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from mpi4py import MPI
 
-from go_ai import data
+from go_ai import replay
 from go_ai.models import BasicBlock, average_model, ModelMetrics
 
 gymgo = gym.make('gym_go:go-v0', size=0)
@@ -17,7 +17,7 @@ class ValueNet(nn.Module):
     ResNet
     """
 
-    def __init__(self, boardsize, num_blocks=4, channels=32):
+    def __init__(self, size, num_blocks=4, channels=32):
         super().__init__()
 
         # Convolutions
@@ -39,7 +39,7 @@ class ValueNet(nn.Module):
         self.convs = nn.Sequential(*convs)
 
         # Fully Connected
-        fc_h = 4 * boardsize ** 2
+        fc_h = 4 * size ** 2
         self.fcs = nn.Sequential(
             nn.Linear(fc_h, fc_h),
             nn.BatchNorm1d(fc_h),
@@ -64,7 +64,7 @@ def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimize
     running_acc = 0
     for i, (states, actions, rewards, next_states, terminals, wins, pis) in enumerate(batched_data, 1):
         # Augment
-        states = data.batch_random_symmetries(states)
+        states = replay.batch_random_symmetries(states)
 
         states = torch.from_numpy(states).type(dtype)
         wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
