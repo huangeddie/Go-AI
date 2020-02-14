@@ -46,9 +46,9 @@ def batch_random_symmetries(states):
     return np.array(processed_states)
 
 
-def replay_to_events(replay_data):
+def replay_to_events(replay):
     trans_trajs = []
-    for traj in replay_data:
+    for traj in replay:
         trans_trajs.extend(traj.get_events())
     return trans_trajs
 
@@ -69,7 +69,7 @@ def events_to_numpy(events):
     return states, actions, rewards, next_states, terminals, wins, pis
 
 
-def load_replaydata(replay_path):
+def load_replay(replay_path):
     """
     Loads replay data from a directory.
     :param replay_path:
@@ -77,12 +77,11 @@ def load_replaydata(replay_path):
     :return:
     """
     with open(replay_path, 'rb') as f:
-        replay_data = pickle.load(f)
-    assert isinstance(replay_data, collections.deque)
-    return replay_data
+        replay = pickle.load(f)
+    return replay
 
 
-def sample_eventdata(comm: MPI.Intracomm, replay_path, batches, batchsize):
+def mpi_sample_eventdata(comm: MPI.Intracomm, replay_path, batches, batchsize):
     """
     :param replay_path:
     :param batches:
@@ -96,7 +95,7 @@ def sample_eventdata(comm: MPI.Intracomm, replay_path, batches, batchsize):
     replay_len = None
     for worker in range(world_size):
         if rank == worker:
-            replay = load_replaydata(replay_path)
+            replay = load_replay(replay_path)
             replay_len = len(replay)
             # Seperate into black wins and black non-wins to ensure even sampling between the two
             black_wins = list(filter(lambda traj: traj.get_winner() == 1, replay))
@@ -124,19 +123,22 @@ def sample_eventdata(comm: MPI.Intracomm, replay_path, batches, batchsize):
     return batched_sampledata, replay_len
 
 
-def add_replaydata(comm: MPI.Intracomm, args, replays):
+def mpi_disk_append_replay(comm: MPI.Intracomm, args, replays):
     rank = comm.Get_rank()
     for worker in range(comm.Get_size()):
         if rank == worker:
-            all_replays = load_replaydata(args.replay_path)
-            all_replays.extend(replays)
+            if os.path.exists(args.replay_path):
+                all_replays = load_replay(args.replay_path)
+                all_replays.extend(replays)
+            else:
+                all_replays = replays
 
             with open(args.replay_path, 'wb') as f:
                 pickle.dump(all_replays, f)
         comm.Barrier()
 
 
-def reset_replay_data(args):
+def reset_replay(args):
     if os.path.exists(args.replay_path):
         os.remove(args.replay_path)
     replay_buffer = collections.deque(maxlen=args.replaysize)

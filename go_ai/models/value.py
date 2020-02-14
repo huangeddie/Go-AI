@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from mpi4py import MPI
 
-from go_ai import replay
+from go_ai import data
 from go_ai.models import BasicBlock, average_model, ModelMetrics
 
 gymgo = gym.make('gym_go:go-v0', size=0)
@@ -64,7 +64,7 @@ def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimize
     running_acc = 0
     for i, (states, actions, rewards, next_states, terminals, wins, pis) in enumerate(batched_data, 1):
         # Augment
-        states = replay.batch_random_symmetries(states)
+        states = data.batch_random_symmetries(states)
 
         states = torch.from_numpy(states).type(dtype)
         wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)

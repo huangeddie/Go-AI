@@ -126,7 +126,16 @@ def pit(go_env, black_policy: go_ai.policies.Policy, white_policy: go_ai.policie
 
 def play_games(go_env, first_policy: go_ai.policies.Policy, second_policy: go_ai.policies.Policy, episodes,
                progress=True):
-    replay_data = []
+    """
+
+    :param go_env:
+    :param first_policy:
+    :param second_policy:
+    :param episodes:
+    :param progress:
+    :return:
+    """
+    replay = []
     all_steps = []
     first_wins = 0
     black_wins = 0
@@ -145,8 +154,8 @@ def play_games(go_env, first_policy: go_ai.policies.Policy, second_policy: go_ai
         black_wins += int(black_won == 1)
         first_wins += int(first_won == 1)
         all_steps.append(steps)
-        replay_data.append(traj)
+        replay.append(traj)
         if isinstance(pbar, tqdm):
             pbar.set_postfix_str("{:.1f}% WIN".format(100 * first_wins / i))
 
-    return first_wins / episodes, black_wins / episodes, all_steps, replay_data
+    return first_wins / episodes, black_wins / episodes, replay, all_steps

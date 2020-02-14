@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import special
 
 from go_ai import search
 from go_ai.search import GoGame
@@ -46,6 +47,9 @@ class Node:
         self.post_vals = []
 
     def destroy(self):
+        for child in self.canon_children:
+            if child is not None:
+                child.destroy()
         del self.state
         del self.group_map
         del self.parent
@@ -56,6 +60,9 @@ class Node:
     # =================
     def terminal(self):
         return GoGame.get_game_ended(self.state)
+
+    def winning(self):
+        return GoGame.get_winning(self.state)
 
     def isleaf(self):
         # Not the same as whether the state is terminal or not
@@ -110,11 +117,28 @@ class Node:
     def get_value(self):
         return self.val
 
+    def set_val_prior(self):
+        valid_moves = self.valid_moves()
+        where_valid = np.argwhere(valid_moves).flatten()
+        q_logits = self.get_q_logits()
+        self.prior_pi[where_valid] = special.softmax(q_logits[where_valid])
+
+        assert not np.isnan(self.prior_pi).any()
+
+    def get_q_logits(self):
+        self.prior_pi = np.zeros(self.actionsize())
+
+        q_logits = []
+        for child in self.canon_children:
+            if child is not None:
+                q_logits.append(search.invert_vals(child.val))
+            else:
+                q_logits.append(0)
+        return np.array(q_logits)
+
     # =====================
     # MCT API
     # =====================
-    def winning(self):
-        return GoGame.get_winning(self.state)
 
     def backprop(self, val):
         if val is not None:
@@ -146,7 +170,10 @@ class Node:
                 child = self.canon_children[i]
                 if child is not None:
                     n = child.visits
-                    avg_q = np.mean(child.post_vals)
+                    if len(child.post_vals) <= 0:
+                        avg_q = search.invert_vals(np.tanh(child.val))
+                    else:
+                        avg_q = search.invert_vals(np.mean(np.tanh(child.post_vals)))
                 else:
                     n = 0
                     avg_q = 0

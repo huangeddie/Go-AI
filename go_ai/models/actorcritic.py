@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from mpi4py import MPI
 
-from go_ai import replay, search
+from go_ai import data, search
 from go_ai.models import BasicBlock, average_model, ModelMetrics
 
 gymgo = gym.make('gym_go:go-v0', size=0)
@@ -77,8 +77,8 @@ def mpi_get_qvals(comm, batched_data, val_func):
     my_qvals = []
     my_states = []
     for states, actions, next_states, rewards, terminals, wins, pis in my_batches:
-        states = replay.batch_random_symmetries(states)
-        invalid_values = replay.batch_invalid_values(states)
+        states = data.batch_random_symmetries(states)
+        invalid_values = data.batch_invalid_values(states)
 
         qvals, _ = search.batchqs_from_valfunc(states, val_func)
         qvals += invalid_values

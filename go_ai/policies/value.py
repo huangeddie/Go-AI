@@ -17,9 +17,7 @@ class Value(Policy):
             val_func = pytorch_val_to_numpy(val_func)
 
         self.val_func = val_func
-        self.width = args.width if args is not None else 0
-        self.depth = args.depth if args is not None else 0
-        self.gamma = args.gamma if args is not None else 0
+        self.mcts = args.mcts if args is not None else 0
 
     def __call__(self, go_env, **kwargs):
         """
@@ -32,17 +30,21 @@ class Value(Policy):
         else:
             debug = False
 
-        qs, rootnode = mct.val_search(go_env, self.width, self.depth, self.val_func, debug)
-
-        exp_qs = np.nan_to_num(np.exp(qs))
-        gammas = self.gamma ** np.arange(self.depth + 1)
-        pi = np.matmul(exp_qs.T, gammas)
-        pi = search.temp_norm(pi, self.temp, rootnode.valid_moves())
+        rootnode = mct.val_search(go_env, self.mcts, self.val_func, debug)
+        if self.mcts > 0:
+            qs = rootnode.get_visit_counts()
+        else:
+            q_logits = rootnode.get_q_logits()
+            qs = np.exp(q_logits)
+        pi = search.temp_norm(qs, self.temp, rootnode.valid_moves())
 
         if debug:
-            return pi, qs, rootnode
+            qs = rootnode.get_q_logits()
+            return pi, [qs, qs], rootnode
         else:
+            rootnode.destroy()
+            del rootnode
             return pi
 
     def __str__(self):
-        return f"{self.__class__.__name__}[{self.width}/{self.depth}S {self.temp:.2f}T]-{self.name}"
+        return f"{self.__class__.__name__}[{self.mcts}S {self.temp:.2f}T]-{self.name}"

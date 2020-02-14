@@ -10,7 +10,7 @@ from tqdm import tqdm
 import go_ai.policies
 import go_ai.policies.actorcritic
 import go_ai.policies.value
-from go_ai import replay, game
+from go_ai import data, game
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -73,7 +73,7 @@ def state_responses(policy: go_ai.policies.Policy, traj: game.Trajectory):
     all_qs = np.array(all_qs_list)
     layers_expanded = all_qs.shape[1]
 
-    valid_moves = replay.batch_valid_moves(states)
+    valid_moves = data.batch_valid_moves(states)
 
     n = len(traj)
     if isinstance(policy, go_ai.policies.value.Value) or isinstance(policy, go_ai.policies.actorcritic.ActorCritic):

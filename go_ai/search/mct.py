@@ -2,54 +2,39 @@ import gym
 import numpy as np
 from scipy import special
 
-from go_ai import search, replay
+from go_ai import search, data
 from go_ai.search import tree
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
-def val_search(go_env, base_width, depth, val_func, keep_tree=False):
+def val_search(go_env, mcts, val_func, keep_tree=False):
     rootnode = tree.Node(go_env.state, go_env.group_map)
-    qs = np.full((depth + 1, rootnode.actionsize()), np.nan)
 
-    next_nodes = rootnode.make_children()
-    tree.set_state_vals(val_func, next_nodes)
+    for _ in range(mcts + 1):
+        curr_node = rootnode
+        while curr_node.visits > 0 and not curr_node.terminal():
+            if curr_node.isleaf():
+                next_nodes = curr_node.make_children()
+                tree.set_state_vals(val_func, next_nodes)
+                curr_node.set_val_prior()
 
-    for child in next_nodes:
-        qs[0, child.first_action] = search.invert_vals(child.val)
+            ucbs = curr_node.get_ucbs()
+            move = np.argmax(ucbs)
+            curr_node = curr_node.step(move)
 
-    width = base_width
-    for level in range(1, depth + 1):
-        best_nodes = sorted(next_nodes, key=lambda node: node.val, reverse=level % 2 == 0)
-        next_nodes = []
-        all_children = []
-        for node in best_nodes[:width]:
-            childnodes = node.make_children()
-            all_children.extend(childnodes)
+        if not curr_node.terminal():
+            next_nodes = curr_node.make_children()
+            tree.set_state_vals(val_func, next_nodes)
+            curr_node.set_val_prior()
 
-        if len(all_children) > 0:
-            tree.set_state_vals(val_func, all_children)
+            move = np.argmax(curr_node.prior_pi)
+            curr_node = curr_node.step(move)
 
-            for node in best_nodes[:width]:
-                childnodes = node.get_real_children()
-                if len(childnodes) > 0:
-                    next_node = min(childnodes, key=lambda node: node.val)
-                    next_nodes.append(next_node)
+        curr_node.backprop(curr_node.val)
 
-        if not keep_tree:
-            for node in best_nodes:
-                node.destroy()
-            del best_nodes
+    return rootnode
 
-        for next_node in next_nodes:
-            if next_node.level % 2 == 0:
-                qs[level, next_node.first_action] = next_node.val
-            else:
-                qs[level, next_node.first_action] = search.invert_vals(next_node.val)
-
-        # width = width // 2
-
-    return qs, rootnode
 
 def ac_search(go_env, num_searches, ac_func):
     '''
@@ -79,8 +64,8 @@ def ac_search(go_env, num_searches, ac_func):
     root_prior_pi[np.where(child_valids)] = special.softmax(inv_child_logits)
     rootnode.set_prior_pi(root_prior_pi)
 
-    batch_valid_moves = replay.batch_valid_moves(canonical_children)
-    batch_invalid_values = replay.batch_invalid_values(canonical_children)
+    batch_valid_moves = data.batch_valid_moves(canonical_children)
+    batch_invalid_values = data.batch_invalid_values(canonical_children)
     batch_prior_pi = special.softmax(child_priors * batch_valid_moves + batch_invalid_values, axis=1)
 
     pbar = zip(canonical_children, child_group_maps, np.argwhere(child_valids), batch_prior_pi, inv_child_vals)
@@ -117,7 +102,7 @@ def ac_search(go_env, num_searches, ac_func):
                 val = search.invert_vals(val)
 
             valid_moves = GoGame.get_valid_moves(leaf_state)
-            invalid_values = replay.batch_invalid_values(leaf_state[np.newaxis])[0]
+            invalid_values = data.batch_invalid_values(leaf_state[np.newaxis])[0]
             prior_pi = special.softmax(prior_qs * valid_moves + invalid_values)
 
             curr_node.set_prior_pi(prior_pi)
