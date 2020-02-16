@@ -52,7 +52,7 @@ class ActorCritic(Policy):
         return pi
 
     def tree_to_qs(self, rootnode):
-        qs = np.empty((2, rootnode.actionsize))
+        qs = np.empty((2, rootnode.actionsize()))
         qs[0] = rootnode.prior_pi
         qs[1] = rootnode.get_visit_counts()
 

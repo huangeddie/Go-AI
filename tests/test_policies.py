@@ -19,7 +19,7 @@ class MyTestCase(unittest.TestCase):
         self.assertGreaterEqual(win_rate, 0.6)
 
     def test_mctval_vs_val(self):
-        args1 = utils.hyperparameters(['--size=7', '--mcts=256', '--temp=1', '--baseline'])
+        args1 = utils.hyperparameters(['--size=7', '--mcts=128', '--temp=1', '--baseline'])
         args2 = utils.hyperparameters(['--size=7', '--mcts=0', '--temp=0.05', '--baseline'])
 
         win_rate, _, _ = utils.multi_proc_play(args1, args2, self.num_games, workers=8)

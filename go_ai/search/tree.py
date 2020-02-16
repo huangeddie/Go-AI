@@ -162,8 +162,9 @@ class Node:
 
     def get_ucbs(self):
         ucbs = []
+        valid_moves = self.valid_moves()
         for i in range(self.actionsize()):
-            if not self.valid_moves()[i]:
+            if not valid_moves[i]:
                 ucbs.append(np.finfo(np.float).min)
             else:
                 prior_q = self.prior_pi[i]
