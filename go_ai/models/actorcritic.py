@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 from mpi4py import MPI
 
-from go_ai import data, search
 from go_ai.models import BasicBlock, average_model, ModelMetrics
 
 gymgo = gym.make('gym_go:go-v0', size=0)
@@ -56,6 +55,7 @@ class ActorCriticNet(nn.Module):
         )
 
         self.critic_criterion = nn.MSELoss()
+        self.actor_criterion = nn.CrossEntropyLoss()
 
     def forward(self, state):
         x = self.shared_convs(state)
@@ -64,37 +64,6 @@ class ActorCriticNet(nn.Module):
         policy_scores = self.actor(x)
         vals = self.critic(x)
         return policy_scores, vals
-
-
-def mpi_get_qvals(comm, batched_data, val_func):
-    batches = len(batched_data)
-    world_size = comm.Get_size()
-    dividers = batches // world_size
-    rank = comm.Get_rank()
-    start = rank * dividers
-    end = (rank + 1) * dividers if rank < world_size - 1 else batches
-    my_batches = batched_data[start: end]
-    my_qvals = []
-    my_states = []
-    for states, actions, next_states, rewards, terminals, wins, pis in my_batches:
-        states = data.batch_random_symmetries(states)
-        invalid_values = data.batch_invalid_values(states)
-
-        qvals, _ = search.batchqs_from_valfunc(states, val_func)
-        qvals += invalid_values
-
-        my_qvals.append(qvals)
-        my_states.append(states)
-
-    all_data = comm.allgather((my_qvals, my_states))
-    all_qvals = []
-    all_states = []
-
-    for qvals, states in all_data:
-        all_qvals.extend(qvals)
-        all_states.extend(states)
-
-    return all_qvals, all_states
 
 
 def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer):
@@ -117,10 +86,9 @@ def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer
 
         optimizer.zero_grad()
         pi_logits, logits = model(states)
-        logpi = torch.log_softmax(pi_logits, dim=1)
         vals = torch.tanh(logits)
         assert pi_logits.shape == target_pis.shape
-        actor_loss = -torch.sum(logpi * target_pis) / len(states)
+        actor_loss = model.actor_criterion(pi_logits, greedy_actions)
         critic_loss = model.critic_criterion(vals, wins)
         loss = actor_loss + critic_loss
         loss.backward()
