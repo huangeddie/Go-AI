@@ -4,10 +4,13 @@ from scipy import special
 from go_ai import search
 from go_ai.search import GoGame
 
-
-def set_state_vals(val_func, nodes):
+def get_state_vals(val_func, nodes):
     states = list(map(lambda node: node.state, nodes))
     vals = val_func(np.array(states))
+    return vals
+
+def set_state_vals(val_func, nodes):
+    vals = get_state_vals(val_func, nodes)
     for val, node in zip(vals, nodes):
         node.set_value(val.item())
 

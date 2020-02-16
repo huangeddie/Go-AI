@@ -19,6 +19,7 @@ class ActorCritic(Policy):
         super(ActorCritic, self).__init__(name, temp=args.temp)
         self.pytorch_model = model
         self.ac_func = pytorch_ac_to_numpy(model)
+        self.val_func = lambda states: self.ac_func(states)[1]
         self.mcts = args.mcts
 
     def __call__(self, go_env, **kwargs):
@@ -41,8 +42,13 @@ class ActorCritic(Policy):
 
             if debug:
                 return pi, qs, rootnode
-
+        elif self.mcts == 0:
+            rootnode = mct.val_search(go_env, self.mcts, self.val_func)
+            q_logits = rootnode.get_q_logits()
+            qs = np.exp(q_logits)
+            pi = search.temp_norm(qs, self.temp, rootnode.valid_moves())
         else:
+            assert self.mcts < 0
             state = go_env.get_canonical_state()
             policy_scores, _ = self.ac_func(state[np.newaxis])
             policy_scores = policy_scores[0]

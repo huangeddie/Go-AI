@@ -2,7 +2,6 @@ import gym
 import numpy as np
 from scipy import special
 
-from go_ai import search, data
 from go_ai.search import tree
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
@@ -57,8 +56,20 @@ def ac_search(go_env, num_searches, ac_func):
     rootnode.backprop(np.tanh(root_val_logits).item())
     rootnode.set_prior_pi(root_prior_pi)
 
+    # Cache searches on immediate children
+    children = rootnode.make_children()
+    states = list(map(lambda node: node.state, children))
+    child_prior_logits, child_val_logits = ac_func(np.array(states))
+    child_pi = special.softmax(child_prior_logits, axis=1)
+    child_vals = np.tanh(child_val_logits)
+    for pi, val, node in zip(child_pi, child_vals, children):
+        node.set_prior_pi(pi)
+        node.backprop(val.item())
+
+    remaining_searches = num_searches - len(children)
+
     # MCT Search
-    for i in range(num_searches):
+    for i in range(remaining_searches):
         curr_node = rootnode
         while curr_node.visits > 0 and not curr_node.terminal():
             ucbs = curr_node.get_ucbs()
@@ -79,8 +90,6 @@ def ac_search(go_env, num_searches, ac_func):
             logit = logit.item()
 
             val = np.tanh(logit)
-            if curr_node.level % 2 == 1:
-                val = search.invert_vals(val)
 
             prior_pi = special.softmax(prior_qs)
 
