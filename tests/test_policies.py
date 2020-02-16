@@ -27,8 +27,8 @@ class MyTestCase(unittest.TestCase):
         self.assertGreaterEqual(win_rate, 0.6)
 
     def test_val_vs_ac(self):
-        args1 = utils.hyperparameters(['--size=9', '--model=val', '--depth=0', '--temp=0.05', '--baseline'])
-        args2 = utils.hyperparameters(['--size=9', '--model=ac', '--mcts=0', '--temp=1', '--baseline'])
+        args1 = utils.hyperparameters(['--size=9', '--model=val', '--depth=0', '--temp=0.01', '--baseline'])
+        args2 = utils.hyperparameters(['--size=9', '--model=ac', '--mcts=-1', '--temp=0.5', '--baseline'])
 
         win_rate, _, _ = utils.multi_proc_play(args1, args2, self.num_games, workers=8)
 

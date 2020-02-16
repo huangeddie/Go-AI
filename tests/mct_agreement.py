@@ -7,11 +7,10 @@ from tqdm import tqdm
 from go_ai import utils
 from go_ai.policies import baselines
 
-size = 7
+size = 9
 arg_strs = [
     f'--size={size} --model=val --temp=1 --mcts=0 --baseline',
-    f'--size={size} --model=val --temp=1 --mcts=128 --baseline',
-    f'--size={size} --model=val --temp=1 --mcts=256 --baseline'
+    f'--size={size} --model=ac --temp=1 --mcts=-1 --baseline',
 ]
 
 
@@ -35,7 +34,9 @@ def evaluate_greedy_actions(all_args, replay, workers=8):
         greedy_actions = queue.get()
         all_greedy_actions.append(greedy_actions)
 
-    return np.array(all_greedy_actions)
+    all_greedy_actions = np.concatenate(all_greedy_actions)
+
+    return all_greedy_actions
 
 
 def worker_eval_greedy(queue, all_args, replay):
@@ -46,6 +47,7 @@ def worker_eval_greedy(queue, all_args, replay):
         policies.append(policy)
 
     go_env = gym.make('gym_go:go-v0', size=args_rep.size)
+    all_greedy_actions = []
     for traj in tqdm(replay, desc='Greedy Actions'):
         go_env.reset()
         for a in traj.actions:
@@ -53,10 +55,11 @@ def worker_eval_greedy(queue, all_args, replay):
             for policy in policies:
                 pi = policy(go_env)
                 greedy_actions.append(np.argmax(pi))
-
-            queue.put(greedy_actions)
+            all_greedy_actions.append(greedy_actions)
 
             go_env.step(a)
+
+    queue.put(np.array(all_greedy_actions, dtype=int))
 
 
 if __name__ == '__main__':
@@ -66,7 +69,7 @@ if __name__ == '__main__':
         args = utils.hyperparameters(arg_str.split())
         all_args.append(args)
 
-    _, _, replay = utils.multi_proc_play(all_args[0], all_args[0], 8)
+    _, _, replay = utils.multi_proc_play(all_args[0], all_args[0], 16)
 
     greedy_actions = evaluate_greedy_actions(all_args, replay)
 
