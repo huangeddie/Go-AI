@@ -51,13 +51,13 @@ class RankerNet(nn.Module):
         super().__init__()
         self.encoder = EncoderNet(board_size, z_dim, num_blocks, channels)
 
-        action_size = GoGame.get_action_size(board_size=board_size)
+        self.action_size = GoGame.get_action_size(board_size=board_size)
         fc_h = 4 * board_size ** 2
         self.actor = nn.Sequential(
-            nn.Linear(action_size * z_dim, fc_h),
+            nn.Linear(self.action_size * z_dim, fc_h),
             nn.BatchNorm1d(fc_h),
             nn.ReLU(),
-            nn.Linear(fc_h, action_size)
+            nn.Linear(fc_h, self.action_size)
         )
 
         self.critic = nn.Sequential(
@@ -78,6 +78,18 @@ class RankerNet(nn.Module):
         vals = self.critic(x)
         return policy_scores, vals
 
+    def get_batch_children(self, states):
+        children = np.zeros((len(states), self.action_size,) + states[0].shape)
+        for i, state in enumerate(states):
+            valid_moves = GoGame.get_valid_moves(state)
+            this_children, _ = GoGame.get_children(state, canonical=True)
+            arg_valid = np.argwhere(valid_moves).flatten()
+            assert len(arg_valid) == len(this_children)
+            for a, c in zip(arg_valid, this_children):
+                children[i, a] = c
+
+        return children
+
 
 def optimize(comm: MPI.Intracomm, model: RankerNet, batched_data, optimizer):
     dtype = next(model.parameters()).type()
@@ -91,14 +103,17 @@ def optimize(comm: MPI.Intracomm, model: RankerNet, batched_data, optimizer):
     batches = len(batched_data)
     model.train()
     for states, actions, rewards, next_states, terminals, wins, target_pis in batched_data:
+        children = model.get_batch_children(states)
+
         states = torch.from_numpy(states).type(dtype)
+        children = torch.from_numpy(children).type(dtype)
 
         wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
         target_pis = torch.from_numpy(target_pis).type(dtype)
         greedy_actions = torch.argmax(target_pis, dim=1)
 
         optimizer.zero_grad()
-        pi_logits, logits = model(states)
+        pi_logits, logits = model(states, children)
         vals = torch.tanh(logits)
         assert pi_logits.shape == target_pis.shape
         actor_loss = model.actor_criterion(pi_logits, greedy_actions)
