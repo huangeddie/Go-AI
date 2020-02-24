@@ -53,7 +53,7 @@ def hyperparameters(args_encoding=None):
     parser.add_argument('--iterations', type=int, default=128, help='iterations')
     parser.add_argument('--episodes', type=int, default=32, help='episodes')
     parser.add_argument('--evaluations', type=int, default=32, help='episodes')
-    parser.add_argument('--eval-interval', type=int, default=1, help='iterations per evaluation')
+    parser.add_argument('--eval-interval', type=int, default=2, help='iterations per evaluation')
 
     # Disk Data
     parser.add_argument('--replay-path', type=str, default='bin/replay.pickle', help='path to store replay')

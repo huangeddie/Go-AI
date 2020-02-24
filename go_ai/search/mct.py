@@ -64,7 +64,7 @@ def ac_search(go_env, num_searches, ac_func):
     child_vals = np.tanh(child_val_logits)
     found_winnode = None
     for pi, val, node in zip(child_pi, child_vals, children):
-        if node.terminal() and node.winning():
+        if node.terminal() and node.winning() == -1:
             found_winnode = node
             break
         node.set_prior_pi(pi)
