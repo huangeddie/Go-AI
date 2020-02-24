@@ -63,7 +63,8 @@ def train(comm, args, curr_pi, checkpoint_pi):
         metrics, replay_len = train_step(comm, args, curr_pi, optim, checkpoint_pi)
 
         # Model Evaluation
-        model_eval(comm, args, curr_pi, checkpoint_pi, winrates)
+        if (iteration + 1) % args.eval_interval == 0:
+            model_eval(comm, args, curr_pi, checkpoint_pi, winrates)
 
         # Sync
         utils.mpi_sync_checkpoint(comm, args, new_pi=curr_pi, old_pi=checkpoint_pi)
