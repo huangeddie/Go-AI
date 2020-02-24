@@ -65,55 +65,54 @@ class ActorCriticNet(nn.Module):
         vals = self.critic(x)
         return policy_scores, vals
 
+    def optimize(self, comm: MPI.Intracomm, batched_data, optimizer):
+        dtype = next(self.parameters()).type()
 
-def optimize(comm: MPI.Intracomm, model: ActorCriticNet, batched_data, optimizer):
-    dtype = next(model.parameters()).type()
+        critic_running_loss = 0
+        critic_running_acc = 0
 
-    critic_running_loss = 0
-    critic_running_acc = 0
+        actor_running_loss = 0
+        actor_running_acc = 0
 
-    actor_running_loss = 0
-    actor_running_acc = 0
+        batches = len(batched_data)
+        self.train()
+        for states, actions, rewards, next_states, terminals, wins, target_pis in batched_data:
+            states = torch.from_numpy(states).type(dtype)
 
-    batches = len(batched_data)
-    model.train()
-    for states, actions, rewards, next_states, terminals, wins, target_pis in batched_data:
-        states = torch.from_numpy(states).type(dtype)
+            wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
+            target_pis = torch.from_numpy(target_pis).type(dtype)
+            greedy_actions = torch.argmax(target_pis, dim=1)
 
-        wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
-        target_pis = torch.from_numpy(target_pis).type(dtype)
-        greedy_actions = torch.argmax(target_pis, dim=1)
+            optimizer.zero_grad()
+            pi_logits, logits = self(states)
+            vals = torch.tanh(logits)
+            assert pi_logits.shape == target_pis.shape
+            actor_loss = self.actor_criterion(pi_logits, greedy_actions)
+            critic_loss = self.critic_criterion(vals, wins)
+            loss = actor_loss + critic_loss
+            loss.backward()
+            optimizer.step()
 
-        optimizer.zero_grad()
-        pi_logits, logits = model(states)
-        vals = torch.tanh(logits)
-        assert pi_logits.shape == target_pis.shape
-        actor_loss = model.actor_criterion(pi_logits, greedy_actions)
-        critic_loss = model.critic_criterion(vals, wins)
-        loss = actor_loss + critic_loss
-        loss.backward()
-        optimizer.step()
+            pred_greedy_actions = torch.argmax(pi_logits, dim=1)
+            actor_running_loss += actor_loss.item()
+            actor_running_acc += torch.mean((pred_greedy_actions == greedy_actions).type(dtype)).item()
 
-        pred_greedy_actions = torch.argmax(pi_logits, dim=1)
-        actor_running_loss += actor_loss.item()
-        actor_running_acc += torch.mean((pred_greedy_actions == greedy_actions).type(dtype)).item()
+            pred_wins = torch.sign(vals)
+            critic_running_loss += critic_loss.item()
+            critic_running_acc += torch.mean((pred_wins == wins).type(dtype)).item()
 
-        pred_wins = torch.sign(vals)
-        critic_running_loss += critic_loss.item()
-        critic_running_acc += torch.mean((pred_wins == wins).type(dtype)).item()
+        # Sync Parameters
+        average_model(comm, self)
 
-    # Sync Parameters
-    average_model(comm, model)
+        world_size = comm.Get_size()
+        critic_running_acc = comm.allreduce(critic_running_acc, op=MPI.SUM) / world_size
+        critic_running_loss = comm.allreduce(critic_running_loss, op=MPI.SUM) / world_size
+        actor_running_acc = comm.allreduce(actor_running_acc, op=MPI.SUM) / world_size
+        actor_running_loss = comm.allreduce(actor_running_loss, op=MPI.SUM) / world_size
 
-    world_size = comm.Get_size()
-    critic_running_acc = comm.allreduce(critic_running_acc, op=MPI.SUM) / world_size
-    critic_running_loss = comm.allreduce(critic_running_loss, op=MPI.SUM) / world_size
-    actor_running_acc = comm.allreduce(actor_running_acc, op=MPI.SUM) / world_size
-    actor_running_loss = comm.allreduce(actor_running_loss, op=MPI.SUM) / world_size
-
-    metrics = ModelMetrics()
-    metrics.crit_acc = critic_running_acc / batches
-    metrics.crit_loss = critic_running_loss / batches
-    metrics.act_acc = actor_running_acc / batches
-    metrics.act_loss = actor_running_loss / batches
-    return metrics
+        metrics = ModelMetrics()
+        metrics.crit_acc = critic_running_acc / batches
+        metrics.crit_loss = critic_running_loss / batches
+        metrics.act_acc = actor_running_acc / batches
+        metrics.act_loss = actor_running_loss / batches
+        return metrics

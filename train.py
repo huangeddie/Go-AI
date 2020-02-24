@@ -40,11 +40,7 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi):
 
     # Optimize
     utils.mpi_log_debug(comm, f'Optimizing in {len(traindata)} training steps...')
-    if args.model == 'val':
-        metrics = value.optimize(comm, curr_model, traindata, optim)
-    elif args.model == 'ac':
-        metrics = actorcritic.optimize(comm, curr_model, traindata, optim)
-
+    metrics = curr_model.optimize(comm, traindata, optim)
 
     # Sync model
     utils.mpi_log_debug(comm, f'Optimized | {str(metrics)}')

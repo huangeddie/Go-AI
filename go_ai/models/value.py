@@ -56,39 +56,39 @@ class ValueNet(nn.Module):
         return x
 
 
-def optimize(comm: MPI.Intracomm, model: torch.nn.Module, batched_data, optimizer):
-    world_size = comm.Get_size()
-    model.train()
-    dtype = next(model.parameters()).type()
-    running_loss = 0
-    running_acc = 0
-    for i, (states, actions, rewards, next_states, terminals, wins, pis) in enumerate(batched_data, 1):
-        # Augment
-        states = data.batch_random_symmetries(states)
+    def optimize(self, comm: MPI.Intracomm, batched_data, optimizer):
+        world_size = comm.Get_size()
+        self.train()
+        dtype = next(self.parameters()).type()
+        running_loss = 0
+        running_acc = 0
+        for i, (states, actions, rewards, next_states, terminals, wins, pis) in enumerate(batched_data, 1):
+            # Augment
+            states = data.batch_random_symmetries(states)
 
-        states = torch.from_numpy(states).type(dtype)
-        wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
+            states = torch.from_numpy(states).type(dtype)
+            wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
 
-        optimizer.zero_grad()
-        logits = model(states)
-        vals = torch.tanh(logits)
-        pred_wins = torch.sign(vals)
-        loss = model.criterion(vals, wins)
-        loss.backward()
+            optimizer.zero_grad()
+            logits = self(states)
+            vals = torch.tanh(logits)
+            pred_wins = torch.sign(vals)
+            loss = self.criterion(vals, wins)
+            loss.backward()
 
-        optimizer.step()
+            optimizer.step()
 
-        running_loss += loss.item()
-        running_acc += torch.mean((pred_wins == wins).type(wins.dtype)).item()
+            running_loss += loss.item()
+            running_acc += torch.mean((pred_wins == wins).type(wins.dtype)).item()
 
-    # Sync Parameters
-    average_model(comm, model)
+        # Sync Parameters
+        average_model(comm, self)
 
-    running_acc = comm.allreduce(running_acc, op=MPI.SUM) / world_size
-    running_loss = comm.allreduce(running_loss, op=MPI.SUM) / world_size
+        running_acc = comm.allreduce(running_acc, op=MPI.SUM) / world_size
+        running_loss = comm.allreduce(running_loss, op=MPI.SUM) / world_size
 
-    metrics = ModelMetrics()
-    metrics.crit_acc = running_acc / len(batched_data)
-    metrics.crit_loss = running_loss / len(batched_data)
+        metrics = ModelMetrics()
+        metrics.crit_acc = running_acc / len(batched_data)
+        metrics.crit_loss = running_loss / len(batched_data)
 
-    return metrics
+        return metrics
