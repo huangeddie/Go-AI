@@ -204,7 +204,7 @@ def mpi_play(comm: MPI.Intracomm, go_env, pi1, pi2, requested_episodes):
     return p1wr, black_wr, replay
 
 
-def multi_proc_play(args1, args2, requested_episodes, workers=8):
+def multi_proc_play(args1, args2, requested_episodes, workers=4):
     world_size = workers
 
     worker_episodes = int(math.ceil(requested_episodes / world_size))
