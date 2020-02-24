@@ -1,10 +1,8 @@
-import os
-
 import gym
 import numpy as np
 import torch
 
-from go_ai.models import value, actorcritic, get_modelpath
+from go_ai.models import val_net, ac_net
 from go_ai.policies import Policy
 from go_ai.policies.actorcritic import ActorCritic
 from go_ai.policies.value import Value
@@ -134,10 +132,10 @@ def create_policy(args, name=''):
     model = args.model
     size = args.size
     if model == 'val':
-        net = value.ValueNet(size, args.resblocks)
+        net = val_net.ValueNet(size, args.resblocks)
         pi = Value(name, net, args)
     elif model == 'ac':
-        net = actorcritic.ActorCriticNet(size, args.resblocks)
+        net = ac_net.ActorCriticNet(size, args.resblocks)
         pi = ActorCritic(name, net, args)
     elif model == 'rand':
         net = None

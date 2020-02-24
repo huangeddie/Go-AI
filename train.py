@@ -7,7 +7,6 @@ import torch
 from mpi4py import MPI
 
 from go_ai import data, utils
-from go_ai.models import value, actorcritic, ModelMetrics
 from go_ai.policies import baselines
 
 
@@ -24,7 +23,6 @@ def model_eval(comm, args, curr_pi, checkpoint_pi, winrates):
 def train_step(comm, args, curr_pi, optim, checkpoint_pi):
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.size, reward_method=args.reward)
-    metrics = ModelMetrics()
     curr_model = curr_pi.pytorch_model
 
     # Play episodes
