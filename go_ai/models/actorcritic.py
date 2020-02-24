@@ -12,7 +12,7 @@ GoVars = gymgo.govars
 
 
 class ActorCriticNet(nn.Module):
-    def __init__(self, board_size, num_blocks=4, channels=32):
+    def __init__(self, size, num_blocks=4, channels=32):
         super().__init__()
         # Convolutions
         convs = [
@@ -24,34 +24,26 @@ class ActorCriticNet(nn.Module):
         for i in range(num_blocks):
             convs.append(BasicBlock(channels, channels))
 
-        convs.extend([
-            nn.Conv2d(channels, 4, 1),
-            nn.BatchNorm2d(4),
-            nn.ReLU(),
-        ])
-
         self.shared_convs = nn.Sequential(*convs)
 
-        fc_h = 4 * board_size ** 2
-        self.shared_fcs = nn.Sequential(
-            nn.Linear(fc_h, fc_h),
-            nn.BatchNorm1d(fc_h),
-            nn.ReLU()
-        )
+        action_size = GoGame.get_action_size(board_size=size)
 
-        action_size = GoGame.get_action_size(board_size=board_size)
         self.actor = nn.Sequential(
-            nn.Linear(fc_h, fc_h),
-            nn.BatchNorm1d(fc_h),
+            nn.Conv2d(channels, 2, 1),
+            nn.BatchNorm2d(2),
             nn.ReLU(),
-            nn.Linear(fc_h, action_size)
+            nn.Flatten(),
+            nn.Linear(2 * size ** 2, action_size),
         )
 
         self.critic = nn.Sequential(
-            nn.Linear(fc_h, fc_h),
-            nn.BatchNorm1d(fc_h),
+            nn.Conv2d(channels, 1, 1),
+            nn.BatchNorm2d(1),
             nn.ReLU(),
-            nn.Linear(fc_h, 1)
+            nn.Flatten(),
+            nn.Linear(size ** 2, 256),
+            nn.ReLU(),
+            nn.Linear(256, 1),
         )
 
         self.critic_criterion = nn.MSELoss()
@@ -59,8 +51,6 @@ class ActorCriticNet(nn.Module):
 
     def forward(self, state):
         x = self.shared_convs(state)
-        x = torch.flatten(x, start_dim=1)
-        x = self.shared_fcs(x)
         policy_scores = self.actor(x)
         vals = self.critic(x)
         return policy_scores, vals

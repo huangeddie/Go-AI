@@ -31,29 +31,21 @@ class ValueNet(nn.Module):
             convs.append(BasicBlock(channels, channels))
 
         convs.extend([
-            nn.Conv2d(channels, 4, 1),
-            nn.BatchNorm2d(4),
+            nn.Conv2d(channels, 1, 1),
+            nn.BatchNorm2d(1),
             nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(size ** 2, 256),
+            nn.ReLU(),
+            nn.Linear(256, 1),
         ])
 
         self.convs = nn.Sequential(*convs)
 
-        # Fully Connected
-        fc_h = 4 * size ** 2
-        self.fcs = nn.Sequential(
-            nn.Linear(fc_h, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Linear(512, 1)
-        )
-
         self.criterion = nn.MSELoss()
 
     def forward(self, x):
-        x = self.convs(x)
-        x = torch.flatten(x, start_dim=1)
-        x = self.fcs(x)
-        return x
+        return self.convs(x)
 
 
     def optimize(self, comm: MPI.Intracomm, batched_data, optimizer):
