@@ -41,10 +41,10 @@ class ValueNet(nn.Module):
         # Fully Connected
         fc_h = 4 * size ** 2
         self.fcs = nn.Sequential(
-            nn.Linear(fc_h, fc_h),
-            nn.BatchNorm1d(fc_h),
+            nn.Linear(fc_h, 512),
+            nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Linear(fc_h, 1)
+            nn.Linear(512, 1)
         )
 
         self.criterion = nn.MSELoss()
