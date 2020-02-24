@@ -79,7 +79,7 @@ class ActorCriticNet(nn.Module):
             assert pi_logits.shape == target_pis.shape
             actor_loss = self.actor_criterion(pi_logits, greedy_actions)
             critic_loss = self.critic_criterion(vals, wins)
-            loss = actor_loss + critic_loss
+            loss = 0.5 * actor_loss + critic_loss
             loss.backward()
             optimizer.step()
 

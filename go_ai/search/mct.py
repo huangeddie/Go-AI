@@ -62,9 +62,19 @@ def ac_search(go_env, num_searches, ac_func):
     child_prior_logits, child_val_logits = ac_func(np.array(states))
     child_pi = special.softmax(child_prior_logits, axis=1)
     child_vals = np.tanh(child_val_logits)
+    found_winnode = None
     for pi, val, node in zip(child_pi, child_vals, children):
+        if node.terminal() and node.winning():
+            found_winnode = node
+            break
         node.set_prior_pi(pi)
         node.backprop(val.item())
+
+    if found_winnode is not None:
+        for child in children:
+            child.visits = 0
+        found_winnode.visits = 1
+        return rootnode
 
     remaining_searches = num_searches - len(children)
 
