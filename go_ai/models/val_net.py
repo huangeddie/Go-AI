@@ -47,6 +47,20 @@ class ValueNet(nn.Module):
     def forward(self, x):
         return self.convs(x)
 
+    def val_numpy(self, states):
+        dtype = next(self.parameters()).type()
+        self.eval()
+        with torch.no_grad():
+            tensor_states = torch.tensor(states).type(dtype)
+            state_vals = self(tensor_states)
+            vals = state_vals.detach().cpu().numpy()
+
+        # Check for terminals
+        for i, state in enumerate(states):
+            if GoGame.get_game_ended(state):
+                vals[i] = 100 * GoGame.get_winning(state)
+
+        return vals
 
     def optimize(self, comm: MPI.Intracomm, batched_data, optimizer):
         world_size = comm.Get_size()
@@ -58,8 +72,8 @@ class ValueNet(nn.Module):
             # Augment
             states = data.batch_random_symmetries(states)
 
-            states = torch.from_numpy(states).type(dtype)
-            wins = torch.from_numpy(wins[:, np.newaxis]).type(dtype)
+            states = torch.tensor(states).type(dtype)
+            wins = torch.tensor(wins[:, np.newaxis]).type(dtype)
 
             optimizer.zero_grad()
             logits = self(states)

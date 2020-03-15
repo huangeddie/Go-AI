@@ -8,17 +8,17 @@ from go_ai.search import mct
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
-class ActorCritic(Policy):
+class Attn(Policy):
     def __init__(self, name, model, args=None):
         """
         :param branches: The number of actions explored by actor at each node.
         :param depth: The number of steps to explore with actor. Includes opponent,
         i.e. even depth means the last step explores the opponent's
         """
-        super(ActorCritic, self).__init__(name, temp=args.temp)
+        super(Attn, self).__init__(name, temp=args.temp)
         self.pt_model = model
         self.ac_func = model.ac_numpy
-        self.val_func = lambda states: self.ac_func(states)[1]
+        self.val_func = model.val_numpy
         self.mcts = args.mcts
 
     def __call__(self, go_env, **kwargs):

@@ -2,10 +2,11 @@ import gym
 import numpy as np
 import torch
 
-from go_ai.models import val_net, ac_net
+from go_ai.models import val_net, ac_net, attn_net
 from go_ai.policies import Policy
 from go_ai.policies.actorcritic import ActorCritic
 from go_ai.policies.value import Value
+from go_ai.policies.attn import Attn
 
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
@@ -137,6 +138,9 @@ def create_policy(args, name=''):
     elif model == 'ac':
         net = ac_net.ActorCriticNet(size, args.resblocks)
         pi = ActorCritic(name, net, args)
+    elif model == 'attn':
+        net = attn_net.AttnNet(size, args.resblocks)
+        pi = Attn(name, net, args)
     elif model == 'rand':
         net = None
         pi = RAND_PI

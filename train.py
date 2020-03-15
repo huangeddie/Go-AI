@@ -23,7 +23,7 @@ def model_eval(comm, args, curr_pi, checkpoint_pi, winrates):
 def train_step(comm, args, curr_pi, optim, checkpoint_pi):
     # Environment
     go_env = gym.make('gym_go:go-v0', size=args.size, reward_method=args.reward)
-    curr_model = curr_pi.pytorch_model
+    curr_model = curr_pi.pt_model
 
     # Play episodes
     utils.mpi_log_debug(comm, f'Self-Playing {checkpoint_pi} V {checkpoint_pi}...')
@@ -48,7 +48,7 @@ def train_step(comm, args, curr_pi, optim, checkpoint_pi):
 
 def train(comm, args, curr_pi, checkpoint_pi):
     # Optimizer
-    curr_model = curr_pi.pytorch_model
+    curr_model = curr_pi.pt_model
     optim = torch.optim.Adam(curr_model.parameters(), args.lr, weight_decay=1e-4)
 
     # Timer

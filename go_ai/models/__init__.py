@@ -5,8 +5,6 @@ import torch
 from mpi4py import MPI
 from torch import nn as nn
 
-from go_ai import data
-
 GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
@@ -28,62 +26,6 @@ class BasicBlock(nn.Module):
         out += identity
         out = torch.relu_(out)
         return out
-
-
-def pytorch_ac_to_numpy(model):
-    def ac_func(states):
-        """
-        :param states: Numpy batch of states
-        :return:
-        """
-        invalid_values = data.batch_invalid_values(states)
-        dtype = next(model.parameters()).type()
-        model.eval()
-        with torch.no_grad():
-            tensor_states = torch.from_numpy(states).type(dtype)
-            pi, state_vals = model(tensor_states)
-            pi = pi.detach().cpu().numpy()
-            pi += invalid_values
-            vals = state_vals.detach().cpu().numpy()
-
-        # Check for terminals
-        for i, state in enumerate(states):
-            if GoGame.get_game_ended(state):
-                vals[i] = 100 * GoGame.get_winning(state)
-
-        return pi, vals
-
-    return ac_func
-
-
-def pytorch_val_to_numpy(model):
-    """
-    Automatically turns terminal states into 1, 0, -1 based on win status
-    :param model: The model to convert
-    :param val: True if value function, False if policy function
-    :return: The numpy equivalent of the pytorch value model
-    """
-
-    def func(states):
-        """
-        :param states: Numpy batch of states
-        :return:
-        """
-        dtype = next(model.parameters()).type()
-        model.eval()
-        with torch.no_grad():
-            tensor_states = torch.from_numpy(states).type(dtype)
-            state_vals = model(tensor_states)
-            vals = state_vals.detach().cpu().numpy()
-
-        # Check for terminals
-        for i, state in enumerate(states):
-            if GoGame.get_game_ended(state):
-                vals[i] = 100 * GoGame.get_winning(state)
-
-        return vals
-
-    return func
 
 
 class ModelMetrics:
