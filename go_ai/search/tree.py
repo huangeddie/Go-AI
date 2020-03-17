@@ -175,7 +175,7 @@ class Node:
                 if child is not None:
                     n = child.visits
                     if len(child.post_vals) <= 0:
-                        avg_q = search.invert_vals(np.tanh(child.val))
+                        avg_q = search.invert_vals(np.tanh(child.get_value))
                     else:
                         avg_q = search.invert_vals(np.mean(np.tanh(child.post_vals)))
                 else:

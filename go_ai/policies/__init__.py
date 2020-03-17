@@ -6,7 +6,7 @@ class Policy:
     def __init__(self, name, temp=None):
         self.name = name
         self.temp = temp
-        self.pytorch_model = None
+        self.pt_model = None
 
     def __call__(self, go_env, **kwargs):
         """

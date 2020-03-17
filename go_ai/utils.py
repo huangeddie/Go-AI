@@ -60,7 +60,7 @@ def hyperparameters(args_encoding=None):
     parser.add_argument('--checkdir', type=str, default=f'bin/checkpoints/{today}/')
 
     # Model
-    parser.add_argument('--model', type=str, choices=['val', 'ac', 'rand', 'greedy', 'human'], default='val',
+    parser.add_argument('--model', type=str, choices=['val', 'ac', 'attn', 'rand', 'greedy', 'human'], default='attn',
                         help='type of model')
     parser.add_argument('--resblocks', type=int, default=4, help='number of basic blocks for resnets')
 
@@ -78,6 +78,10 @@ def hyperparameters(args_encoding=None):
     setattr(args, 'custompath', os.path.join(args.customdir, f'{args.model}{args.size}.pt'))
 
     return args
+
+
+def count_parameters(model: torch.nn.Module):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
 def config_log(args=None):
@@ -143,10 +147,10 @@ def mpi_sync_checkpoint(comm: MPI.Intracomm, args, new_pi, old_pi):
     rank = comm.Get_rank()
     checkpath = get_modelpath(args, 'checkpoint')
     if rank == 0:
-        torch.save(new_pi.pytorch_model.state_dict(), checkpath)
+        torch.save(new_pi.pt_model.state_dict(), checkpath)
     comm.Barrier()
     # Update other policy
-    old_pi.pytorch_model.load_state_dict(torch.load(checkpath))
+    old_pi.pt_model.load_state_dict(torch.load(checkpath))
 
 
 def mpi_sync_data(comm: MPI.Intracomm, args):

@@ -1,10 +1,7 @@
-from queue import Queue
-
 import numpy as np
 import torch
 
 from go_ai import search
-from go_ai.models import pytorch_val_to_numpy
 from go_ai.policies import Policy
 from go_ai.search import mct
 
@@ -13,8 +10,8 @@ class Value(Policy):
     def __init__(self, name, val_func, args=None):
         super(Value, self).__init__(name, args.temp if args is not None else 0)
         if isinstance(val_func, torch.nn.Module):
-            self.pytorch_model = val_func
-            val_func = pytorch_val_to_numpy(val_func)
+            self.pt_model = val_func
+            val_func = self.pt_model.val_numpy
 
         self.val_func = val_func
         self.mcts = args.mcts if args is not None else 0
@@ -26,7 +23,7 @@ class Value(Policy):
         :return:
         """
         if 'debug' in kwargs:
-            debug =  kwargs['debug']
+            debug = kwargs['debug']
         else:
             debug = False
 

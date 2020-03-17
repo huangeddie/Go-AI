@@ -38,6 +38,15 @@ def batch_invalid_values(states):
     return invalid_values
 
 
+def batch_padded_children(states):
+    all_children = []
+    all_valid_moves = batch_valid_moves(states)
+    for state, valid_moves in zip(states, all_valid_moves):
+        chilren, _ = GoGame.get_children(state, canonical=True, padded=True)
+        all_children.append(chilren)
+    return all_children
+
+
 def batch_random_symmetries(states):
     assert len(states.shape) == 4
     processed_states = []
