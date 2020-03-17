@@ -13,15 +13,15 @@ class Trajectory:
         self.states = []
         self.actions = []
         self.rewards = []
-        self.next_states = []
+        self.children = []
         self.pis = []
 
     def get_events(self):
         events = []
         black_won = self.get_winner()
         n = len(self)
-        zipped = zip(self.states, self.actions, self.rewards, self.next_states, self.pis)
-        for i, (state, action, reward, next_state, pi) in enumerate(zipped):
+        zipped = zip(self.states, self.actions, self.rewards, self.children, self.pis)
+        for i, (state, action, reward, children, pi) in enumerate(zipped):
             turn = i % 2
             if turn == 0:
                 won = black_won
@@ -30,15 +30,15 @@ class Trajectory:
 
             terminal = i == n - 1
 
-            events.append((state, action, reward, next_state, terminal, won, pi))
+            events.append((state, action, reward, children, terminal, won, pi))
 
         return events
 
-    def add_event(self, state, action, reward, next_state, pi):
+    def add_event(self, state, action, reward, children, pi):
         self.states.append(state)
         self.actions.append(action)
         self.rewards.append(reward)
-        self.next_states.append(next_state)
+        self.children.append(children)
         self.pis.append(pi)
 
     def set_win(self, black_won):
@@ -51,7 +51,7 @@ class Trajectory:
         n = len(self.states)
         assert len(self.actions) == n
         assert len(self.rewards) == n
-        assert len(self.next_states) == n
+        assert len(self.children) == n
         assert len(self.pis) == n
 
         return n
@@ -74,7 +74,7 @@ def pit(go_env, black_policy: go_ai.policies.Policy, white_policy: go_ai.policie
             Trajectory is empty list if get_trajectory is None
     """
     num_steps = 0
-    state = go_env.get_state()
+    state = go_env.get_canonical_state()
 
     max_steps = 2 * (go_env.size ** 2)
 
@@ -86,9 +86,6 @@ def pit(go_env, black_policy: go_ai.policies.Policy, white_policy: go_ai.policie
         # Get turn
         curr_turn = go_env.turn()
 
-        # Get canonical state for policy and memory
-        can_state = GoGame.get_canonical_form(state)
-
         # Get an action
         if curr_turn == GoVars.BLACK:
             pi = black_policy(go_env, step=num_steps)
@@ -99,20 +96,21 @@ def pit(go_env, black_policy: go_ai.policies.Policy, white_policy: go_ai.policie
         action = GoGame.random_weighted_action(pi)
 
         # Execute actions in environment and MCT tree
-        next_state, reward, done, _ = go_env.step(action)
+        padded_children, _ = go_env.get_children(canonical=True, padded=True)
+        _, reward, done, _ = go_env.step(action)
 
         # End if we've reached max steps
         if num_steps >= max_steps:
             done = True
 
         # Add to memory cache
-        traj.add_event(can_state, action, reward, next_state, pi)
+        traj.add_event(state, action, reward, padded_children, pi)
 
         # Increment steps
         num_steps += 1
 
         # Setup for next event
-        state = next_state
+        state = padded_children[action]
 
     assert done
 

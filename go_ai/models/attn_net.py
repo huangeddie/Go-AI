@@ -15,7 +15,7 @@ GoVars = gymgo.govars
 class AttnNet(nn.Module):
     def __init__(self, size, num_blocks=4, channels=32):
         super().__init__()
-        self.d_model = 256
+        self.d_model = 128
 
         # Convolutions
         convs = [
@@ -130,18 +130,16 @@ class AttnNet(nn.Module):
 
         batches = len(batched_data)
         self.train()
-        for states, actions, rewards, _, terminals, wins, target_pis in batched_data:
-            next_states = data.batch_padded_children(states)
-
+        for states, _, _, children, _, wins, target_pis in batched_data:
             states = torch.tensor(states).type(dtype)
-            next_states = torch.tensor(next_states).type(dtype)
+            children = torch.tensor(children).type(dtype)
 
             wins = torch.tensor(wins[:, np.newaxis]).type(dtype)
             target_pis = torch.tensor(target_pis).type(dtype)
             greedy_actions = torch.argmax(target_pis, dim=1)
 
             optimizer.zero_grad()
-            pi_logits, logits,  = self(states, next_states)
+            pi_logits, logits,  = self(states, children)
             vals = torch.tanh(logits)
             assert pi_logits.shape == target_pis.shape
             actor_loss = self.actor_criterion(pi_logits, greedy_actions)

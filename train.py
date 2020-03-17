@@ -105,6 +105,8 @@ if __name__ == '__main__':
     curr_pi, curr_model = baselines.create_policy(args, 'Current')
     checkpoint_pi, checkpoint_model = baselines.create_policy(args, 'Checkpoint')
 
+    utils.mpi_log_debug(comm, f'Model has {utils.count_parameters(curr_model):,} trainable parameters')
+
     # Device
     device = torch.device(args.device)
     curr_model.to(device)

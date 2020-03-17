@@ -80,6 +80,10 @@ def hyperparameters(args_encoding=None):
     return args
 
 
+def count_parameters(model: torch.nn.Module):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 def config_log(args=None):
     bare_frmtr = logging.Formatter('%(message)s')
     if args is None:

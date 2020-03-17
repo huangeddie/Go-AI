@@ -68,7 +68,7 @@ class ValueNet(nn.Module):
         dtype = next(self.parameters()).type()
         running_loss = 0
         running_acc = 0
-        for i, (states, actions, rewards, next_states, terminals, wins, pis) in enumerate(batched_data, 1):
+        for states, _, _, _, _, wins, _ in batched_data:
             # Augment
             states = data.batch_random_symmetries(states)
 

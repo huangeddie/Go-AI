@@ -39,22 +39,11 @@ def batch_invalid_values(states):
 
 
 def batch_padded_children(states):
-    state_shape = states[0].shape
     all_children = []
     all_valid_moves = batch_valid_moves(states)
     for state, valid_moves in zip(states, all_valid_moves):
-        next_states = []
-        ns, _ = GoGame.get_children(state, canonical=True)
-        assert len(ns) > 0
-        curr_idx = 0
-        for valid in valid_moves:
-            if valid:
-                next_states.append(ns[curr_idx])
-                curr_idx += 1
-            else:
-                next_states.append(np.zeros(state_shape))
-        assert curr_idx == len(ns)
-        all_children.append(next_states)
+        chilren, _ = GoGame.get_children(state, canonical=True, padded=True)
+        all_children.append(chilren)
     return all_children
 
 

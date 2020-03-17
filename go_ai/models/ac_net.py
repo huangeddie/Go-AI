@@ -101,7 +101,7 @@ class ActorCriticNet(nn.Module):
 
         batches = len(batched_data)
         self.train()
-        for states, actions, rewards, next_states, terminals, wins, target_pis in batched_data:
+        for states, _, _, _, _, wins, target_pis in batched_data:
             states = torch.tensor(states).type(dtype)
 
             wins = torch.tensor(wins[:, np.newaxis]).type(dtype)
