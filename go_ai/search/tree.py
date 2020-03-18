@@ -4,10 +4,12 @@ from scipy import special
 from go_ai import search
 from go_ai.search import GoGame
 
+
 def get_state_vals(val_func, nodes):
     states = list(map(lambda node: node.state, nodes))
     vals = val_func(np.array(states))
     return vals
+
 
 def set_state_vals(val_func, nodes):
     vals = get_state_vals(val_func, nodes)
@@ -28,11 +30,12 @@ class Node:
 
         # Go
         self.state = state
+        self.children = None
         self.group_map = group_map
 
         # Links
         self.parent = parent
-        self.canon_children = np.empty(self.actionsize(), dtype=object)
+        self.child_nodes = np.empty(self.actionsize(), dtype=object)
 
         # Level
         if parent is None:
@@ -50,13 +53,13 @@ class Node:
         self.post_vals = []
 
     def destroy(self):
-        for child in self.canon_children:
+        for child in self.child_nodes:
             if child is not None:
                 child.destroy()
         del self.state
         del self.group_map
         del self.parent
-        del self.canon_children
+        del self.child_nodes
 
     # =================
     # Basic Tree API
@@ -69,14 +72,14 @@ class Node:
 
     def isleaf(self):
         # Not the same as whether the state is terminal or not
-        return (self.canon_children == None).all()
+        return (self.child_nodes == None).all()
 
     def isroot(self):
         return self.parent is None
 
     def make_child(self, action, state, group_map):
         child_node = Node(state, group_map, self)
-        self.canon_children[action] = child_node
+        self.child_nodes[action] = child_node
         if child_node.level == 1:
             child_node.first_action = action
         else:
@@ -85,16 +88,20 @@ class Node:
         return child_node
 
     def make_children(self):
-        children, child_gmps = GoGame.get_children(self.state, self.group_map, canonical=True)
+        """
+        :return: Padded children numpy states
+        """
+        children, child_gmps = GoGame.get_children(self.state, self.group_map, canonical=True, padded=True)
         actions = np.argwhere(self.valid_moves()).flatten()
-        assert len(actions) == len(children)
-        for action, state, group_map in zip(actions, children, child_gmps):
-            self.make_child(action, state, group_map)
+        for action in actions:
+            self.make_child(action, children[action], child_gmps[action])
+        self.children = children
 
-        return self.get_real_children()
+        return children
 
-    def get_real_children(self):
-        return list(filter(lambda node: node is not None, self.canon_children))
+    def get_child_nodes(self):
+        real_nodes = list(filter(lambda node: node is not None, self.child_nodes))
+        return real_nodes
 
     def actionsize(self):
         return GoGame.get_action_size(self.state)
@@ -103,7 +110,7 @@ class Node:
         return GoGame.get_valid_moves(self.state)
 
     def step(self, move):
-        child = self.canon_children[move]
+        child = self.child_nodes[move]
         if child is not None:
             return child
         else:
@@ -132,7 +139,7 @@ class Node:
         self.prior_pi = np.zeros(self.actionsize())
 
         q_logits = []
-        for child in self.canon_children:
+        for child in self.child_nodes:
             if child is not None:
                 q_logits.append(search.invert_vals(child.val))
             else:
@@ -156,7 +163,7 @@ class Node:
 
     def get_visit_counts(self):
         move_visits = []
-        for child in self.canon_children:
+        for child in self.child_nodes:
             if child is None:
                 move_visits.append(0)
             else:
@@ -171,19 +178,17 @@ class Node:
                 ucbs.append(np.finfo(np.float).min)
             else:
                 prior_q = self.prior_pi[i]
-                child = self.canon_children[i]
+                child = self.child_nodes[i]
+                avg_q = 0
+                n = 0
                 if child is not None:
                     n = child.visits
-                    if len(child.post_vals) <= 0:
-                        avg_q = search.invert_vals(np.tanh(child.get_value))
-                    else:
+                    if len(child.post_vals) > 0:
                         avg_q = search.invert_vals(np.mean(np.tanh(child.post_vals)))
-                else:
-                    n = 0
-                    avg_q = 0
+                    elif child.val is not None:
+                        avg_q = search.invert_vals(np.mean(np.tanh(child.get_value())))
 
                 u = 1.5 * prior_q * np.sqrt(self.visits) / (1 + n)
-
                 ucbs.append(avg_q + u)
         return ucbs
 

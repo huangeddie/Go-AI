@@ -27,7 +27,7 @@ class Value(Policy):
         else:
             debug = False
 
-        rootnode = mct.val_search(go_env, self.mcts, self.val_func, debug)
+        rootnode = mct.val_search(go_env, self.mcts, self.val_func)
         if self.mcts > 0:
             qs = rootnode.get_visit_counts()
         else:

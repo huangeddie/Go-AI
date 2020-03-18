@@ -44,7 +44,8 @@ class Attn(Policy):
             assert self.mcts < 0
             rootnode = mct.val_search(go_env, self.mcts, self.val_func)
             state = go_env.get_canonical_state()
-            policy_scores, _ = self.ac_func(state[np.newaxis])
+            children = go_env.get_children(canonical=True, padded=True)
+            policy_scores, _ = self.ac_func(state[np.newaxis], children)
             policy_scores = policy_scores[0]
             valid_moves = GoGame.get_valid_moves(state)
             pi = search.temp_softmax(policy_scores, self.temp, valid_moves)

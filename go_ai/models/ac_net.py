@@ -72,7 +72,7 @@ class ActorCriticNet(nn.Module):
 
         return vals
 
-    def ac_numpy(self, states):
+    def ac_numpy(self, states, children=None):
         invalid_values = data.batch_invalid_values(states)
         dtype = next(self.parameters()).type()
         self.eval()

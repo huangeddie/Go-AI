@@ -164,12 +164,12 @@ def load_weights(args, net):
     if args.baseline:
         assert not args.latest_checkpoint
         assert args.customdir == ''
-        net.load_state_dict(torch.load(args.basepath))
+        net.load_state_dict(torch.load(args.basepath, args.device))
     elif args.latest_checkpoint:
         assert not args.baseline
         assert args.customdir == ''
-        net.load_state_dict(torch.load(args.checkpath))
+        net.load_state_dict(torch.load(args.checkpath, args.device))
     elif args.customdir != '':
         assert not args.latest_checkpoint
         assert not args.baseline
-        net.load_state_dict(torch.load(args.custompath))
+        net.load_state_dict(torch.load(args.custompath, args.device))

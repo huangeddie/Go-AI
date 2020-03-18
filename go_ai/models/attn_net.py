@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 from mpi4py import MPI
 
-from go_ai.models import BasicBlock, average_model, ModelMetrics
 from go_ai import data
+from go_ai.models import BasicBlock, average_model, ModelMetrics
 
 gymgo = gym.make('gym_go:go-v0', size=0)
 GoGame = gymgo.gogame
@@ -30,7 +30,7 @@ class AttnNet(nn.Module):
         encoder = convs + [nn.Conv2d(channels, 2, 1),
                            nn.BatchNorm2d(2), nn.ReLU(),
                            nn.Flatten(),
-                           nn.Linear(2 * size ** 2, self.d_model),]
+                           nn.Linear(2 * size ** 2, self.d_model), ]
 
         self.encoder = nn.Sequential(*encoder)
 
@@ -94,19 +94,20 @@ class AttnNet(nn.Module):
 
         return vals
 
-    def ac_numpy(self, states):
+    def ac_numpy(self, states, children=None):
         """
         :param states: Numpy batch of states
         :return:
         """
-        next_states = data.batch_padded_children(states)
+        if children is None:
+            children = data.batch_padded_children(states)
 
         invalid_values = data.batch_invalid_values(states)
         dtype = next(self.parameters()).type()
         self.eval()
         with torch.no_grad():
             tensor_states = torch.tensor(states).type(dtype)
-            tensor_ns = torch.tensor(next_states).type(dtype)
+            tensor_ns = torch.tensor(children).type(dtype)
             pi, state_vals = self(tensor_states, tensor_ns)
             pi = pi.detach().cpu().numpy()
             pi += invalid_values
@@ -139,7 +140,7 @@ class AttnNet(nn.Module):
             greedy_actions = torch.argmax(target_pis, dim=1)
 
             optimizer.zero_grad()
-            pi_logits, logits,  = self(states, children)
+            pi_logits, logits, = self(states, children)
             vals = torch.tanh(logits)
             assert pi_logits.shape == target_pis.shape
             actor_loss = self.actor_criterion(pi_logits, greedy_actions)

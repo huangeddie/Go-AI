@@ -150,7 +150,7 @@ def mpi_sync_checkpoint(comm: MPI.Intracomm, args, new_pi, old_pi):
         torch.save(new_pi.pt_model.state_dict(), checkpath)
     comm.Barrier()
     # Update other policy
-    old_pi.pt_model.load_state_dict(torch.load(checkpath))
+    old_pi.pt_model.load_state_dict(torch.load(checkpath, args.device))
 
 
 def mpi_sync_data(comm: MPI.Intracomm, args):
