@@ -81,36 +81,39 @@ def ac_search(go_env, num_searches, ac_func):
 
     # MCT Search
     v = 4
+    nvalid = int(sum(rootnode.valid_moves()))
     for i in range(0, num_searches, v):
-        curr_node = rootnode
-        while curr_node.visits > 0 and not curr_node.terminal():
-            ucbs = curr_node.get_ucbs()
-            move = np.argmax(ucbs)
-            curr_node = curr_node.step(move)
+        ucbs = np.array(rootnode.get_ucbs())
+        best_moves = np.argsort(-ucbs)[:min(v, nvalid)]
+        best_nodes = []
+        for move in best_moves:
+            best_nodes.append(rootnode.step(move))
 
-        if curr_node.terminal():
-            backprop_winning(curr_node)
-        else:
-            parent = curr_node.parent
-            nvalid = int(sum(parent.valid_moves()))
-            ucbs = np.array(parent.get_ucbs())
-            best_moves = np.argsort(-ucbs)[:min(v, nvalid)]
-            best_nodes = []
-            for move in best_moves:
-                node = parent.step(move)
-                if node.terminal():
-                    backprop_winning(node)
-                else:
-                    best_nodes.append(node)
-            best_states = list(map(lambda node: node.state, best_nodes))
-            children = list(map(lambda node: node.make_children(), best_nodes))
-            all_prior_qs, all_logits = ac_func(np.array(best_states), children)
+        for i in range(len(best_nodes)):
+            while best_nodes[i].visits > 0 and not best_nodes[i].terminal():
+                ucbs = best_nodes[i].get_ucbs()
+                move = np.argmax(ucbs)
+                best_nodes[i] = best_nodes[i].step(move)
 
-            for node, prior_qs, logit, in zip(best_nodes, all_prior_qs, all_logits):
-                prior_pi = special.softmax(prior_qs)
-                logit = logit.item()
-                val = np.tanh(logit)
-                node.set_prior_pi(prior_pi)
-                node.backprop(val)
+        internal_nodes = []
+        for node in best_nodes:
+            if node.terminal():
+                backprop_winning(node)
+            else:
+                internal_nodes.append(node)
+
+        if len(internal_nodes) <= 0:
+            continue
+
+        states = list(map(lambda node: node.state, internal_nodes))
+        children = list(map(lambda node: node.make_children(), internal_nodes))
+        all_prior_qs, all_logits = ac_func(np.array(states), children)
+
+        for node, prior_qs, logit, in zip(internal_nodes, all_prior_qs, all_logits):
+            prior_pi = special.softmax(prior_qs)
+            logit = logit.item()
+            val = np.tanh(logit)
+            node.set_prior_pi(prior_pi)
+            node.backprop(val)
 
     return rootnode
