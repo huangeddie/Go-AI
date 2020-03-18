@@ -55,7 +55,8 @@ class Attn(Policy):
         else:
             debug = False
         if debug:
-            return pi, [pi], rootnode
+            qs = self.tree_to_qs(rootnode)
+            return pi, qs, rootnode
 
         return pi
 

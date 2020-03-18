@@ -35,6 +35,13 @@ def val_search(go_env, mcts, val_func):
 
     return rootnode
 
+def backprop_winning(node):
+    winning = node.winning()
+    if node.level % 2 == 1:
+        val = -winning
+    else:
+        val = winning
+    node.backprop(val)
 
 def ac_search(go_env, num_searches, ac_func):
     '''
@@ -73,7 +80,8 @@ def ac_search(go_env, num_searches, ac_func):
         return rootnode
 
     # MCT Search
-    for i in range(num_searches):
+    v = 4
+    for i in range(0, num_searches, v):
         curr_node = rootnode
         while curr_node.visits > 0 and not curr_node.terminal():
             ucbs = curr_node.get_ucbs()
@@ -81,24 +89,28 @@ def ac_search(go_env, num_searches, ac_func):
             curr_node = curr_node.step(move)
 
         if curr_node.terminal():
-            winning = curr_node.winning()
-            if curr_node.level % 2 == 1:
-                val = -winning
-            else:
-                val = winning
-            curr_node.backprop(val)
+            backprop_winning(curr_node)
         else:
-            leaf_state = curr_node.state
-            children = curr_node.make_children()
-            prior_qs, logit = ac_func(leaf_state[np.newaxis], children[np.newaxis])
-            prior_qs = prior_qs[0]
-            logit = logit.item()
+            parent = curr_node.parent
+            nvalid = int(sum(parent.valid_moves()))
+            ucbs = np.array(parent.get_ucbs())
+            best_moves = np.argsort(-ucbs)[:min(v, nvalid)]
+            best_nodes = []
+            for move in best_moves:
+                node = parent.step(move)
+                if node.terminal():
+                    backprop_winning(node)
+                else:
+                    best_nodes.append(node)
+            best_states = list(map(lambda node: node.state, best_nodes))
+            children = list(map(lambda node: node.make_children(), best_nodes))
+            all_prior_qs, all_logits = ac_func(np.array(best_states), children)
 
-            val = np.tanh(logit)
-
-            prior_pi = special.softmax(prior_qs)
-
-            curr_node.set_prior_pi(prior_pi)
-            curr_node.backprop(val)
+            for node, prior_qs, logit, in zip(best_nodes, all_prior_qs, all_logits):
+                prior_pi = special.softmax(prior_qs)
+                logit = logit.item()
+                val = np.tanh(logit)
+                node.set_prior_pi(prior_pi)
+                node.backprop(val)
 
     return rootnode
