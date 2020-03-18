@@ -76,10 +76,7 @@ def state_responses(policy: go_ai.policies.Policy, traj: game.Trajectory):
     valid_moves = data.batch_valid_moves(states)
 
     n = len(traj)
-    if isinstance(policy, go_ai.policies.value.Value) or isinstance(policy, go_ai.policies.actorcritic.ActorCritic):
-        num_cols = 3 + layers_expanded
-    else:
-        num_cols = 2
+    num_cols = 3 + layers_expanded
 
     fig = plt.figure(figsize=(num_cols * 2.5, n * 2))
     black_won = traj.get_winner()
@@ -129,15 +126,14 @@ def measure_vals(actions, policy, states):
     all_qs = []
     go_env = gym.make('gym_go:go-v0', size=states[0].shape[1])
     for step, (state, prev_action) in tqdm(enumerate(zip(states, actions)), desc='Heat Maps'):
-        if isinstance(policy, go_ai.policies.value.Value) or isinstance(policy, go_ai.policies.actorcritic.ActorCritic):
-            pi, qs, rootnode = policy(go_env, step=step, debug=True)
-            if isinstance(policy, go_ai.policies.value.Value):
-                state_val = policy.val_func(state[np.newaxis])
-            else:
-                _, state_val = policy.ac_func(state[np.newaxis])
-            state_val = state_val[0]
-            state_vals.append(state_val)
-            all_qs.append(qs)
+        pi, qs, rootnode = policy(go_env, step=step, debug=True)
+        if isinstance(policy, go_ai.policies.value.Value):
+            state_val = policy.val_func(state[np.newaxis])
+        else:
+            _, state_val = policy.ac_func(state[np.newaxis])
+        state_val = state_val[0]
+        state_vals.append(state_val)
+        all_qs.append(qs)
         go_env.step(prev_action)
     return all_qs, state_vals
 
