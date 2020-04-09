@@ -14,17 +14,20 @@ args = utils.hyperparameters()
 # Environment
 go_env = gym.make('gym_go:go-v0', size=args.size)
 
-customdir = 'bin/baselines/'
+if args.baseline:
+    outdir = 'bin/baselines/'
+else:
+    outdir = args.customdir
 
 # Policies
 policy, model = go_ai.policies.baselines.create_policy(args, 'Model')
 
 # Directories and files
-plotsdir = os.path.join(customdir, f'{args.model}{args.size}_plots/')
+plotsdir = os.path.join(outdir, f'{args.model}{args.size}_plots/')
 if not os.path.exists(plotsdir):
     os.mkdir(plotsdir)
 
-stats_path = os.path.join(customdir, f'{args.model}{args.size}_stats.txt')
+stats_path = os.path.join(outdir, f'{args.model}{args.size}_stats.txt')
 
 # Plot stats
 if os.path.exists(stats_path):

@@ -29,7 +29,9 @@ class ActorCritic(Policy):
             rootnode = mct.mct_search(go_env, self.mcts, self.ac_func)
             qs = self.tree_to_qs(rootnode)
 
-            pi = qs[1] ** (1 / self.temp)
+            valid_moves = go_env.get_valid_moves()
+            noise = 0.02 * self.mcts * valid_moves / valid_moves.sum()
+            pi = (qs[1] + noise) ** (1 / self.temp)
             pi = pi / np.sum(pi)
 
         elif self.mcts == 0:
