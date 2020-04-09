@@ -62,7 +62,6 @@ def hyperparameters(args_encoding=None):
     # Model
     parser.add_argument('--model', type=str, choices=['val', 'ac', 'attn', 'rand', 'greedy', 'human'], default='attn',
                         help='type of model')
-    parser.add_argument('--resblocks', type=int, default=4, help='number of basic blocks for resnets')
 
     # Hardware
     parser.add_argument('--device', type=str, choices=['cpu', 'cuda'], default='cpu', help='device for pytorch models')

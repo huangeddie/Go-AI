@@ -12,8 +12,6 @@ import go_ai.policies.actorcritic
 import go_ai.policies.value
 from go_ai import data, game
 
-GoGame = gym.make('gym_go:go-v0', size=0).gogame
-
 
 def matplot_format(state):
     """
@@ -122,9 +120,10 @@ def plot_state(black_won, i, n, traj):
 
 
 def measure_vals(actions, policy, states):
+    size = states[0].shape[-1]
     state_vals = []
     all_qs = []
-    go_env = gym.make('gym_go:go-v0', size=states[0].shape[1])
+    go_env = gym.make('gym_go:go-v0', size=size)
     for step, (state, prev_action) in tqdm(enumerate(zip(states, actions)), desc='Heat Maps'):
         pi, qs, rootnode = policy(go_env, step=step, debug=True)
         if isinstance(policy, go_ai.policies.value.Value):
@@ -153,7 +152,7 @@ def plot_traj_fig(go_env, policy: go_ai.policies.Policy, outpath):
 
 
 def plot_symmetries(next_state, outpath):
-    symmetrical_next_states = GoGame.get_symmetries(next_state)
+    symmetrical_next_states = data.GoGame.get_symmetries(next_state)
 
     cols = len(symmetrical_next_states)
     plt.figure(figsize=(3 * cols, 3))

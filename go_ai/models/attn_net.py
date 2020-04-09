@@ -1,174 +1,139 @@
-import gym
 import numpy as np
 import torch
 import torch.nn as nn
-from mpi4py import MPI
 
 from go_ai import data
-from go_ai.models import BasicBlock, average_model, ModelMetrics
-
-gymgo = gym.make('gym_go:go-v0', size=0)
-GoGame = gymgo.gogame
-GoVars = gymgo.govars
+from go_ai.models import BasicBlock, RLNet
 
 
-class AttnNet(nn.Module):
-    def __init__(self, size, num_blocks=4, channels=32):
+class AttnNet(RLNet):
+    def __init__(self, size):
         super().__init__()
-        self.d_model = 128
+        self.requires_children = True
+
+        self.d_model = 64
+        self.nheads = 2
+        self.nlayers = 1
 
         # Convolutions
         convs = [
-            nn.Conv2d(6, channels, 3, padding=1),
-            nn.BatchNorm2d(channels),
+            nn.Conv2d(6, self.channels, 3, padding=1),
+            nn.BatchNorm2d(self.channels),
             nn.ReLU()
         ]
 
-        for i in range(num_blocks):
-            convs.append(BasicBlock(channels, channels))
+        for i in range(self.nblocks):
+            convs.append(BasicBlock(self.channels, self.channels))
 
-        encoder = convs + [nn.Conv2d(channels, 2, 1),
+        encoder = convs + [nn.Conv2d(self.channels, 2, 1),
                            nn.BatchNorm2d(2), nn.ReLU(),
                            nn.Flatten(),
-                           nn.Linear(2 * size ** 2, self.d_model), ]
+                           nn.Linear(2 * size ** 2, self.d_model)]
 
         self.encoder = nn.Sequential(*encoder)
 
-        encoder_layer = nn.TransformerEncoderLayer(d_model=self.d_model, nhead=8, dim_feedforward=self.d_model)
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=4)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=self.d_model, nhead=self.nheads,
+                                                   dim_feedforward=self.d_model)
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=self.nlayers)
 
-        self.action_size = GoGame.get_action_size(board_size=size)
+        self.action_size = data.GoGame.get_action_size(board_size=size)
 
-        self.actor = nn.Sequential(
-            nn.Linear(self.d_model, self.d_model),
-            nn.ReLU(),
-            nn.Linear(self.d_model, 1)
-        )
+        self.act_head = nn.Linear(self.d_model, 1)
 
-        self.critic = nn.Sequential(
-            nn.Linear(self.d_model, self.d_model),
-            nn.ReLU(),
-            nn.Linear(self.d_model, 1),
-        )
+        self.crit_head = nn.Linear(self.d_model, 1)
 
         self.critic_criterion = nn.MSELoss()
-        self.actor_criterion = nn.CrossEntropyLoss()
 
     def forward(self, states, next_states):
-        vals = self.get_value(states)
-        policy_scores = self.get_qs(next_states)
+        vals = self.pt_critic(states)
+        policy_scores = self.pt_actor(states, next_states)
 
         return policy_scores, vals
 
-    def get_qs(self, next_states):
+    # Numpy Calls
+    def pt_actor(self, _, next_states):
         bsz = len(next_states)
         state_shape = next_states.shape[2:]
         next_states = next_states.view(-1, *state_shape)
         z = self.encoder(next_states)
         z = z.view(bsz, self.action_size, self.d_model)
-        z = z.transpose(0, 1)
-        out = self.transformer(z)
-        out = out.transpose(0, 1).reshape(-1, self.d_model)
-        policy_scores = self.actor(out)
+        out = self.transformer(z.transpose(0, 1))
+        policy_scores = self.act_head(out.transpose(0, 1))
         policy_scores = policy_scores.view(bsz, self.action_size)
         return policy_scores
 
-    def get_value(self, states):
+    def pt_critic(self, states):
         s = self.encoder(states)
-        vals = self.critic(s)
+        vals = self.crit_head(s)
         return vals
 
-    def val_numpy(self, states):
+    def pt_actor_critic(self, states, next_states):
+        return self.forward(states, next_states)
+
+    # Optimization
+    def train_step(self, optimizer, states, actions, reward, children, terminal, wins, pi):
+        cl, ca = self.critic_step(optimizer, states, wins)
+        al, aa = self.actor_step(optimizer, states, children, actions, wins)
+        return cl, ca, al, aa
+
+    def critic_step(self, optimizer, states, wins):
         dtype = next(self.parameters()).type()
-        self.eval()
+
+        # Preprocess
+        states = data.batch_random_symmetries(states)
+
+        # To tensors
+        states = torch.tensor(states).type(dtype)
+        wins = torch.tensor(wins[:, np.newaxis]).type(dtype)
+
+        # Critic Loss
+        optimizer.zero_grad()
+        val_logits = self.pt_critic(states)
+        vals = torch.tanh(val_logits)
+
+        critic_loss = self.critic_criterion(vals, wins)
+
+        critic_loss.backward()
+        optimizer.step()
+
+        # Predict wins
+        pred_wins = torch.sign(vals)
+        critic_acc = torch.mean((pred_wins == wins).type(dtype))
+        return critic_loss.item(), critic_acc.item()
+
+    def actor_step(self, optimizer, states, children, actions, wins):
+        dtype = next(self.parameters()).type()
+        bsz = len(states)
+
+        # Preprocess
+        states = data.batch_random_symmetries(states)
+
+        # To tensors
+        states = torch.tensor(states).type(dtype)
+        children = torch.tensor(children).type(dtype)
+        wins = torch.tensor(wins[:, np.newaxis]).type(dtype)
+
+        # Value for baseline
         with torch.no_grad():
-            tensor_states = torch.tensor(states).type(dtype)
+            val_logits = self.pt_critic(states)
+            vals = torch.tanh(val_logits)
 
-            state_vals = self.get_value(tensor_states)
-            vals = state_vals.detach().cpu().numpy()
+        # Forward pass
+        optimizer.zero_grad()
+        pi_logits = self.pt_actor(states, children)
 
-        # Check for terminals
-        for i, state in enumerate(states):
-            if GoGame.get_game_ended(state):
-                vals[i] = 100 * GoGame.get_winning(state)
+        # Log probability of taken actions
+        logpi_logits = torch.log_softmax(pi_logits, dim=1)
+        log_pis = logpi_logits[torch.arange(bsz), actions].reshape(-1, 1)
 
-        return vals
+        # Policy Gradient
+        assert vals.shape == wins.shape
+        advantages = wins - vals
+        assert log_pis.shape == advantages.shape
+        expected_reward = log_pis * advantages
+        actor_loss = -torch.mean(expected_reward)
 
-    def ac_numpy(self, states, children=None):
-        """
-        :param states: Numpy batch of states
-        :return:
-        """
-        if children is None:
-            children = data.batch_padded_children(states)
+        actor_loss.backward()
+        optimizer.step()
 
-        invalid_values = data.batch_invalid_values(states)
-        dtype = next(self.parameters()).type()
-        self.eval()
-        with torch.no_grad():
-            tensor_states = torch.tensor(states).type(dtype)
-            tensor_ns = torch.tensor(children).type(dtype)
-            pi, state_vals = self(tensor_states, tensor_ns)
-            pi = pi.detach().cpu().numpy()
-            pi += invalid_values
-            vals = state_vals.detach().cpu().numpy()
-
-        # Check for terminals
-        for i, state in enumerate(states):
-            if GoGame.get_game_ended(state):
-                vals[i] = 100 * GoGame.get_winning(state)
-
-        return pi, vals
-
-    def optimize(self, comm: MPI.Intracomm, batched_data, optimizer):
-        dtype = next(self.parameters()).type()
-
-        critic_running_loss = 0
-        critic_running_acc = 0
-
-        actor_running_loss = 0
-        actor_running_acc = 0
-
-        batches = len(batched_data)
-        self.train()
-        for states, _, _, children, _, wins, target_pis in batched_data:
-            states = torch.tensor(states).type(dtype)
-            children = torch.tensor(children).type(dtype)
-
-            wins = torch.tensor(wins[:, np.newaxis]).type(dtype)
-            target_pis = torch.tensor(target_pis).type(dtype)
-            greedy_actions = torch.argmax(target_pis, dim=1)
-
-            optimizer.zero_grad()
-            pi_logits, logits, = self(states, children)
-            vals = torch.tanh(logits)
-            assert pi_logits.shape == target_pis.shape
-            actor_loss = self.actor_criterion(pi_logits, greedy_actions)
-            critic_loss = self.critic_criterion(vals, wins)
-            loss = actor_loss + critic_loss
-            loss.backward()
-            optimizer.step()
-
-            pred_greedy_actions = torch.argmax(pi_logits, dim=1)
-            actor_running_loss += actor_loss.item()
-            actor_running_acc += torch.mean((pred_greedy_actions == greedy_actions).type(dtype)).item()
-
-            pred_wins = torch.sign(vals)
-            critic_running_loss += critic_loss.item()
-            critic_running_acc += torch.mean((pred_wins == wins).type(dtype)).item()
-
-        # Sync Parameters
-        average_model(comm, self)
-
-        world_size = comm.Get_size()
-        critic_running_acc = comm.allreduce(critic_running_acc, op=MPI.SUM) / world_size
-        critic_running_loss = comm.allreduce(critic_running_loss, op=MPI.SUM) / world_size
-        actor_running_acc = comm.allreduce(actor_running_acc, op=MPI.SUM) / world_size
-        actor_running_loss = comm.allreduce(actor_running_loss, op=MPI.SUM) / world_size
-
-        metrics = ModelMetrics()
-        metrics.crit_acc = critic_running_acc / batches
-        metrics.crit_loss = critic_running_loss / batches
-        metrics.act_acc = actor_running_acc / batches
-        metrics.act_loss = actor_running_loss / batches
-        return metrics
+        return actor_loss.item(), 0

@@ -32,13 +32,9 @@ if os.path.exists(stats_path):
     utils.log_debug("Plotted ELOs, win rates, losses, and accuracies")
 
 # Plot tree if applicable
-if False and (isinstance(policy, go_ai.policies.actorcritic.ActorCritic) or isinstance(policy, go_ai.policies.value.Value)):
-    black_rows = []
-    black_cols = []
-    white_rows = []
-    white_cols = []
-    blacks = list(zip(black_rows, black_cols))
-    whites = list(zip(white_rows, white_cols))
+if isinstance(policy, go_ai.policies.actorcritic.ActorCritic) or isinstance(policy, go_ai.policies.value.Value):
+    blacks = [(1,0), (2,2)]
+    whites = [(0,1),(1,1),(2,1)]
     utils.log_debug(f'Plotting tree...')
     go_ai.search.plot.plot_tree(go_env, policy, plotsdir, [blacks, whites])
     utils.log_debug(f'Plotted tree')

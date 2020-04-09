@@ -37,6 +37,17 @@ def batch_invalid_values(states):
     invalid_values = np.finfo(np.float32).min * invalid_moves
     return invalid_values
 
+def batch_win_children(batch_children):
+    batch_win = []
+    for children in batch_children:
+        win = []
+        for state in children:
+            if GoGame.get_game_ended(state):
+                win.append(GoGame.get_winning(state))
+            else:
+                win.append(0)
+        batch_win.append(win)
+    return np.array(batch_win)
 
 def batch_padded_children(states):
     all_children = []

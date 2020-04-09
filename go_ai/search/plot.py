@@ -6,13 +6,15 @@ from matplotlib import pyplot as plt
 from go_ai.measurements import matplot_format
 
 
-def plot_tree(go_env, policy, outdir, state_info=None):
+def plot_tree(go_env, policy, outdir, all_player_actions=None):
     go_env.reset()
-    if state_info is not None:
-        for actions in state_info:
-            for i, a in enumerate(actions):
+
+    # Custom board
+    if all_player_actions is not None:
+        for player_actions in all_player_actions:
+            for i, a in enumerate(player_actions):
                 go_env.step(a)
-                if i < len(actions) - 1:
+                if i < len(player_actions) - 1:
                     go_env.step(None)
 
     _, _, root = policy(go_env, debug=True)
@@ -43,14 +45,14 @@ def register_nodes(treenode, graph, imgdir):
     plt.savefig(imgpath, bbox_inches='tight')
     plt.close()
     graph.node(str(id(treenode)), image=imgpath, label='')
-    for child in treenode.canon_children:
+    for child in treenode.child_nodes:
         if child is not None:
             register_nodes(child, graph, imgdir)
 
 
 def register_edges(treenode, graph):
     for a in range(treenode.actionsize()):
-        child = treenode.canon_children[a]
+        child = treenode.child_nodes[a]
         if child is not None:
             label = ''
             if treenode.prior_pi is not None:

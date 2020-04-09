@@ -16,7 +16,7 @@ def val_search(go_env, mcts, val_func):
             if curr_node.isleaf():
                 next_nodes = curr_node.make_children()
                 tree.set_state_vals(val_func, next_nodes)
-                curr_node.set_val_prior()
+                curr_node.set_prior_pi(None)
 
             ucbs = curr_node.get_ucbs()
             move = np.argmax(ucbs)
@@ -26,7 +26,7 @@ def val_search(go_env, mcts, val_func):
             curr_node.make_children()
             next_nodes = curr_node.get_child_nodes()
             tree.set_state_vals(val_func, next_nodes)
-            curr_node.set_val_prior()
+            curr_node.set_prior_pi(None)
 
             move = np.argmax(curr_node.prior_pi)
             curr_node = curr_node.step(move)
@@ -35,85 +35,58 @@ def val_search(go_env, mcts, val_func):
 
     return rootnode
 
+
 def backprop_winning(node):
     winning = node.winning()
-    if node.level % 2 == 1:
-        val = -winning
-    else:
-        val = winning
-    node.backprop(val)
+    node.backprop(winning)
 
-def ac_search(go_env, num_searches, ac_func):
-    '''
-    Description:
-        Select a child node that maximizes Q + U,
-    Args:
-        num_searches (int): maximum number of searches performed
-        temp (number): temperature constant
-    Returns:
-        pi (1d np array): the search probabilities
-        num_search (int): number of search performed
-    '''
+
+def find_next_node(node):
+    curr = node
+    while curr.visits > 0 and not curr.terminal():
+        ucbs = curr.get_ucbs()
+        move = np.nanargmax(ucbs)
+        curr = curr.step(move)
+
+    return curr
+
+def mct_search(go_env, num_searches, actor_critic=None, critic=None):
+    # Setup the root
     root_group_map = go_env.get_canonical_group_map()
     rootstate = go_env.get_canonical_state()
-
     rootnode = tree.Node(rootstate, root_group_map)
-    children = rootnode.make_children()
 
-    root_prior_logits, root_val_logits = ac_func(rootstate[np.newaxis], children[np.newaxis])
-    root_prior_pi = special.softmax(root_prior_logits.flatten())
+    # The first iteration doesn't count towards the number of searches
+    if actor_critic is not None:
+        root_prior_logits, root_val_logits = actor_critic(rootstate[np.newaxis])
+        root_prior_pi = special.softmax(root_prior_logits.flatten())
+        rootnode.set_prior_pi(root_prior_pi)
+    else:
+        assert critic is not None
+        root_val_logits = critic(rootstate[np.newaxis])
 
     rootnode.backprop(np.tanh(root_val_logits).item())
-    rootnode.set_prior_pi(root_prior_pi)
-
-    found_winnode = None
-    child_nodes = rootnode.get_child_nodes()
-    for node in child_nodes:
-        if node.terminal() and node.winning() == -1:
-            found_winnode = node
-            break
-
-    if found_winnode is not None:
-        for child in child_nodes:
-            child.visits = 0
-        found_winnode.visits = 1
-        return rootnode
 
     # MCT Search
-    v = 4
-    nvalid = int(sum(rootnode.valid_moves()))
-    for i in range(0, num_searches, v):
-        ucbs = np.array(rootnode.get_ucbs())
-        best_moves = np.argsort(-ucbs)[:min(v, nvalid)]
-        best_nodes = []
-        for move in best_moves:
-            best_nodes.append(rootnode.step(move))
+    for i in range(0, num_searches):
+        # Get top k nodes to visit
+        node = find_next_node(rootnode)
 
-        for i in range(len(best_nodes)):
-            while best_nodes[i].visits > 0 and not best_nodes[i].terminal():
-                ucbs = best_nodes[i].get_ucbs()
-                move = np.argmax(ucbs)
-                best_nodes[i] = best_nodes[i].step(move)
-
-        internal_nodes = []
-        for node in best_nodes:
-            if node.terminal():
-                backprop_winning(node)
-            else:
-                internal_nodes.append(node)
-
-        if len(internal_nodes) <= 0:
+        # Terminal case
+        if node.terminal():
+            backprop_winning(node)
             continue
 
-        states = list(map(lambda node: node.state, internal_nodes))
-        children = list(map(lambda node: node.make_children(), internal_nodes))
-        all_prior_qs, all_logits = ac_func(np.array(states), children)
+        # Compute pi's and values on internal nodes
+        pi_logits, val_logits = actor_critic(node.state[np.newaxis])
 
-        for node, prior_qs, logit, in zip(internal_nodes, all_prior_qs, all_logits):
-            prior_pi = special.softmax(prior_qs)
-            logit = logit.item()
-            val = np.tanh(logit)
-            node.set_prior_pi(prior_pi)
-            node.backprop(val)
+        # Prior Pi
+        pi = special.softmax(pi_logits.flatten())
+        node.set_prior_pi(pi)
 
+        # Backprop value
+        val = np.tanh(val_logits.item())
+        node.backprop(val)
+
+    assert rootnode.visits > 1
     return rootnode

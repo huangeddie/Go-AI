@@ -4,16 +4,17 @@ import torch
 from go_ai import search
 from go_ai.policies import Policy
 from go_ai.search import mct
+from go_ai import models
 
 
 class Value(Policy):
-    def __init__(self, name, val_func, args=None):
+    def __init__(self, name, engine, args=None):
         super(Value, self).__init__(name, args.temp if args is not None else 0)
-        if isinstance(val_func, torch.nn.Module):
-            self.pt_model = val_func
-            val_func = self.pt_model.val_numpy
-
-        self.val_func = val_func
+        if isinstance(engine, models.RLNet):
+            self.pt_model = engine
+            self.val_func = self.pt_model.create_numpy('critic')
+        else:
+            self.val_func = engine
         self.mcts = args.mcts if args is not None else 0
 
     def __call__(self, go_env, **kwargs):

@@ -1,11 +1,8 @@
-import gym
 import numpy as np
 
-from go_ai import search
+from go_ai import search, data
 from go_ai.policies import Policy
 from go_ai.search import mct
-
-GoGame = gym.make('gym_go:go-v0', size=0).gogame
 
 
 class ActorCritic(Policy):
@@ -17,8 +14,8 @@ class ActorCritic(Policy):
         """
         super(ActorCritic, self).__init__(name, temp=args.temp)
         self.pt_model = model
-        self.ac_func = model.ac_numpy
-        self.val_func = lambda states: self.ac_func(states)[1]
+        self.ac_func = model.create_numpy('actor_critic')
+        self.val_func = model.create_numpy('critic')
         self.mcts = args.mcts
 
     def __call__(self, go_env, **kwargs):
@@ -29,7 +26,7 @@ class ActorCritic(Policy):
         """
 
         if self.mcts > 0:
-            rootnode = mct.ac_search(go_env, self.mcts, self.ac_func)
+            rootnode = mct.mct_search(go_env, self.mcts, self.ac_func)
             qs = self.tree_to_qs(rootnode)
 
             pi = qs[1] ** (1 / self.temp)
@@ -46,15 +43,16 @@ class ActorCritic(Policy):
             state = go_env.get_canonical_state()
             policy_scores, _ = self.ac_func(state[np.newaxis])
             policy_scores = policy_scores[0]
-            valid_moves = GoGame.get_valid_moves(state)
+            valid_moves = data.GoGame.get_valid_moves(state)
             pi = search.temp_softmax(policy_scores, self.temp, valid_moves)
+            qs = [pi]
 
         if 'debug' in kwargs:
             debug = kwargs['debug']
         else:
             debug = False
         if debug:
-            return pi, [pi], rootnode
+            return pi, qs, rootnode
 
         return pi
 

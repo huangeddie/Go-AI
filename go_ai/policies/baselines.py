@@ -1,25 +1,23 @@
-import gym
 import numpy as np
 import torch
 
+from go_ai import data
 from go_ai.models import val_net, ac_net, attn_net
 from go_ai.policies import Policy
 from go_ai.policies.actorcritic import ActorCritic
-from go_ai.policies.value import Value
 from go_ai.policies.attn import Attn
-
-GoGame = gym.make('gym_go:go-v0', size=0).gogame
+from go_ai.policies.value import Value
 
 
 def greedy_val_func(states):
     if len(states) <= 0:
         return np.array([])
-    board_area = GoGame.get_action_size(states[0]) - 1
+    board_area = data.GoGame.get_action_size(states[0]) - 1
 
     vals = []
     for state in states:
-        black_area, white_area = GoGame.get_areas(state)
-        if GoGame.get_game_ended(state):
+        black_area, white_area = data.GoGame.get_areas(state)
+        if data.GoGame.get_game_ended(state):
             if black_area > white_area:
                 val = 100
             elif black_area < white_area:
@@ -36,13 +34,13 @@ def greedy_val_func(states):
 def smart_greedy_val_func(states):
     if len(states) <= 0:
         return np.array([])
-    board_area = GoGame.get_action_size(states[0]) - 1
+    board_area = data.GoGame.get_action_size(states[0]) - 1
 
     vals = []
     for state in states:
-        black_area, white_area = GoGame.get_areas(state)
-        blacklibs, whitelibs = GoGame.get_num_liberties(state)
-        if GoGame.get_game_ended(state):
+        black_area, white_area = data.GoGame.get_areas(state)
+        blacklibs, whitelibs = data.GoGame.get_num_liberties(state)
+        if data.GoGame.get_game_ended(state):
             if black_area > white_area:
                 val = 1
             elif black_area < white_area:
@@ -79,7 +77,7 @@ class Human(Policy):
                 if player_action is None:
                     player_action = go_env.action_space.n - 1
                 else:
-                    player_action = GoGame.action_2d_to_1d(player_action, state)
+                    player_action = data.GoGame.action_2d_to_1d(player_action, state)
                 if valid_moves[player_action] > 0:
                     break
         else:
@@ -96,13 +94,13 @@ class Human(Policy):
                         coor = coor.split(' ')
                         player_action = (int(coor[0]), int(coor[1]))
 
-                    player_action = GoGame.action_2d_to_1d(player_action, state)
+                    player_action = data.GoGame.action_2d_to_1d(player_action, state)
                     if valid_moves[player_action] > 0:
                         break
                 except Exception:
                     pass
 
-        action_probs = np.zeros(GoGame.get_action_size(state))
+        action_probs = np.zeros(data.GoGame.get_action_size(state))
         action_probs[player_action] = 1
 
         return action_probs
@@ -133,13 +131,13 @@ def create_policy(args, name=''):
     model = args.model
     size = args.size
     if model == 'val':
-        net = val_net.ValueNet(size, args.resblocks)
+        net = val_net.ValueNet(size)
         pi = Value(name, net, args)
     elif model == 'ac':
-        net = ac_net.ActorCriticNet(size, args.resblocks)
+        net = ac_net.ActorCriticNet(size)
         pi = ActorCritic(name, net, args)
     elif model == 'attn':
-        net = attn_net.AttnNet(size, args.resblocks)
+        net = attn_net.AttnNet(size)
         pi = Attn(name, net, args)
     elif model == 'rand':
         net = None

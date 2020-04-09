@@ -1,11 +1,6 @@
-import gym
 from tqdm import tqdm
 
-import go_ai.policies
-
-go_env = gym.make('gym_go:go-v0', size=0)
-GoVars = go_env.govars
-GoGame = go_env.gogame
+from go_ai import policies, data
 
 
 class Trajectory:
@@ -57,7 +52,7 @@ class Trajectory:
         return n
 
 
-def pit(go_env, black_policy: go_ai.policies.Policy, white_policy: go_ai.policies.Policy):
+def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy):
     """
     Pits two policies against each other and returns the results
     :param get_trajectory: Whether to store trajectory in memory
@@ -87,13 +82,13 @@ def pit(go_env, black_policy: go_ai.policies.Policy, white_policy: go_ai.policie
         curr_turn = go_env.turn()
 
         # Get an action
-        if curr_turn == GoVars.BLACK:
+        if curr_turn == data.GoVars.BLACK:
             pi = black_policy(go_env, step=num_steps)
         else:
-            assert curr_turn == GoVars.WHITE
+            assert curr_turn == data.GoVars.WHITE
             pi = white_policy(go_env, step=num_steps)
 
-        action = GoGame.random_weighted_action(pi)
+        action = data.GoGame.random_weighted_action(pi)
 
         # Execute actions in environment and MCT tree
         padded_children, _ = go_env.get_children(canonical=True, padded=True)
@@ -122,7 +117,7 @@ def pit(go_env, black_policy: go_ai.policies.Policy, white_policy: go_ai.policie
     return black_won, num_steps, traj
 
 
-def play_games(go_env, first_policy: go_ai.policies.Policy, second_policy: go_ai.policies.Policy, episodes,
+def play_games(go_env, first_policy: policies.Policy, second_policy: policies.Policy, episodes,
                progress=True):
     """
 

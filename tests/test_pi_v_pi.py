@@ -4,7 +4,7 @@ import os
 from go_ai import utils
 
 
-class MyTestCase(unittest.TestCase):
+class PolicyVersusPolicy(unittest.TestCase):
     def setUp(self) -> None:
         if 'tests' in os.getcwd():
             os.chdir('../')

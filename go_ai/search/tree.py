@@ -2,7 +2,7 @@ import numpy as np
 from scipy import special
 
 from go_ai import search
-from go_ai.search import GoGame
+from go_ai.data import GoGame
 
 
 def get_state_vals(val_func, nodes):
@@ -30,7 +30,7 @@ class Node:
 
         # Go
         self.state = state
-        self.children = None
+        self.child_states = None
         self.group_map = group_map
 
         # Links
@@ -77,7 +77,7 @@ class Node:
     def isroot(self):
         return self.parent is None
 
-    def make_child(self, action, state, group_map):
+    def make_childnode(self, action, state, group_map):
         child_node = Node(state, group_map, self)
         self.child_nodes[action] = child_node
         if child_node.level == 1:
@@ -91,13 +91,13 @@ class Node:
         """
         :return: Padded children numpy states
         """
-        children, child_gmps = GoGame.get_children(self.state, self.group_map, canonical=True, padded=True)
+        child_states, child_gmps = GoGame.get_children(self.state, self.group_map, canonical=True, padded=True)
         actions = np.argwhere(self.valid_moves()).flatten()
         for action in actions:
-            self.make_child(action, children[action], child_gmps[action])
-        self.children = children
+            self.make_childnode(action, child_states[action], child_gmps[action])
+        self.child_states = child_states
 
-        return children
+        return child_states
 
     def get_child_nodes(self):
         real_nodes = list(filter(lambda node: node is not None, self.child_nodes))
@@ -115,7 +115,7 @@ class Node:
             return child
         else:
             next_state, next_gmp = GoGame.get_next_state(self.state, move, self.group_map, canonical=True)
-            child = self.make_child(move, next_state, next_gmp)
+            child = self.make_childnode(move, next_state, next_gmp)
             return child
 
     # =====================
@@ -126,14 +126,6 @@ class Node:
 
     def get_value(self):
         return self.val
-
-    def set_val_prior(self):
-        valid_moves = self.valid_moves()
-        where_valid = np.argwhere(valid_moves).flatten()
-        q_logits = self.get_q_logits()
-        self.prior_pi[where_valid] = special.softmax(q_logits[where_valid])
-
-        assert not np.isnan(self.prior_pi).any()
 
     def get_q_logits(self):
         self.prior_pi = np.zeros(self.actionsize())
@@ -151,15 +143,23 @@ class Node:
     # =====================
 
     def backprop(self, val):
-        if val is not None:
-            self.post_vals.append(val)
+        self.post_vals.append(val)
         self.visits += 1
         if self.parent is not None:
-            inverted_val = search.invert_vals(val) if val is not None else None
+            inverted_val = search.invert_vals(val)
             self.parent.backprop(inverted_val)
 
     def set_prior_pi(self, prior_pi):
-        self.prior_pi = prior_pi
+        if prior_pi is not None:
+            self.prior_pi = prior_pi
+        else:
+            # Uses children state values to make prior pi
+            valid_moves = self.valid_moves()
+            where_valid = np.argwhere(valid_moves).flatten()
+            q_logits = self.get_q_logits()
+            self.prior_pi[where_valid] = special.softmax(q_logits[where_valid])
+
+            assert not np.isnan(self.prior_pi).any()
 
     def get_visit_counts(self):
         move_visits = []
@@ -171,26 +171,20 @@ class Node:
         return np.array(move_visits)
 
     def get_ucbs(self):
-        ucbs = []
-        valid_moves = self.valid_moves()
-        for i in range(self.actionsize()):
-            if not valid_moves[i]:
-                ucbs.append(np.finfo(np.float).min)
-            else:
-                prior_q = self.prior_pi[i]
-                child = self.child_nodes[i]
-                avg_q = 0
-                n = 0
-                if child is not None:
-                    n = child.visits
-                    if len(child.post_vals) > 0:
-                        avg_q = search.invert_vals(np.mean(np.tanh(child.post_vals)))
-                    elif child.val is not None:
-                        avg_q = search.invert_vals(np.mean(np.tanh(child.get_value())))
+        ucbs = np.full(self.actionsize(), np.nan, dtype=np.float)
+        valid_moves = np.argwhere(self.valid_moves()).flatten()
+        for a in valid_moves:
+            avg_q, n = 0, 0
+            prior_q = self.prior_pi[a]
+            child = self.child_nodes[a]
+            if child is not None:
+                n = child.visits
+                assert len(child.post_vals) > 0
+                avg_q = search.invert_vals(np.mean(np.tanh(child.post_vals)))
 
-                u = 1.5 * prior_q * np.sqrt(self.visits) / (1 + n)
-                ucbs.append(avg_q + u)
-        return ucbs
+            u = 1.5 * prior_q * np.sqrt(self.visits) / (1 + n)
+            ucbs[a] = avg_q + u
+        return np.array(ucbs)
 
     def __str__(self):
         result = ''

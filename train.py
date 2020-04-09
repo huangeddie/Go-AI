@@ -51,7 +51,7 @@ def train(comm, args, curr_pi, checkpoint_pi):
     curr_model = curr_pi.pt_model
     optim = torch.optim.Adam(curr_model.parameters(), args.lr, weight_decay=1e-4)
 
-    # Timer
+    # Start Timer
     starttime = datetime.now()
 
     # Header output
@@ -59,14 +59,14 @@ def train(comm, args, curr_pi, checkpoint_pi):
 
     winrates = collections.defaultdict(float)
     for iteration in range(args.iterations):
-        # Train
+        # Train Step
         metrics, replay_len = train_step(comm, args, curr_pi, optim, checkpoint_pi)
 
         # Model Evaluation
         if (iteration + 1) % args.eval_interval == 0:
             model_eval(comm, args, curr_pi, checkpoint_pi, winrates)
 
-        # Sync
+        # Sync policies
         utils.mpi_sync_checkpoint(comm, args, new_pi=curr_pi, old_pi=checkpoint_pi)
 
         # Print iteration summary
