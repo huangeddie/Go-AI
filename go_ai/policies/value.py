@@ -1,10 +1,9 @@
 import numpy as np
-import torch
 
+from go_ai import models
 from go_ai import search
 from go_ai.policies import Policy
 from go_ai.search import mct
-from go_ai import models
 
 
 class Value(Policy):
@@ -28,16 +27,16 @@ class Value(Policy):
         else:
             debug = False
 
-        rootnode = mct.val_search(go_env, self.mcts, self.val_func)
+        rootnode = mct.mct_search(go_env, self.mcts, critic=self.val_func)
         if self.mcts > 0:
             qs = rootnode.get_visit_counts()
         else:
-            q_logits = rootnode.get_q_logits()
+            q_logits = rootnode.inverted_children_values()
             qs = np.exp(q_logits)
         pi = search.temp_norm(qs, self.temp, rootnode.valid_moves())
 
         if debug:
-            qs = rootnode.get_q_logits()
+            qs = rootnode.inverted_children_values()
             return pi, [qs, qs], rootnode
         else:
             rootnode.destroy()

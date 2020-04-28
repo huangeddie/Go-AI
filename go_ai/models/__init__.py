@@ -12,9 +12,21 @@ class RLNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.requires_children = False
-        self.assist = False
-        self.nblocks = 1
-        self.channels = 32
+        self.assist = True
+        self.nblocks = 2
+        self.channels = 64
+
+        # Convolutions
+        convs = [
+            nn.Conv2d(6, self.channels, 3, padding=1),
+            nn.BatchNorm2d(self.channels),
+            nn.ReLU()
+        ]
+
+        for i in range(self.nblocks):
+            convs.append(BasicBlock(self.channels, self.channels))
+
+        self.resnet = nn.Sequential(*convs)
 
     def pt_critic(self, states):
         raise Exception("Not Implemented")
@@ -91,6 +103,90 @@ class RLNet(nn.Module):
             return pi_logits
         else:
             return pi_logits, val_logits
+
+    def critic_step(self, optimizer, states, wins):
+        dtype = next(self.parameters()).type()
+
+        # Preprocess
+        states = data.batch_random_symmetries(states)
+
+        # To tensors
+        states = torch.tensor(states).type(dtype)
+        wins = torch.tensor(wins[:, np.newaxis]).type(dtype)
+
+        # Critic Loss
+        optimizer.zero_grad()
+        val_logits = self.pt_critic(states)
+        vals = torch.tanh(val_logits)
+
+        critic_loss = self.critic_criterion(vals, wins)
+
+        critic_loss.backward()
+        optimizer.step()
+
+        # Predict wins
+        pred_wins = torch.sign(vals)
+        critic_acc = torch.mean((pred_wins == wins).type(dtype))
+        return critic_loss.item(), critic_acc.item()
+
+    def reinforce_step(self, optimizer, states, children, actions, wins):
+        dtype = next(self.parameters()).type()
+        bsz = len(states)
+
+        # To tensors
+        # Do not augment with random symmetries. Otherwise it invalidates the actions
+        states = torch.tensor(states).type(dtype)
+        children = torch.tensor(children).type(dtype)
+        wins = torch.tensor(wins[:, np.newaxis]).type(dtype)
+
+        # Value for baseline
+        with torch.no_grad():
+            val_logits = self.pt_critic(states)
+            vals = torch.tanh(val_logits)
+
+        # Forward pass
+        optimizer.zero_grad()
+        pi_logits = self.pt_actor(states, children)
+
+        # Log probability of taken actions
+        logpi_logits = torch.log_softmax(pi_logits, dim=1)
+        log_pis = logpi_logits[torch.arange(bsz), actions].reshape(-1, 1)
+
+        # Policy Gradient
+        assert vals.shape == wins.shape
+        advantages = wins - vals
+        assert log_pis.shape == advantages.shape
+        expected_reward = log_pis * advantages
+        actor_loss = -torch.mean(expected_reward)
+
+        actor_loss.backward()
+        optimizer.step()
+
+        return actor_loss.item(), 0
+
+    def actor_step(self, optimizer, states, pi):
+        dtype = next(self.parameters()).type()
+
+        # Do not augment with random symmetries because it will invalidate the actions
+        states = torch.tensor(states).type(dtype)
+
+        # To tensors
+        target_pis = torch.tensor(pi).type(dtype)
+        greedy_actions = torch.argmax(target_pis, dim=1)
+
+        # Compute losses
+        optimizer.zero_grad()
+        pi_logits = self.pt_actor(states)
+        assert pi_logits.shape == target_pis.shape
+        loss = self.actor_criterion(pi_logits, greedy_actions)
+        loss.backward()
+        optimizer.step()
+
+        # Actor accuracy
+        pred_greedy_actions = torch.argmax(pi_logits, dim=1)
+        acc = torch.mean((pred_greedy_actions == greedy_actions).type(dtype)).item()
+
+        return loss.item(), acc
 
     def train_step(self, optimizer, states, actions, reward, children, terminal, wins, pi):
         raise Exception("Not Implemented")

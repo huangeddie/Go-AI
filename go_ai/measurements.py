@@ -78,7 +78,7 @@ def state_responses(policy: go_ai.policies.Policy, traj: game.Trajectory):
 
     fig = plt.figure(figsize=(num_cols * 2.5, n * 2))
     black_won = traj.get_winner()
-    qs_title = 'Layer Qs' if isinstance(policy, go_ai.policies.value.Value) else 'Prior Pi'
+    qs_title = 'Intermediate Qs'
 
     for i in tqdm(range(n), desc='Plots'):
         curr_col = 1
@@ -93,7 +93,7 @@ def state_responses(policy: go_ai.policies.Policy, traj: game.Trajectory):
             curr_col += 1
 
         plt.subplot(n, num_cols, curr_col + num_cols * i)
-        plot_move_distr('Model', traj.pis[i], valid_moves[i], pi=True)
+        plot_move_distr('Policy', traj.pis[i], valid_moves[i], pi=True)
         curr_col += 1
 
     plt.tight_layout()

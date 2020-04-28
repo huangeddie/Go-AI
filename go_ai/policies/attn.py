@@ -29,7 +29,7 @@ class Attn(Policy):
         :return:
         """
 
-        rootnode = mct.val_search(go_env, self.mcts, self.val_func)
+        rootnode = mct.mct_search(go_env, self.mcts, critic=self.val_func)
         state = go_env.get_canonical_state()
         policy_scores = self.pi_func(state[np.newaxis])
         policy_scores = policy_scores[0]

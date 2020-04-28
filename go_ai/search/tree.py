@@ -127,16 +127,14 @@ class Node:
     def get_value(self):
         return self.val
 
-    def get_q_logits(self):
-        self.prior_pi = np.zeros(self.actionsize())
-
-        q_logits = []
+    def inverted_children_values(self):
+        inverted_vals = []
         for child in self.child_nodes:
             if child is not None:
-                q_logits.append(search.invert_vals(child.val))
+                inverted_vals.append(search.invert_vals(child.val))
             else:
-                q_logits.append(0)
-        return np.array(q_logits)
+                inverted_vals.append(0)
+        return np.array(inverted_vals)
 
     # =====================
     # MCT API
@@ -154,9 +152,10 @@ class Node:
             self.prior_pi = prior_pi
         else:
             # Uses children state values to make prior pi
+            self.prior_pi = np.zeros(self.actionsize())
             valid_moves = self.valid_moves()
             where_valid = np.argwhere(valid_moves).flatten()
-            q_logits = self.get_q_logits()
+            q_logits = self.inverted_children_values()
             self.prior_pi[where_valid] = special.softmax(q_logits[where_valid])
 
             assert not np.isnan(self.prior_pi).any()

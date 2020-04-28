@@ -2,7 +2,7 @@ import numpy as np
 
 from go_ai import search, data
 from go_ai.policies import Policy
-from go_ai.search import mct
+from go_ai.search import mct, tree
 
 
 class ActorCritic(Policy):
@@ -16,6 +16,7 @@ class ActorCritic(Policy):
         self.pt_model = model
         self.ac_func = model.create_numpy('actor_critic')
         self.val_func = model.create_numpy('critic')
+        self.pi_func = model.create_numpy('actor')
         self.mcts = args.mcts
 
     def __call__(self, go_env, **kwargs):
@@ -26,24 +27,33 @@ class ActorCritic(Policy):
         """
 
         if self.mcts > 0:
-            rootnode = mct.mct_search(go_env, self.mcts, self.ac_func)
+            rootnode = mct.mct_search(go_env, self.mcts, actor_critic=self.ac_func)
             qs = self.tree_to_qs(rootnode)
 
-            valid_moves = go_env.get_valid_moves()
-            noise = 0.02 * self.mcts * valid_moves / valid_moves.sum()
-            pi = (qs[1] + noise) ** (1 / self.temp)
+            # Raise to temperature
+            pi = (qs[1] ** (1 / self.temp))
             pi = pi / np.sum(pi)
 
+            # Noise to guarantee all moves may be explored
+            valid_moves = go_env.get_valid_moves()
+            noise = valid_moves / valid_moves.sum()
+            pi = 0.98 * pi + 0.02 * noise
+
+            assert np.allclose(np.sum(pi), 1), np.sum(pi)
+
         elif self.mcts == 0:
-            rootnode = mct.val_search(go_env, self.mcts, self.val_func)
-            q_logits = rootnode.get_q_logits()
-            qs = np.exp(q_logits)
-            pi = search.temp_norm(qs, self.temp, rootnode.valid_moves())
+            # Just use value function to get policy
+            rootnode = mct.mct_search(go_env, self.mcts, critic=self.val_func)
+            q_logits = rootnode.inverted_children_values()
+            pi = search.temp_norm(np.exp(q_logits), self.temp, rootnode.valid_moves())
+            qs = [q_logits]
         else:
+            # Just use policy function and don't search
             assert self.mcts < 0
-            rootnode = mct.val_search(go_env, self.mcts, self.val_func)
+            # Get tree node for debugging purposes
+            rootnode = tree.Node(go_env.state, go_env.group_map)
             state = go_env.get_canonical_state()
-            policy_scores, _ = self.ac_func(state[np.newaxis])
+            policy_scores = self.pi_func(state[np.newaxis])
             policy_scores = policy_scores[0]
             valid_moves = data.GoGame.get_valid_moves(state)
             pi = search.temp_softmax(policy_scores, self.temp, valid_moves)
