@@ -176,9 +176,9 @@ class Node:
             avg_q, n = 0, 0
             prior_q = self.prior_pi[a]
             child = self.child_nodes[a]
-            if child is not None:
+            if child is not None and child.visits > 0:
                 n = child.visits
-                assert len(child.post_vals) > 0
+                assert len(child.post_vals) > 0, (child.post_vals, n)
                 avg_q = search.invert_vals(np.mean(np.tanh(child.post_vals)))
 
             u = 1.5 * prior_q * np.sqrt(self.visits) / (1 + n)

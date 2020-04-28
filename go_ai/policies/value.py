@@ -30,6 +30,7 @@ class Value(Policy):
         rootnode = mct.mct_search(go_env, self.mcts, critic=self.val_func)
         if self.mcts > 0:
             qs = rootnode.get_visit_counts()
+            assert np.sum(qs) > 0, rootnode
         else:
             q_logits = rootnode.inverted_children_values()
             qs = np.exp(q_logits)

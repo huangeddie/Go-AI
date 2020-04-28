@@ -36,8 +36,8 @@ if os.path.exists(stats_path):
 
 # Plot tree if applicable
 if isinstance(policy, go_ai.policies.actorcritic.ActorCritic) or isinstance(policy, go_ai.policies.value.Value):
-    blacks = [(1,0), (2,2)]
-    whites = [(0,1),(1,1),(2,1)]
+    blacks = []
+    whites = []
     utils.log_debug(f'Plotting tree...')
     go_ai.search.plot.plot_tree(go_env, policy, plotsdir, [blacks, whites])
     utils.log_debug(f'Plotted tree')

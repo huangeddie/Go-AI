@@ -41,8 +41,8 @@ def mct_step(rootnode, actor_critic, critic):
         pi = special.softmax(pi_logits.flatten())
         node.set_prior_pi(pi)
     else:
-        rootnode.make_children()
-        next_nodes = rootnode.get_child_nodes()
+        node.make_children()
+        next_nodes = node.get_child_nodes()
         tree.set_state_vals(critic, next_nodes)
         node.set_prior_pi(None)
 

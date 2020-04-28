@@ -51,8 +51,8 @@ class PolicyVersusPolicy(unittest.TestCase):
         self.assertGreaterEqual(win_rate, 0.6)
 
     def test_mct_vs_greed(self):
-        args1 = utils.hyperparameters(['--size=5', '--model=greedy', '--depth=1', '--temp=0.1', '--baseline'])
-        args2 = utils.hyperparameters(['--size=5', '--model=greedy', '--depth=0', '--temp=0.1', '--baseline'])
+        args1 = utils.hyperparameters(['--size=5', '--model=greedy', '--mct=32', '--temp=0.1', '--baseline'])
+        args2 = utils.hyperparameters(['--size=5', '--model=greedy', '--mct=0', '--temp=0.1', '--baseline'])
 
         win_rate, _, _ = utils.multi_proc_play(args1, args2, self.num_games, workers=8)
 
