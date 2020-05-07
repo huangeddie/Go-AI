@@ -37,6 +37,7 @@ def batch_invalid_values(states):
     invalid_values = np.finfo(np.float32).min * invalid_moves
     return invalid_values
 
+
 def batch_win_children(batch_children):
     batch_win = []
     for children in batch_children:
@@ -48,6 +49,7 @@ def batch_win_children(batch_children):
                 win.append(0)
         batch_win.append(win)
     return np.array(batch_win)
+
 
 def batch_padded_children(states):
     all_children = []
@@ -64,6 +66,20 @@ def batch_random_symmetries(states):
     for state in states:
         processed_states.append(GoGame.random_symmetry(state))
     return np.array(processed_states)
+
+
+def batch_combine_state_actions(states, actions):
+    new_shape = np.array(states.shape)
+    new_shape[1] = 7
+    size = new_shape[-1]
+    state_actions = np.zeros(new_shape)
+    state_actions[:, :-1] = states
+    for i, a in enumerate(actions):
+        if a < size ** 2:
+            r, c = a // size, a % size
+            state_actions[i, -1, r, c] = 1
+
+    return state_actions
 
 
 def replay_to_events(replay):

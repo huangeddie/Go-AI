@@ -1,32 +1,34 @@
 import os
+import warnings
 
 import numpy as np
 import torch
 from mpi4py import MPI
 from torch import nn as nn
+from torch.nn import functional as F
 
 from go_ai import data
 
 
 class RLNet(nn.Module):
-    def __init__(self):
+    def __init__(self, in_c=6):
         super().__init__()
         self.requires_children = False
         self.assist = True
-        self.nblocks = 2
+        self.layers = 2
         self.channels = 64
 
         # Convolutions
         convs = [
-            nn.Conv2d(6, self.channels, 3, padding=1),
+            nn.Conv2d(in_c, self.channels, 3, padding=1),
             nn.BatchNorm2d(self.channels),
             nn.ReLU()
         ]
 
-        for i in range(self.nblocks):
+        for i in range(self.layers):
             convs.append(BasicBlock(self.channels, self.channels))
 
-        self.resnet = nn.Sequential(*convs)
+        self.main = nn.Sequential(*convs)
 
     def pt_critic(self, states):
         raise Exception("Not Implemented")
@@ -37,11 +39,17 @@ class RLNet(nn.Module):
     def pt_actor_critic(self, *args):
         raise Exception("Not Implemented")
 
+    def pt_game(self, state_actions):
+        raise Exception("Not Implemented")
+
     def create_numpy(self, mode):
         def np_func(states):
             return self._numpy(states, mode)
 
         return np_func
+
+    def dtype(self):
+        return next(self.parameters()).type()
 
     def _numpy(self, states, mode, children=None):
         """
@@ -49,7 +57,7 @@ class RLNet(nn.Module):
         :return:
         """
         invalid_values = data.batch_invalid_values(states)
-        dtype = next(self.parameters()).type()
+        dtype = self.dtype()
 
         # Execute on PyTorch
         pi_logits, val_logits = None, None
@@ -104,22 +112,22 @@ class RLNet(nn.Module):
         else:
             return pi_logits, val_logits
 
-    def critic_step(self, optimizer, states, wins):
-        dtype = next(self.parameters()).type()
+    def critic_step(self, optimizer, imgs, wins):
+        dtype = self.dtype()
 
         # Preprocess
-        states = data.batch_random_symmetries(states)
+        imgs = data.batch_random_symmetries(imgs)
 
         # To tensors
-        states = torch.tensor(states).type(dtype)
+        imgs = torch.tensor(imgs).type(dtype)
         wins = torch.tensor(wins[:, np.newaxis]).type(dtype)
 
         # Critic Loss
         optimizer.zero_grad()
-        val_logits = self.pt_critic(states)
+        val_logits = self.pt_critic(imgs)
         vals = torch.tanh(val_logits)
 
-        critic_loss = self.critic_criterion(vals, wins)
+        critic_loss = F.mse_loss(vals, wins)
 
         critic_loss.backward()
         optimizer.step()
@@ -130,7 +138,7 @@ class RLNet(nn.Module):
         return critic_loss.item(), critic_acc.item()
 
     def reinforce_step(self, optimizer, states, children, actions, wins):
-        dtype = next(self.parameters()).type()
+        dtype = self.dtype()
         bsz = len(states)
 
         # To tensors
@@ -165,7 +173,7 @@ class RLNet(nn.Module):
         return actor_loss.item(), 0
 
     def actor_step(self, optimizer, states, pi):
-        dtype = next(self.parameters()).type()
+        dtype = self.dtype()
 
         # Do not augment with random symmetries because it will invalidate the actions
         states = torch.tensor(states).type(dtype)
@@ -178,7 +186,7 @@ class RLNet(nn.Module):
         optimizer.zero_grad()
         pi_logits = self.pt_actor(states)
         assert pi_logits.shape == target_pis.shape
-        loss = self.actor_criterion(pi_logits, greedy_actions)
+        loss = F.cross_entropy(pi_logits, greedy_actions)
         loss.backward()
         optimizer.step()
 
@@ -187,6 +195,28 @@ class RLNet(nn.Module):
         acc = torch.mean((pred_greedy_actions == greedy_actions).type(dtype)).item()
 
         return loss.item(), acc
+
+    def game_step(self, optimizer, states, actions, next_states):
+        dtype = self.dtype()
+
+        state_actions = data.batch_combine_state_actions(states, actions)
+
+        # To tensors
+        state_actions = torch.tensor(state_actions).type(dtype)
+        next_states = torch.tensor(next_states).type(dtype)
+
+        # Critic Loss
+        optimizer.zero_grad()
+        pred = self.pt_game(state_actions)
+        pred = torch.sigmoid(pred)
+
+        critic_loss = 100 * F.mse_loss(pred, next_states)
+
+        critic_loss.backward()
+        optimizer.step()
+
+        # Predict wins
+        return critic_loss.item()
 
     def train_step(self, optimizer, states, actions, reward, children, terminal, wins, pi):
         raise Exception("Not Implemented")
@@ -203,10 +233,13 @@ class RLNet(nn.Module):
 
         # Sync Metrics
         world_size = comm.Get_size()
-        mean_metrics = np.mean(raw_metrics, axis=0)
-        m = comm.allreduce(mean_metrics, op=MPI.SUM) / world_size
+        raw_metrics = np.array(raw_metrics, dtype=np.float)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            mean_metrics = np.nanmean(raw_metrics, axis=0)
+        reduced_metrics = comm.allreduce(mean_metrics, op=MPI.SUM) / world_size
 
-        metrics = ModelMetrics(m[0], m[1], m[2], m[3])
+        metrics = ModelMetrics(*reduced_metrics)
 
         # Return metrics
         return metrics
@@ -233,17 +266,25 @@ class BasicBlock(nn.Module):
 
 
 class ModelMetrics:
-    def __init__(self, cl, ca, al, aa):
+    def __init__(self, cl=None, ca=None, al=None, aa=None, gl=None):
         self.crit_loss = cl
         self.crit_acc = ca
 
         self.act_loss = al
         self.act_acc = aa
 
+        self.game_loss = gl
+
     def __str__(self):
-        critic = f'C[{self.crit_acc * 100 :.1f}% {self.crit_loss:.3f}L]'
-        actor = f'A[{self.act_acc * 100 :.1f}% {self.act_loss:.3f}L]'
-        return f'{critic} {actor}'
+        ret = ''
+        if self.crit_loss is not None and not np.isnan(self.crit_loss):
+            ret += f'C[{self.crit_acc * 100 :.1f}% {self.crit_loss:.3f}L] '
+        if self.act_loss is not None and not np.isnan(self.act_loss):
+            ret += f'A[{self.act_acc * 100 :.1f}% {self.act_loss:.3f}L] '
+        if self.game_loss is not None and not np.isnan(self.game_loss):
+            ret += f'G[{self.game_loss:.3f}L] '
+
+        return ret
 
     def __repr__(self):
         return self.__str__()

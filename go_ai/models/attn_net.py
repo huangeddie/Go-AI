@@ -31,8 +31,6 @@ class AttnNet(RLNet):
 
         self.crit_head = nn.Linear(self.d_model, 1)
 
-        self.critic_criterion = nn.MSELoss()
-
     def forward(self, states, next_states):
         vals = self.pt_critic(states)
         policy_scores = self.pt_actor(states, next_states)
@@ -45,7 +43,7 @@ class AttnNet(RLNet):
         state_shape = next_states.shape[2:]
         next_states = next_states.view(-1, *state_shape)
 
-        x = self.resnet(next_states)
+        x = self.main(next_states)
         z = self.encoder(x)
         z = z.view(bsz, self.action_size, self.d_model)
         out = self.transformer(z.transpose(0, 1))
@@ -54,7 +52,7 @@ class AttnNet(RLNet):
         return policy_scores
 
     def pt_critic(self, states):
-        x = self.resnet(states)
+        x = self.main(states)
         s = self.encoder(x)
         vals = self.crit_head(s)
         return vals

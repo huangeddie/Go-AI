@@ -4,6 +4,7 @@ import time
 import gym
 import numpy as np
 import pandas as pd
+import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
@@ -13,7 +14,7 @@ import go_ai.policies.value
 from go_ai import data, game
 
 
-def matplot_format(state):
+def state_matplot_format(state):
     """
     :param state:
     :return: A formatted state for matplot imshow.
@@ -84,12 +85,12 @@ def state_responses(policy: go_ai.policies.Policy, traj: game.Trajectory):
         curr_col = 1
 
         plt.subplot(n, num_cols, curr_col + num_cols * i)
-        plot_state(black_won, i, n, traj)
+        plot_traj_index(traj, i, black_won)
         curr_col += 1
 
         for j in range(layers_expanded):
             plt.subplot(n, num_cols, curr_col + num_cols * i)
-            plot_move_distr(qs_title, all_qs[i, j], valid_moves[i], scalar=state_vals[i].item())
+            plot_move_distr(qs_title, all_qs[i, j], valid_moves[i], scalar=state_vals[i])
             curr_col += 1
 
         plt.subplot(n, num_cols, curr_col + num_cols * i)
@@ -100,23 +101,24 @@ def state_responses(policy: go_ai.policies.Policy, traj: game.Trajectory):
     return fig
 
 
-def plot_state(black_won, i, n, traj):
+def plot_traj_index(traj, i, black_won, mode='state'):
+    n = len(traj)
     terminal = int(i == n - 1)
-    state = traj.states[i]
-    board_size = state.shape[1]
-    plt.axis('off')
-    if i > 0:
-        prev_action = action_1d_to_2d(traj.actions[i - 1], board_size)
-        board_title = 'Action: {}\n'.format(prev_action)
-        if i == n - 1:
-            action_took = action_1d_to_2d(traj.actions[i], board_size)
-            board_title += 'Action Taken: {}\n'.format(action_took)
+    board_size = traj.states[0].shape[1]
+    if mode == 'state':
+        state = traj.states[i]
+        action_took = action_1d_to_2d(traj.actions[i], board_size)
+        board_title = 'Action: {}\n'.format(action_took)
     else:
-        board_title = 'Initial Board\n'
+        assert mode == 'next_state'
+        state = traj.children[i][traj.actions[i]]
+        board_title = 'Next State\n'
+
+    plt.axis('off')
     win = black_won if i % 2 == 0 else -black_won
     board_title += '{:.0f}R {}T, {}W'.format(traj.rewards[i], terminal, win)
     plt.title(board_title)
-    plt.imshow(matplot_format(state))
+    plt.imshow(state_matplot_format(state))
 
 
 def measure_vals(actions, policy, states):
@@ -126,15 +128,49 @@ def measure_vals(actions, policy, states):
     go_env = gym.make('gym_go:go-v0', size=size)
     for step, (state, prev_action) in tqdm(enumerate(zip(states, actions)), desc='Heat Maps'):
         pi, qs, rootnode = policy(go_env, step=step, debug=True)
-        if isinstance(policy, go_ai.policies.value.Value):
-            state_val = policy.val_func(state[np.newaxis])
-        else:
+        if hasattr(policy, 'val_func'):
+            state_val = policy.val_func(state[np.newaxis]).item()
+        elif hasattr(policy, 'ac_func'):
             _, state_val = policy.ac_func(state[np.newaxis])
-        state_val = state_val[0]
+            state_val = state_val.item()
+        else:
+            state_val = None
         state_vals.append(state_val)
         all_qs.append(qs)
         go_env.step(prev_action)
     return all_qs, state_vals
+
+
+def plot_go_understanding(go_env, policy: go_ai.policies.Policy, outpath):
+    go_env.reset()
+    _, _, traj = game.pit(go_env, black_policy=policy, white_policy=policy)
+    n = len(traj)
+    ncols = 3
+    fig = plt.figure(figsize=(ncols * 2.5, n * 2))
+    states = np.array(traj.states)
+
+    model = policy.pt_model
+    state_actions = data.batch_combine_state_actions(states, traj.actions)
+    state_actions = torch.tensor(state_actions).type(model.dtype())
+    with torch.no_grad():
+        all_preds = torch.sigmoid(model.pt_game(state_actions)).numpy()
+    for i, pred in enumerate(all_preds):
+        plt.subplot(n, 3, 3 * i + 1)
+        plot_traj_index(traj, i, 0)
+
+        plt.subplot(n, 3, 3 * i + 2)
+        plot_traj_index(traj, i, 0, mode='next_state')
+
+        plt.subplot(n, 3, 3 * i + 3)
+        plt.axis('off')
+        plt.title("Prediction")
+        plt.imshow(state_matplot_format(pred))
+
+    plt.tight_layout()
+    plt.savefig(outpath)
+    plt.close()
+
+    return fig
 
 
 def plot_traj_fig(go_env, policy: go_ai.policies.Policy, outpath):
@@ -158,7 +194,7 @@ def plot_symmetries(next_state, outpath):
     plt.figure(figsize=(3 * cols, 3))
     for i, state in enumerate(symmetrical_next_states):
         plt.subplot(1, cols, i + 1)
-        plt.imshow(matplot_format(state))
+        plt.imshow(state_matplot_format(state))
         plt.axis('off')
 
     plt.tight_layout()

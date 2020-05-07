@@ -28,22 +28,19 @@ class ActorCriticNet(RLNet):
             nn.Linear(256, 1),
         )
 
-        self.critic_criterion = nn.MSELoss()
-        self.actor_criterion = nn.CrossEntropyLoss()
-
     def forward(self, state):
-        x = self.resnet(state)
+        x = self.main(state)
         policy_scores = self.act_head(x)
         vals = self.crit_head(x)
         return policy_scores, vals
 
     # Numpy Calls
     def pt_actor(self, states):
-        x = self.resnet(states)
+        x = self.main(states)
         return self.act_head(x)
 
     def pt_critic(self, states):
-        x = self.resnet(states)
+        x = self.main(states)
         return self.crit_head(x)
 
     def pt_actor_critic(self, states):

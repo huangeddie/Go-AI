@@ -6,6 +6,7 @@ import multiprocessing as mp
 import os
 import pickle
 import time
+from datetime import datetime as dt
 
 import gym
 import numpy as np
@@ -60,8 +61,8 @@ def hyperparameters(args_encoding=None):
     parser.add_argument('--checkdir', type=str, default=f'bin/checkpoints/{today}/')
 
     # Model
-    parser.add_argument('--model', type=str, choices=['val', 'ac', 'attn', 'rand', 'greedy', 'human'], default='attn',
-                        help='type of model')
+    parser.add_argument('--model', type=str, choices=['val', 'ac', 'qval', 'attn', 'rand', 'greedy', 'human'],
+                        default='ac', help='type of model')
 
     # Hardware
     parser.add_argument('--device', type=str, choices=['cpu', 'cuda'], default='cpu', help='device for pytorch models')
@@ -287,3 +288,33 @@ def worker_play(rank, queue, barrier, args1, args2, worker_episodes):
                 pickle.dump(all_replays, f)
 
         barrier.wait()
+
+def get_iter_header():
+    return "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tG_LOSS\tC_WR\tR_WR\tG_WR"
+
+def get_iter_entry(starttime, iteration, replay_len, metrics, winrates, checkpoint_pi):
+    currtime = dt.now()
+    delta = currtime - starttime
+    iter_info = f"{str(delta).split('.')[0]}\t{iteration:02d}\t{replay_len:07d}\t"
+    
+    # Critic
+    if metrics.crit_acc is not None and not np.isnan(metrics.crit_acc):
+        iter_info += f"{100 * metrics.crit_acc:04.1f}\t{metrics.crit_loss:04.3f}\t"
+    else:
+        iter_info += "____\t____\t"
+        
+    # Actor
+    if metrics.act_acc is not None and not np.isnan(metrics.act_acc):
+        iter_info += f"{100 * metrics.act_acc:04.1f}\t{metrics.act_loss:04.3f}\t"
+    else:
+        iter_info += "____\t____\t"
+        
+    # Game
+    if metrics.game_loss is not None and not np.isnan(metrics.game_loss):
+        iter_info += f"{metrics.game_loss:04.3f}\t"
+    else:
+        iter_info += "____\t"
+    
+    iter_info += f"{100 * winrates[checkpoint_pi]:04.1f}\t{100 * winrates[baselines.RAND_PI]:04.1f}\t" \
+                 f"{100 * winrates[baselines.GREEDY_PI]:04.1f}"
+    return iter_info

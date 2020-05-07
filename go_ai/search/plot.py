@@ -3,7 +3,7 @@ import os
 import graphviz
 from matplotlib import pyplot as plt
 
-from go_ai.measurements import matplot_format
+from go_ai.measurements import state_matplot_format
 
 
 def plot_tree(go_env, policy, outdir, all_player_actions=None):
@@ -40,7 +40,7 @@ def register_nodes(treenode, graph, imgdir):
     plt.figure()
     plt.axis('off')
     plt.title(str(treenode))
-    plt.imshow(matplot_format(treenode.state))
+    plt.imshow(state_matplot_format(treenode.state))
     imgpath = os.path.join(imgdir, f'{str(id(treenode))}.jpg')
     plt.savefig(imgpath, bbox_inches='tight')
     plt.close()

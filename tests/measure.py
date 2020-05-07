@@ -2,9 +2,7 @@ import os
 
 import gym
 
-import go_ai.policies.actorcritic
-import go_ai.policies.baselines
-import go_ai.policies.value
+from go_ai.policies import actorcritic, baselines, value, qval
 import go_ai.search.plot
 from go_ai import measurements, utils
 
@@ -20,7 +18,7 @@ else:
     outdir = args.customdir
 
 # Policies
-policy, model = go_ai.policies.baselines.create_policy(args, 'Model')
+policy, model = baselines.create_policy(args, 'Model')
 
 # Directories and files
 plotsdir = os.path.join(outdir, f'{args.model}{args.size}_plots/')
@@ -35,12 +33,19 @@ if os.path.exists(stats_path):
     utils.log_debug("Plotted ELOs, win rates, losses, and accuracies")
 
 # Plot tree if applicable
-if isinstance(policy, go_ai.policies.actorcritic.ActorCritic) or isinstance(policy, go_ai.policies.value.Value):
+if isinstance(policy, actorcritic.ActorCritic) or isinstance(policy, value.Value):
     blacks = []
     whites = []
     utils.log_debug(f'Plotting tree...')
     go_ai.search.plot.plot_tree(go_env, policy, plotsdir, [blacks, whites])
     utils.log_debug(f'Plotted tree')
+    
+# Plot Go understanding if applicable
+if isinstance(policy, qval.QVal):
+    go_path = os.path.join(plotsdir, 'go.pdf')
+    utils.log_debug(f'Plotting Go understanding...')
+    measurements.plot_go_understanding(go_env, policy, go_path)
+    utils.log_debug(f'Plotted Go understanding')
 
 # Sample trajectory and plot prior qvals
 traj_path = os.path.join(plotsdir, f'heat{policy.temp:.2f}.pdf')

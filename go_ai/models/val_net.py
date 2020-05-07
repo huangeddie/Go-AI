@@ -9,22 +9,18 @@ class ValueNet(RLNet):
     def __init__(self, size):
         super().__init__()
 
-        convs = [
+        self.convs = nn.Sequential(
             nn.Conv2d(self.channels, 1, 1),
             nn.BatchNorm2d(1),
             nn.ReLU(),
             nn.Flatten(),
             nn.Linear(size ** 2, 256),
             nn.ReLU(),
-            nn.Linear(256, 1),
-        ]
-
-        self.convs = nn.Sequential(*convs)
-
-        self.criterion = nn.MSELoss()
+            nn.Linear(256, 1)
+        )
 
     def forward(self, x):
-        x = self.resnet(x)
+        x = self.main(x)
         return self.convs(x)
 
     def pt_critic(self, states):

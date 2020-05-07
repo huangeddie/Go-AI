@@ -55,7 +55,7 @@ def train(comm, args, curr_pi, checkpoint_pi):
     starttime = datetime.now()
 
     # Header output
-    utils.mpi_log_info(comm, "TIME\tITR\tREPLAY\tC_ACC\tC_LOSS\tA_ACC\tA_LOSS\tC_WR\tR_WR\tG_WR")
+    utils.mpi_log_info(comm, utils.get_iter_header())
 
     winrates = collections.defaultdict(float)
     for iteration in range(args.iterations):
@@ -70,13 +70,8 @@ def train(comm, args, curr_pi, checkpoint_pi):
         utils.mpi_sync_checkpoint(comm, args, new_pi=curr_pi, old_pi=checkpoint_pi)
 
         # Print iteration summary
-        currtime = datetime.now()
-        delta = currtime - starttime
-        iter_info = f"{str(delta).split('.')[0]}\t{iteration:02d}\t{replay_len:07d}\t" \
-                    f"{100 * metrics.crit_acc:04.1f}\t{metrics.crit_loss:04.3f}\t" \
-                    f"{100 * metrics.act_acc:04.1f}\t{metrics.act_loss:04.3f}\t" \
-                    f"{100 * winrates[checkpoint_pi]:04.1f}\t{100 * winrates[baselines.RAND_PI]:04.1f}\t" \
-                    f"{100 * winrates[baselines.GREEDY_PI]:04.1f}"
+        iter_info = utils.get_iter_entry(starttime, iteration, replay_len, metrics, winrates, checkpoint_pi)
+
         utils.mpi_log_info(comm, iter_info)
 
 
