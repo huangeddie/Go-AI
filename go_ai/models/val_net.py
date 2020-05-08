@@ -32,7 +32,12 @@ class ValueNet(RLNet):
         next_states = children[np.arange(bsz), actions]
         next_states = data.batch_random_symmetries(next_states)
 
-        # Critic
-        cl, ca = self.critic_step(optimizer, next_states, -wins)
+        optimizer.zero_grad()
 
-        return cl, ca, 0, 0
+        # Critic
+        cl, ca = self.critic_step(next_states, -wins)
+
+        cl.backward()
+        optimizer.step()
+
+        return cl.item(), ca, None, None

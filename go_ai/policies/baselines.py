@@ -2,13 +2,11 @@ import numpy as np
 import torch
 
 from go_ai import data
-from go_ai.models import val_net, ac_net, attn_net, q_net
+from go_ai.models import val_net, ac_net, attn_net
 from go_ai.policies import Policy
 from go_ai.policies.actorcritic import ActorCritic
 from go_ai.policies.attn import Attn
 from go_ai.policies.value import Value
-from go_ai.policies.qval import QVal
-
 
 def greedy_val_func(states):
     if len(states) <= 0:
@@ -137,9 +135,6 @@ def create_policy(args, name=''):
     elif model == 'ac':
         net = ac_net.ActorCriticNet(size)
         pi = ActorCritic(name, net, args)
-    elif model == 'qval':
-        net = q_net.QNet(size)
-        pi = QVal(name, net, args)
     elif model == 'attn':
         net = attn_net.AttnNet(size)
         pi = Attn(name, net, args)

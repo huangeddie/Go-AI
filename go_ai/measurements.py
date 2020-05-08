@@ -150,11 +150,10 @@ def plot_go_understanding(go_env, policy: go_ai.policies.Policy, outpath):
     states = np.array(traj.states)
 
     model = policy.pt_model
-    state_actions = data.batch_combine_state_actions(states, traj.actions)
-    state_actions = torch.tensor(state_actions).type(model.dtype())
     with torch.no_grad():
-        all_preds = torch.sigmoid(model.pt_game(state_actions)).numpy()
-    for i, pred in enumerate(all_preds):
+        torch_states = torch.tensor(states).type(model.dtype())
+        all_preds = torch.sigmoid(model.pt_game(torch_states)).numpy()
+    for i, (a, pred) in enumerate(zip(traj.actions, all_preds)):
         plt.subplot(n, 3, 3 * i + 1)
         plot_traj_index(traj, i, 0)
 
@@ -164,7 +163,7 @@ def plot_go_understanding(go_env, policy: go_ai.policies.Policy, outpath):
         plt.subplot(n, 3, 3 * i + 3)
         plt.axis('off')
         plt.title("Prediction")
-        plt.imshow(state_matplot_format(pred))
+        plt.imshow(state_matplot_format(pred[a * 6: (a + 1) * 6]))
 
     plt.tight_layout()
     plt.savefig(outpath)

@@ -66,9 +66,17 @@ class AttnNet(RLNet):
         bsz = len(children)
         next_states = children[np.arange(bsz), actions]
         next_states = data.batch_random_symmetries(next_states)
+
+        optimizer.zero_grad()
+
         # Critic
-        cl, ca = self.critic_step(optimizer, next_states, -wins)
+        cl, ca = self.critic_step(next_states, -wins)
 
         # Actor
-        al, aa = self.reinforce_step(optimizer, states, children, actions, wins)
-        return cl, ca, al, aa
+        al, aa = self.reinforce_step(states, children, actions, wins)
+
+        loss = cl + al
+        loss.backward()
+        optimizer.step()
+
+        return cl.item(), ca, al.item(), aa

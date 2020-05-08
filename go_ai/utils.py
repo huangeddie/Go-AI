@@ -61,7 +61,7 @@ def hyperparameters(args_encoding=None):
     parser.add_argument('--checkdir', type=str, default=f'bin/checkpoints/{today}/')
 
     # Model
-    parser.add_argument('--model', type=str, choices=['val', 'ac', 'qval', 'attn', 'rand', 'greedy', 'human'],
+    parser.add_argument('--model', type=str, choices=['val', 'ac', 'attn', 'rand', 'greedy', 'human'],
                         default='ac', help='type of model')
 
     # Hardware

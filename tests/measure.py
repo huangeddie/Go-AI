@@ -2,7 +2,7 @@ import os
 
 import gym
 
-from go_ai.policies import actorcritic, baselines, value, qval
+from go_ai.policies import actorcritic, baselines, value
 import go_ai.search.plot
 from go_ai import measurements, utils
 
@@ -41,7 +41,7 @@ if isinstance(policy, actorcritic.ActorCritic) or isinstance(policy, value.Value
     utils.log_debug(f'Plotted tree')
     
 # Plot Go understanding if applicable
-if isinstance(policy, qval.QVal):
+if isinstance(policy, actorcritic.ActorCritic):
     go_path = os.path.join(plotsdir, 'go.pdf')
     utils.log_debug(f'Plotting Go understanding...')
     measurements.plot_go_understanding(go_env, policy, go_path)

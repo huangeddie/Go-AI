@@ -16,7 +16,7 @@ class RLNet(nn.Module):
         self.requires_children = False
         self.assist = True
         self.layers = 2
-        self.channels = 64
+        self.channels = 128
 
         # Convolutions
         convs = [
@@ -39,7 +39,7 @@ class RLNet(nn.Module):
     def pt_actor_critic(self, *args):
         raise Exception("Not Implemented")
 
-    def pt_game(self, state_actions):
+    def pt_game(self, states):
         raise Exception("Not Implemented")
 
     def create_numpy(self, mode):
@@ -112,7 +112,7 @@ class RLNet(nn.Module):
         else:
             return pi_logits, val_logits
 
-    def critic_step(self, optimizer, imgs, wins):
+    def critic_step(self, imgs, wins):
         dtype = self.dtype()
 
         # Preprocess
@@ -123,21 +123,17 @@ class RLNet(nn.Module):
         wins = torch.tensor(wins[:, np.newaxis]).type(dtype)
 
         # Critic Loss
-        optimizer.zero_grad()
         val_logits = self.pt_critic(imgs)
         vals = torch.tanh(val_logits)
 
         critic_loss = F.mse_loss(vals, wins)
 
-        critic_loss.backward()
-        optimizer.step()
-
         # Predict wins
         pred_wins = torch.sign(vals)
         critic_acc = torch.mean((pred_wins == wins).type(dtype))
-        return critic_loss.item(), critic_acc.item()
+        return critic_loss, critic_acc.item()
 
-    def reinforce_step(self, optimizer, states, children, actions, wins):
+    def reinforce_step(self, states, children, actions, wins):
         dtype = self.dtype()
         bsz = len(states)
 
@@ -153,7 +149,6 @@ class RLNet(nn.Module):
             vals = torch.tanh(val_logits)
 
         # Forward pass
-        optimizer.zero_grad()
         pi_logits = self.pt_actor(states, children)
 
         # Log probability of taken actions
@@ -167,12 +162,9 @@ class RLNet(nn.Module):
         expected_reward = log_pis * advantages
         actor_loss = -torch.mean(expected_reward)
 
-        actor_loss.backward()
-        optimizer.step()
+        return actor_loss, 0
 
-        return actor_loss.item(), 0
-
-    def actor_step(self, optimizer, states, pi):
+    def actor_step(self, states, pi):
         dtype = self.dtype()
 
         # Do not augment with random symmetries because it will invalidate the actions
@@ -183,40 +175,34 @@ class RLNet(nn.Module):
         greedy_actions = torch.argmax(target_pis, dim=1)
 
         # Compute losses
-        optimizer.zero_grad()
         pi_logits = self.pt_actor(states)
         assert pi_logits.shape == target_pis.shape
         loss = F.cross_entropy(pi_logits, greedy_actions)
-        loss.backward()
-        optimizer.step()
 
         # Actor accuracy
         pred_greedy_actions = torch.argmax(pi_logits, dim=1)
         acc = torch.mean((pred_greedy_actions == greedy_actions).type(dtype)).item()
 
-        return loss.item(), acc
+        return loss, acc
 
-    def game_step(self, optimizer, states, actions, next_states):
+    def game_step(self, states, children):
         dtype = self.dtype()
-
-        state_actions = data.batch_combine_state_actions(states, actions)
+        bsz = len(states)
+        size = states[0].shape[-1]
 
         # To tensors
-        state_actions = torch.tensor(state_actions).type(dtype)
-        next_states = torch.tensor(next_states).type(dtype)
+        states = torch.tensor(states).type(dtype)
+        children = children.reshape(bsz, -1, size, size)
+        children = torch.tensor(children).type(dtype)
 
         # Critic Loss
-        optimizer.zero_grad()
-        pred = self.pt_game(state_actions)
+        pred = self.pt_game(states)
         pred = torch.sigmoid(pred)
 
-        critic_loss = 100 * F.mse_loss(pred, next_states)
-
-        critic_loss.backward()
-        optimizer.step()
+        critic_loss = 50 * F.mse_loss(pred, children)
 
         # Predict wins
-        return critic_loss.item()
+        return critic_loss
 
     def train_step(self, optimizer, states, actions, reward, children, terminal, wins, pi):
         raise Exception("Not Implemented")
