@@ -15,7 +15,7 @@ class RLNet(nn.Module):
         super().__init__()
         self.requires_children = False
         self.assist = True
-        self.layers = 2
+        self.layers = 3
         self.channels = 128
 
         # Convolutions
