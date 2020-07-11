@@ -40,22 +40,26 @@ class ActorCriticNet(RLNet):
 
 
     def forward(self, states):
-        x = self.main(states)
+        x = states - 0.5
+        x = self.main(x)
         policy_scores = self.act_head(x)
         vals = self.crit_head(x)
         return policy_scores, vals
 
     # Numpy Calls
     def pt_actor(self, states):
-        x = self.main(states)
+        x = states - 0.5
+        x = self.main(x)
         return self.act_head(x)
 
     def pt_game(self, states):
-        x = self.main(states)
+        x = states - 0.5
+        x = self.main(x)
         return self.game_head(x)
 
     def pt_critic(self, states):
-        x = self.main(states)
+        x = states - 0.5
+        x = self.main(x)
         return self.crit_head(x)
 
     def pt_actor_critic(self, states):
@@ -76,12 +80,9 @@ class ActorCriticNet(RLNet):
         # Actor
         al, aa = self.actor_step(states, pi)
 
-        # Game
-        gl = self.game_step(states, children)
-
-        loss = 2 * cl + al + gl
+        loss = 2 * cl + al
         loss.backward()
         optimizer.step()
 
         # Return metrics
-        return cl.item(), ca, al.item(), aa, gl.item()
+        return cl.item(), ca, al.item(), aa
