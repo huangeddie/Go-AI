@@ -43,8 +43,8 @@ def batch_win_children(batch_children):
     for children in batch_children:
         win = []
         for state in children:
-            if GoGame.get_game_ended(state):
-                win.append(GoGame.get_winning(state))
+            if GoGame.game_ended(state):
+                win.append(GoGame.winning(state))
             else:
                 win.append(0)
         batch_win.append(win)
@@ -55,7 +55,7 @@ def batch_padded_children(states):
     all_children = []
     all_valid_moves = batch_valid_moves(states)
     for state, valid_moves in zip(states, all_valid_moves):
-        chilren, _ = GoGame.get_children(state, canonical=True, padded=True)
+        chilren = GoGame.children(state, canonical=True, padded=True)
         all_children.append(chilren)
     return all_children
 

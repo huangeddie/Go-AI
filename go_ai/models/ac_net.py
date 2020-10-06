@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 import torch.nn as nn
 
 from go_ai import data
@@ -8,7 +7,7 @@ from go_ai.models import RLNet
 
 class ActorCriticNet(RLNet):
     def __init__(self, size):
-        action_size = data.GoGame.get_action_size(board_size=size)
+        action_size = data.GoGame.action_size(board_size=size)
         super().__init__(6)
 
         self.action_size = action_size
@@ -37,7 +36,6 @@ class ActorCriticNet(RLNet):
             nn.ReLU(),
             nn.Conv2d(self.channels, 6 * (size ** 2 + 1), 1)
         )
-
 
     def forward(self, states):
         x = states - 0.5

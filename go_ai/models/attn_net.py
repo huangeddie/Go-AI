@@ -25,7 +25,7 @@ class AttnNet(RLNet):
                                                    dim_feedforward=self.d_model)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=self.nlayers)
 
-        self.action_size = data.GoGame.get_action_size(board_size=size)
+        self.action_size = data.GoGame.action_size(board_size=size)
 
         self.act_head = nn.Linear(self.d_model, 1)
 

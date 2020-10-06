@@ -35,7 +35,7 @@ class ActorCritic(Policy):
             pi = pi / np.sum(pi)
 
             # Noise to guarantee all moves may be explored
-            valid_moves = go_env.get_valid_moves()
+            valid_moves = go_env.valid_moves()
             noise = valid_moves / valid_moves.sum()
             pi = 0.98 * pi + 0.02 * noise
 
@@ -52,10 +52,10 @@ class ActorCritic(Policy):
             assert self.mcts < 0
             # Get tree node for debugging purposes
             rootnode = tree.Node(go_env.state, go_env.group_map)
-            state = go_env.get_canonical_state()
+            state = go_env.canonical_state()
             policy_scores = self.pi_func(state[np.newaxis])
             policy_scores = policy_scores[0]
-            valid_moves = data.GoGame.get_valid_moves(state)
+            valid_moves = data.GoGame.valid_moves(state)
             pi = search.temp_softmax(policy_scores, self.temp, valid_moves)
             qs = [pi]
 

@@ -49,9 +49,8 @@ def mct_step(rootnode, actor_critic, critic):
 
 def mct_search(go_env, num_searches, actor_critic=None, critic=None):
     # Setup the root
-    root_group_map = go_env.get_canonical_group_map()
-    rootstate = go_env.get_canonical_state()
-    rootnode = tree.Node(rootstate, root_group_map)
+    rootstate = go_env.canonical_state()
+    rootnode = tree.Node(rootstate)
 
     # The first iteration doesn't count towards the number of searches
     mct_step(rootnode, actor_critic, critic)

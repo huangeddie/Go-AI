@@ -20,7 +20,7 @@ def set_state_vals(val_func, nodes):
 
 
 class Node:
-    def __init__(self, state, group_map, parent=None):
+    def __init__(self, state, parent=None):
         '''
         Args:
             parent (?Node): parent Node
@@ -31,7 +31,6 @@ class Node:
         # Go
         self.state = state
         self.child_states = None
-        self.group_map = group_map
 
         # Links
         self.parent = parent
@@ -57,7 +56,6 @@ class Node:
             if child is not None:
                 child.destroy()
         del self.state
-        del self.group_map
         del self.parent
         del self.child_nodes
 
@@ -65,10 +63,10 @@ class Node:
     # Basic Tree API
     # =================
     def terminal(self):
-        return GoGame.get_game_ended(self.state)
+        return GoGame.game_ended(self.state)
 
     def winning(self):
-        return GoGame.get_winning(self.state)
+        return GoGame.winning(self.state)
 
     def isleaf(self):
         # Not the same as whether the state is terminal or not
@@ -77,8 +75,8 @@ class Node:
     def isroot(self):
         return self.parent is None
 
-    def make_childnode(self, action, state, group_map):
-        child_node = Node(state, group_map, self)
+    def make_childnode(self, action, state):
+        child_node = Node(state, self)
         self.child_nodes[action] = child_node
         if child_node.level == 1:
             child_node.first_action = action
@@ -91,10 +89,10 @@ class Node:
         """
         :return: Padded children numpy states
         """
-        child_states, child_gmps = GoGame.get_children(self.state, self.group_map, canonical=True, padded=True)
+        child_states = GoGame.children(self.state, canonical=True, padded=True)
         actions = np.argwhere(self.valid_moves()).flatten()
         for action in actions:
-            self.make_childnode(action, child_states[action], child_gmps[action])
+            self.make_childnode(action, child_states[action])
         self.child_states = child_states
 
         return child_states
@@ -104,18 +102,18 @@ class Node:
         return real_nodes
 
     def actionsize(self):
-        return GoGame.get_action_size(self.state)
+        return GoGame.action_size(self.state)
 
     def valid_moves(self):
-        return GoGame.get_valid_moves(self.state)
+        return GoGame.valid_moves(self.state)
 
     def step(self, move):
         child = self.child_nodes[move]
         if child is not None:
             return child
         else:
-            next_state, next_gmp = GoGame.get_next_state(self.state, move, self.group_map, canonical=True)
-            child = self.make_childnode(move, next_state, next_gmp)
+            next_state = GoGame.next_state(self.state, move, canonical=True)
+            child = self.make_childnode(move, next_state)
             return child
 
     # =====================

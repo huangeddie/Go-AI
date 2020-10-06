@@ -101,8 +101,8 @@ class RLNet(nn.Module):
             if self.assist:
                 # Set obvious values
                 for i, state in enumerate(states):
-                    if data.GoGame.get_game_ended(state):
-                        val_logits[i] = 100 * data.GoGame.get_winning(state)
+                    if data.GoGame.game_ended(state):
+                        val_logits[i] = 100 * data.GoGame.winning(state)
 
         # Return
         if pi_logits is None:

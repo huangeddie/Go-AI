@@ -30,10 +30,10 @@ class Attn(Policy):
         """
 
         rootnode = mct.mct_search(go_env, self.mcts, critic=self.val_func)
-        state = go_env.get_canonical_state()
+        state = go_env.canonical_state()
         policy_scores = self.pi_func(state[np.newaxis])
         policy_scores = policy_scores[0]
-        valid_moves = GoGame.get_valid_moves(state)
+        valid_moves = GoGame.valid_moves(state)
         pi = search.temp_softmax(policy_scores, self.temp, valid_moves)
 
         if 'debug' in kwargs:

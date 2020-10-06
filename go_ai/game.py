@@ -69,7 +69,7 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy):
             Trajectory is empty list if get_trajectory is None
     """
     num_steps = 0
-    state = go_env.get_canonical_state()
+    state = go_env.canonical_state()
 
     max_steps = 2 * (go_env.size ** 2)
 
@@ -91,7 +91,7 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy):
         action = data.GoGame.random_weighted_action(pi)
 
         # Execute actions in environment and MCT tree
-        padded_children, _ = go_env.get_children(canonical=True, padded=True)
+        padded_children = go_env.children(canonical=True, padded=True)
         _, reward, done, _ = go_env.step(action)
 
         # End if we've reached max steps
@@ -110,7 +110,7 @@ def pit(go_env, black_policy: policies.Policy, white_policy: policies.Policy):
     assert done
 
     # Determine who won
-    black_won = go_env.get_winning()
+    black_won = go_env.winning()
 
     traj.set_win(black_won)
 

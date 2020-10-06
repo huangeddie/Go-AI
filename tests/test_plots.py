@@ -30,12 +30,12 @@ class MyTestCase(unittest.TestCase):
     def test_rand_mct_search(self):
         self.go_env.reset()
         for _ in range(random.randint(0, 8)):
-            valid_moves = self.go_env.get_valid_moves()
+            valid_moves = self.go_env.valid_moves()
             valid_moves[-1] = 0
             valid_move_idcs = np.argwhere(valid_moves > 0).flatten()
             a = np.random.choice(valid_move_idcs)
             self.go_env.step(a)
-        state = self.go_env.get_canonical_state()
+        state = self.go_env.canonical_state()
         self.greedymct_pi.reset(state)
         self.greedymct_pi(state, 0)
 

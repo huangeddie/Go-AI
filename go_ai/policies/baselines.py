@@ -11,12 +11,12 @@ from go_ai.policies.value import Value
 def greedy_val_func(states):
     if len(states) <= 0:
         return np.array([])
-    board_area = data.GoGame.get_action_size(states[0]) - 1
+    board_area = data.GoGame.action_size(states[0]) - 1
 
     vals = []
     for state in states:
-        black_area, white_area = data.GoGame.get_areas(state)
-        if data.GoGame.get_game_ended(state):
+        black_area, white_area = data.GoGame.areas(state)
+        if data.GoGame.game_ended(state):
             if black_area > white_area:
                 val = 100
             elif black_area < white_area:
@@ -33,13 +33,13 @@ def greedy_val_func(states):
 def smart_greedy_val_func(states):
     if len(states) <= 0:
         return np.array([])
-    board_area = data.GoGame.get_action_size(states[0]) - 1
+    board_area = data.GoGame.action_size(states[0]) - 1
 
     vals = []
     for state in states:
-        black_area, white_area = data.GoGame.get_areas(state)
+        black_area, white_area = data.GoGame.areas(state)
         blacklibs, whitelibs = data.GoGame.get_num_liberties(state)
-        if data.GoGame.get_game_ended(state):
+        if data.GoGame.game_ended(state):
             if black_area > white_area:
                 val = 1
             elif black_area < white_area:
@@ -67,7 +67,7 @@ class Human(Policy):
         :return: Action probabilities
         """
         state = go_env.get_state()
-        valid_moves = go_env.get_valid_moves()
+        valid_moves = go_env.valid_moves()
 
         # Human interface
         if self.render == 'human':
@@ -99,7 +99,7 @@ class Human(Policy):
                 except Exception:
                     pass
 
-        action_probs = np.zeros(data.GoGame.get_action_size(state))
+        action_probs = np.zeros(data.GoGame.action_size(state))
         action_probs[player_action] = 1
 
         return action_probs
@@ -116,7 +116,7 @@ class Random(Policy):
         :return: Action probabilities
         """
 
-        valid_moves = go_env.get_valid_moves()
+        valid_moves = go_env.valid_moves()
         return valid_moves / np.sum(valid_moves)
 
 
